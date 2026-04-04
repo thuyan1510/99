@@ -143,10 +143,10 @@ Workspace.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
 Lighting.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
 
 local function loadUtils(url, file)
-    local path = "Hasty-Utils/" .. file
+    local path = "Poodle-Utils/" .. file
     local ok, res = pcall(function() return game:HttpGet(url) end) 
     if ok and res then
-        if not isfolder("Hasty-Utils") then makefolder("Hasty-Utils") end
+        if not isfolder("Poodle-Utils") then makefolder("Poodle-Utils") end
         writefile(path, res)
         return loadstring(res)()
     end
