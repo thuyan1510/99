@@ -142,7 +142,6 @@ for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
 Workspace.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
 Lighting.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
 
-
 local function loadUtils(url, file)
     local path = "Hasty-Utils/" .. file
     local ok, res = pcall(function() return game:HttpGet(url) end) 
@@ -376,18 +375,6 @@ FPSLabel.TextSize = 16
 FPSLabel.TextXAlignment = Enum.TextXAlignment.Left
 FPSLabel.Parent = LeftColumn
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, 0, 0, 50)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Font = Enum.Font.GothamBold
-StatusLabel.Text = "Status: Initializing..."
-StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-StatusLabel.TextSize = 14
-StatusLabel.TextWrapped = true
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextYAlignment = Enum.TextYAlignment.Top
-StatusLabel.Parent = LeftColumn
-
 local Watermark1 = Instance.new("TextLabel")
 Watermark1.Size = UDim2.new(1, 0, 0, 25)
 Watermark1.BackgroundTransparency = 1
@@ -423,8 +410,9 @@ RightTitle.TextSize = 22
 RightTitle.TextXAlignment = Enum.TextXAlignment.Left
 RightTitle.Parent = RightColumn
 
+-- Giảm chiều cao QuestsFrame để nhường chỗ cho LogFrame
 local QuestsFrame = Instance.new("Frame")
-QuestsFrame.Size = UDim2.new(1, 0, 1, -50)
+QuestsFrame.Size = UDim2.new(1, 0, 0, 220) 
 QuestsFrame.Position = UDim2.new(0, 0, 0, 45)
 QuestsFrame.BackgroundTransparency = 1
 QuestsFrame.Parent = RightColumn
@@ -452,6 +440,62 @@ for i = 1, 6 do
     Padding.PaddingLeft = UDim.new(0, 12)
     Padding.Parent = QLabel
     QuestLabels[i] = QLabel
+end
+
+-- ================= KHUNG HIỂN THỊ STATUS MỚI =================
+local LogFrame = Instance.new("Frame")
+LogFrame.Size = UDim2.new(1, 0, 1, -280) -- Lấp đầy khoảng trống còn lại
+LogFrame.Position = UDim2.new(0, 0, 0, 275) -- Nằm bên dưới QuestsFrame
+LogFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35) -- Nền tối để làm nổi bật log
+LogFrame.BorderSizePixel = 0
+LogFrame.Parent = RightColumn
+
+local LogCorner = Instance.new("UICorner")
+LogCorner.CornerRadius = UDim.new(0, 8)
+LogCorner.Parent = LogFrame
+
+local LogPadding = Instance.new("UIPadding")
+LogPadding.PaddingLeft = UDim.new(0, 10)
+LogPadding.PaddingRight = UDim.new(0, 10)
+LogPadding.PaddingTop = UDim.new(0, 10)
+LogPadding.PaddingBottom = UDim.new(0, 10)
+LogPadding.Parent = LogFrame
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 1, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Font = Enum.Font.GothamMedium
+StatusLabel.Text = "Hệ thống đang khởi tạo..."
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize = 13
+StatusLabel.TextWrapped = true
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+StatusLabel.Parent = LogFrame
+
+-- ================= BỘ NÃO LƯU TRỮ LỊCH SỬ =================
+local MAX_LOG_LINES = 7
+local statusHistory = {}
+local lastUpdateId = nil
+
+local function UpdateStatus(msg, updateId)
+    -- Nếu có updateId và khớp với lần trước -> Ghi đè dòng cũ
+    if updateId and updateId == lastUpdateId and #statusHistory > 0 then
+        if statusHistory[#statusHistory] ~= msg then
+            statusHistory[#statusHistory] = msg
+        end
+    else
+        -- Ngăn chặn spam giống hệt dòng cuối
+        if #statusHistory > 0 and statusHistory[#statusHistory] == msg then return end
+        
+        table.insert(statusHistory, msg)
+        lastUpdateId = updateId
+    end
+    
+    if #statusHistory > MAX_LOG_LINES then 
+        table.remove(statusHistory, 1) 
+    end
+    StatusLabel.Text = table.concat(statusHistory, "\n")
 end
 
 local uiVisible = true
@@ -586,7 +630,7 @@ task.spawn(function()
         if nextRebirthData and maxZoneData.ZoneNumber >= nextRebirthData.ZoneNumberRequired then
             vm:Set("IsReadyToFarm", false) 
             vm:Set("OutZoneTime", 0)
-            StatusLabel.Text = "Status: Waiting for Rebirth..."
+            UpdateStatus("Chờ thực hiện Rebirth...", "REBIRTH")
             Network.Invoke("Rebirth_Request", tostring(nextRebirthData.RebirthNumber))
             task.wait(10)
             continue
@@ -594,7 +638,7 @@ task.spawn(function()
         if nextZoneData and nextZoneData.WorldNumber and nextZoneData.WorldNumber ~= currentWorldNum then
             vm:Set("IsReadyToFarm", false)
             vm:Set("OutZoneTime", 0)
-            StatusLabel.Text = "Status: Switching to World " .. nextZoneData.WorldNumber .. "..."
+            UpdateStatus("Đang chuyển sang World " .. nextZoneData.WorldNumber .. "...", "WORLD_SWITCH")
             pcall(function() Network.Invoke("World" .. nextZoneData.WorldNumber .. "Teleport") end)
             task.wait(8) 
             continue
@@ -797,6 +841,7 @@ task.spawn(function()
         end)
     end
 end)
+
 local config = getgenv().AutoRankConfig or {}
 local DefaultQuestPriority = {
 	ZONE_GATE = 0,
@@ -804,7 +849,6 @@ local DefaultQuestPriority = {
 	BEST_EGG = 1,
 	USE_POTION = 1,
 	USE_FLAG = 1,
-	USE_POTION = 1,
 	BEST_RAINBOW_PET = 2,
 	BEST_GOLD_PET = 2,
 	COLLECT_POTION = 2,
@@ -818,11 +862,11 @@ local DefaultQuestPriority = {
 	LUCKYBLOCK = 6,
 	BEST_LUCKYBLOCK = 6,
 	CURRENT_BREAKABLE = 7,
-        BEST_SUPERIOR_MINI_CHEST = 7,
-        DIAMOND_BREAKABLE = 7,
-        BEST_MINI_CHEST = 7,
-        HATCH_RARE_PET = 7,
-        CURRENCY = 7,	
+    BEST_SUPERIOR_MINI_CHEST = 7,
+    DIAMOND_BREAKABLE = 7,
+    BEST_MINI_CHEST = 7,
+    HATCH_RARE_PET = 7,
+    CURRENCY = 7,	
 }
 local QuestPriority = {}
 local UserPriority = config.QuestPriority or {}
@@ -933,7 +977,7 @@ task.spawn(function()
             end
         end
         vm:Set("IsPetQuestActive", isPetQuestActive)
-        vm:Set("IsPetQuestActive", isPetQuestActive)
+        
         table.sort(activeQuests, function(a, b) return a.priority < b.priority end)
         local actionTakenThisLoop = false 
         local currentActiveQuestName = nil 
@@ -962,21 +1006,20 @@ task.spawn(function()
                             local hasItem, uid = CheckItemExact(itemName)
                             if hasItem then
                                 if vm:Get("IsReadyToFarm") then
-                                    StatusLabel.Text = "Status: Activating " .. itemName .. "..."
+                                    UpdateStatus("Tiến hành thả " .. itemName .. " ra sân...", "SPAWN_" .. quest.name)
                                     vm:Set("ActionTime_" .. quest.goalId, os.clock())
                                     task.spawn(function() 
                                         pcall(function() Network.Invoke(remoteName, uid) end) 
                                     end)
                                 else
-                                    StatusLabel.Text = "Status: Waiting to enter area to use " .. itemName .. "..."
+                                    UpdateStatus("Đang chờ vào khu vực để thả " .. itemName .. "...", "WAIT_" .. quest.name)
                                 end
                                 actionTakenThisLoop = true
                                 currentActiveQuestName = quest.name
                             else
-                                
                                 _G.StuckCooldown[quest.name] = os.time()
                                 SendMaterialShortageWebhook(QuestNames[quest.name] or quest.name)
-                                StatusLabel.Text = "Status: Run out of " .. itemName .. "! Skip 5 minutes."
+                                UpdateStatus("Thiếu vật phẩm " .. itemName .. "! Bỏ qua 5 phút.", "COOLDOWN_" .. quest.name)
                             end
                         end
                     end
@@ -987,10 +1030,10 @@ task.spawn(function()
                         if not vm:Get("IsDrinking_" .. quest.goalId) then
                             local hasPot, uid, availableAmt = CheckPotion(quest.tier, needed)
                             if hasPot then
-                                StatusLabel.Text = "Status: Drinking Potion..."
+                                local drinkAmt = math.min(needed, availableAmt)
+                                UpdateStatus(string.format("Đang sử dụng %d bình Potion (Tier %d)...", drinkAmt, quest.tier), "DRINK_POTION")
                                 vm:Set("IsDrinking_" .. quest.goalId, true)
                                 task.spawn(function()
-                                    local drinkAmt = math.min(needed, availableAmt)
                                     pcall(function() Network.Fire("Potions: Consume", uid, drinkAmt) end)
                                     task.wait(1.5)
                                     vm:Set("IsDrinking_" .. quest.goalId, false)
@@ -998,10 +1041,9 @@ task.spawn(function()
                                 actionTakenThisLoop = true
                                 currentActiveQuestName = quest.name
                             else
-                                
                                 _G.StuckCooldown[quest.name] = os.time()
                                 SendMaterialShortageWebhook(QuestNames[quest.name] or quest.name)
-                                StatusLabel.Text = "Status: Out of Medicine (Tier " .. quest.tier .. ")! Skip 5 minutes."
+                                UpdateStatus(string.format("Hết Potion (Tier %d)! Bỏ qua 5 phút.", quest.tier), "COOLDOWN_POTION")
                             end
                         end
                     end
@@ -1038,7 +1080,7 @@ task.spawn(function()
                                     if zoneFolder then
                                         local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                                         if hrp then
-                                            StatusLabel.Text = "Status: Placing " .. craftAmt .. " " .. bestFlagId .. " (Zone " .. tostring(targetZoneNum) .. ")"
+                                            UpdateStatus(string.format("Đang cắm %d %s tại Zone %d...", craftAmt, bestFlagId, targetZoneNum), "PLACE_FLAG")
                                             if not zoneFolder:FindFirstChild("INTERACT") or (hrp.Position - zoneFolder.INTERACT.BREAKABLE_SPAWNS.Main.Position).Magnitude > 50 then
                                                 if zoneFolder:FindFirstChild("PERSISTENT") then
                                                     hrp.CFrame = zoneFolder.PERSISTENT.Teleport.CFrame
@@ -1060,23 +1102,22 @@ task.spawn(function()
                                                 local nextOffset = zoneOffset + 1
                                                 if nextOffset > 20 then nextOffset = 0 end
                                                 vm:Set("FlagZoneOffset", nextOffset)
-                                                StatusLabel.Text = "Status: Warning! Zone full or duplicate flag! Auto switching to Zone " .. tostring(targetZoneNum - 1)
+                                                UpdateStatus("Zone đầy cờ, tự động chuyển sang Zone " .. tostring(targetZoneNum - 1), "SWITCH_FLAG_ZONE")
                                                 task.wait(1)
                                             end
                                         end
                                     end
                                 end)
                             else
-                                
                                 _G.StuckCooldown[quest.name] = os.time()
                                 SendMaterialShortageWebhook(QuestNames[quest.name] or quest.name)
-                                StatusLabel.Text = "Status:Flag Over! Skip the flag planting task for 5 minutes."
+                                UpdateStatus("Hết cờ! Bỏ qua nhiệm vụ cắm cờ 5 phút.", "COOLDOWN_FLAG")
                             end
                         end
                     end
                 end
                 
-                   if quest.name == "COLLECT_POTION" or quest.name == "COLLECT_ENCHANT" then
+                if quest.name == "COLLECT_POTION" or quest.name == "COLLECT_ENCHANT" then
                     if not actionTakenThisLoop then
                         local lastTime = vm:Get("ActionTime_" .. quest.goalId) or 0
                         if os.clock() - lastTime > 4 then 
@@ -1122,7 +1163,7 @@ task.spawn(function()
                                 
                                 task.spawn(function()
                                     local craftAmt = math.min(bestCraftAmt, needed or 1)
-                                    StatusLabel.Text = "Status: Đang nâng " .. bestName .. " Tier " .. bestTier .. " → " .. (bestTier + 1) .. " (x" .. craftAmt .. ")"
+                                    UpdateStatus(string.format("Đang nâng cấp %d %s (Tier %d -> %d)...", craftAmt, bestName, bestTier, bestTier + 1), "UPGRADE_" .. invType)
 
                                     setthreadidentity(4)
                                     local success = pcall(function()
@@ -1132,25 +1173,26 @@ task.spawn(function()
                                     task.wait(3.5)  
 
                                     if success then
-                                        StatusLabel.Text = "✅ Upgraded " .. bestName .. " Tier " .. bestTier .. "success!"
+                                        UpdateStatus("Nâng cấp " .. bestName .. " thành công!", "UPGRADE_SUCCESS")
                                     else
-                                        StatusLabel.Text = "⚠️ Remote control error - try again later..."
+                                        UpdateStatus("Lỗi remote khi nâng cấp " .. bestName .. "...", "UPGRADE_FAIL")
                                     end
                                 end)
                             else
                                 _G.StuckCooldown[quest.name] = os.time()
                                 SendMaterialShortageWebhook(QuestNames[quest.name] or quest.name)
-                                StatusLabel.Text = "Status:No Enchants found that can be upgraded! Skip 5 minutes."
+                                UpdateStatus("Hết " .. (isPotion and "Thuốc" or "Sách") .. " bậc thấp! Bỏ qua 5 phút.", "COOLDOWN_UPGRADE")
                             end
                         end
                     end
                 end
+
                 if quest.name == "BEST_EGG" or quest.name == "HATCH_RARE_PET" or quest.name == "EGG" then
                     if not actionTakenThisLoop then
                         local lastTime = vm:Get("ActionTime_" .. quest.goalId) or 0
                         if os.clock() - lastTime > 2.5 then 
                             vm:Set("ActionTime_" .. quest.goalId, os.clock())
-                            StatusLabel.Text = "Status: Hatching eggs remotely..."
+                            UpdateStatus("Đang Auto-Hatch trứng...", "HATCH_EGG_" .. quest.goalId)
                             actionTakenThisLoop = true 
                             currentActiveQuestName = quest.name
                             task.spawn(function()
@@ -1183,6 +1225,19 @@ task.spawn(function()
                                 for uid, data in pairs(bestNormals) do
                                     if data.Amount > maxNormalAmt then maxNormalUid = uid; maxNormalAmt = data.Amount end
                                 end
+                                
+                                -- TÍNH TOÁN
+                                local reqEquiv = isRainbow and (needed * 100) or (needed * 10)
+                                local logKey = "LogCalc_" .. quest.goalId
+                                if not vm:Get(logKey) then
+                                    if isRainbow then
+                                        UpdateStatus(string.format("Tính toán: Cần %d Rainbow = %d Gold = %d Normal", needed, needed * 10, reqEquiv), "CALC_" .. quest.goalId)
+                                    else
+                                        UpdateStatus(string.format("Tính toán: Cần %d Gold = %d Normal", needed, reqEquiv), "CALC_" .. quest.goalId)
+                                    end
+                                    vm:Set(logKey, true)
+                                end
+                                
                                 local deficitNormals = 0
                                 local requiredEquivNormals = 0
                                 if isRainbow then
@@ -1190,20 +1245,20 @@ task.spawn(function()
                                     requiredEquivNormals = needed * 100
                                     deficitNormals = requiredEquivNormals - totalEquivNormals
                                     if maxNormalAmt >= 2000 and totalEquivNormals < requiredEquivNormals then
-                                        StatusLabel.Text = "Status: Inventory full, crafting Gold to clear storage..."
+                                        UpdateStatus("Túi đồ đầy, đang ép Gold dọn dẹp...", "CRAFTING_CLEANUP")
                                         local craftAmt = math.floor(maxNormalAmt / 10)
                                         Network.Invoke('GoldMachine_Activate', maxNormalUid, craftAmt)
                                         return
                                     end
                                     if totalEquivNormals >= requiredEquivNormals then
                                         if maxNormalAmt >= 10 then
-                                            StatusLabel.Text = "Status: Crafting Gold to create Rainbow..."
+                                            UpdateStatus(string.format("Đã đủ phôi (%d/%d). Đang dồn Normal thành Gold...", totalEquivNormals, requiredEquivNormals), "CRAFTING_GOLD_FOR_RB")
                                             local craftAmt = math.floor(maxNormalAmt / 10)
                                             Network.Invoke('GoldMachine_Activate', maxNormalUid, craftAmt)
                                             return
                                         elseif maxGoldAmt >= 10 then
-                                            StatusLabel.Text = "Status: Crafting " .. math.min(math.floor(maxGoldAmt / 10), needed) .. " Rainbow Pets!"
                                             local craftAmt = math.min(math.floor(maxGoldAmt / 10), needed)
+                                            UpdateStatus(string.format("Đã đủ Gold! Bắt đầu ghép %d Rainbow...", craftAmt), "CRAFTING_RB")
                                             Network.Invoke('RainbowMachine_Activate', maxGoldUid, craftAmt)
                                             return
                                         end
@@ -1212,17 +1267,18 @@ task.spawn(function()
                                     requiredEquivNormals = needed * 10
                                     deficitNormals = requiredEquivNormals - maxNormalAmt
                                     if maxNormalAmt >= 2000 and maxNormalAmt < requiredEquivNormals then
-                                        StatusLabel.Text = "Status: Inventory full, crafting Gold to clear storage..."
+                                        UpdateStatus("Túi đồ đầy, đang ép Gold dọn dẹp...", "CRAFTING_CLEANUP")
                                         local craftAmt = math.floor(maxNormalAmt / 10)
                                         Network.Invoke('GoldMachine_Activate', maxNormalUid, craftAmt)
                                         return
                                     end
                                     if maxNormalAmt >= requiredEquivNormals then
-                                        StatusLabel.Text = "Status: Proceeding to craft " .. needed .. " Gold Pets!"
+                                        UpdateStatus(string.format("Bắt đầu ép %d Gold hoàn thành nhiệm vụ!", needed), "CRAFTING_GOLD")
                                         Network.Invoke('GoldMachine_Activate', maxNormalUid, needed)
                                         return
                                     end
                                 end
+                                
                                 if deficitNormals > 0 then
                                     local maxHatch = EggCmds.GetMaxHatch()
                                     local bestEggModule = GetBestEggModule()
@@ -1243,10 +1299,11 @@ task.spawn(function()
                                         end
                                     end
                                     if currentMoney >= singleHatchCost then
-                                        StatusLabel.Text = "Status: Hatching eggs remotely for pet materials..."
+                                        local currentEquiv = isRainbow and (maxNormalAmt + (maxGoldAmt * 10)) or maxNormalAmt
+                                        UpdateStatus(string.format("Thiếu phôi (Mới có %d/%d). Đang Auto-Hatch thêm trứng...", currentEquiv, requiredEquivNormals), "HATCH_PROGRESS_" .. quest.goalId)
                                         HatchBestEgg()
                                     else
-                                        StatusLabel.Text = "Status: Farming coins for Pet hatching (" .. FormatValue(currentMoney) .. "/" .. FormatValue(singleHatchCost) .. ")"
+                                        UpdateStatus(string.format("Hết xu ấp trứng! Đang cố farm thêm... (%s/%s)", FormatValue(currentMoney), FormatValue(singleHatchCost)), "FARMING_COINS_" .. quest.goalId)
                                     end
                                 end
                             end)
@@ -1255,13 +1312,11 @@ task.spawn(function()
                 end
             end
             
-            
             if index <= 6 then
                 local percent = math.floor((quest.progress / quest.target) * 100)
                 if percent > 100 then percent = 100 end
                 
                 local prefix = (quest.goalId == "ZoneGate") and "[🔥 GATE]" or string.format("[P%d]", quest.priority)
-                
                 
                 if currentActiveQuestName == quest.name then
                     prefix = "➔ " .. prefix
@@ -1295,7 +1350,7 @@ task.spawn(function()
         
         if not actionTakenThisLoop and vm:Get("IsReadyToFarm") then
             local maxZoneId, maxZoneData = ZoneCmds.GetMaxOwnedZone()
-            StatusLabel.Text = "Status: Farming breakables at " .. (maxZoneData.Name or maxZoneId)
+            UpdateStatus("Đang farm tại " .. (maxZoneData.Name or maxZoneId), "FARMING_ZONE")
         end
     end
 end)
