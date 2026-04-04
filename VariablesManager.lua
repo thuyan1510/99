@@ -15,21 +15,21 @@ function VariablesManager.new()
     }, VariablesManager)
 end
 
-function VariablesManagerAdd(name, value, expectedType, isReadOnly)
-    if self._v[name] ~= nil then return false, Variable already exists end
+function VariablesManager:Add(name, value, expectedType, isReadOnly)
+    if self._v[name] ~= nil then return false, "Variable already exists" end
     self._v[name] = value
     self._t[name] = expectedType or getType(value)
     if isReadOnly then self._ro[name] = true end
     return true
 end
 
-function VariablesManagerSet(name, value)
+function VariablesManager:Set(name, value)
     local varType = self._t[name]
-    if not varType then return false, Variable not found end
-    if self._ro[name] then return false, Variable is read-only end
+    if not varType then return false, "Variable not found" end
+    if self._ro[name] then return false, "Variable is read-only" end
 
     if getType(value) ~= varType then
-        return false, Type mismatch Expected  .. varType .. , got  .. getType(value)
+        return false, "Type mismatch: Expected " .. varType .. ", got " .. getType(value)
     end
 
     local oldVal = self._v[name]
@@ -41,11 +41,11 @@ function VariablesManagerSet(name, value)
     return true
 end
 
-function VariablesManagerGet(name)
+function VariablesManager:Get(name)
     return self._v[name]
 end
 
-function VariablesManagerOnChange(name, callback)
+function VariablesManager:OnChange(name, callback)
     if self._v[name] ~= nil then
         self._c[name] = callback
         return true
@@ -53,27 +53,27 @@ function VariablesManagerOnChange(name, callback)
     return false
 end
 
-function VariablesManagerIncrement(name, amount)
-    if self._t[name] == number and not self._ro[name] then
+function VariablesManager:Increment(name, amount)
+    if self._t[name] == "number" and not self._ro[name] then
         local current = self._v[name] or 0
-        return selfSet(name, current + (amount or 1))
+        return self:Set(name, current + (amount or 1))
     end
-    return false, Variable is not a number or is read-only
+    return false, "Variable is not a number or is read-only"
 end
 
-function VariablesManagerTableInsert(name, value)
+function VariablesManager:TableInsert(name, value)
     local tbl = self._v[name]
-    if self._t[name] ~= table or self._ro[name] then return false end
+    if self._t[name] ~= "table" or self._ro[name] then return false end
     t_insert(tbl, value)
     local cb = self._c[name]
     if cb then cb(tbl, tbl) end
     return true
 end
 
-function VariablesManagerTableRemove(name, indexOrValue)
+function VariablesManager:TableRemove(name, indexOrValue)
     local tbl = self._v[name]
-    if self._t[name] ~= table or self._ro[name] then return false end
-    if type(indexOrValue) == number then
+    if self._t[name] ~= "table" or self._ro[name] then return false end
+    if type(indexOrValue) == "number" then
         t_remove(tbl, indexOrValue)
     else
         for i, v in ipairs(tbl) do
@@ -88,38 +88,38 @@ function VariablesManagerTableRemove(name, indexOrValue)
     return true
 end
 
-function VariablesManagerTableSet(name, key, value)
+function VariablesManager:TableSet(name, key, value)
     local tbl = self._v[name]
-    if self._t[name] ~= table or self._ro[name] then return false end
+    if self._t[name] ~= "table" or self._ro[name] then return false end
     tbl[key] = value
     local cb = self._c[name]
     if cb then cb(tbl, tbl) end
     return true
 end
 
-function VariablesManagerTableClear(name)
+function VariablesManager:TableClear(name)
     local tbl = self._v[name]
-    if self._t[name] ~= table or self._ro[name] then return false end
+    if self._t[name] ~= "table" or self._ro[name] then return false end
     for k in next, tbl do tbl[k] = nil end
     local cb = self._c[name]
     if cb then cb(tbl, tbl) end
     return true
 end
 
-function VariablesManagerBatchSet(data)
+function VariablesManager:BatchSet(data)
     for name, value in next, data do
-        selfSet(name, value)
+        self:Set(name, value)
     end
 end
 
-function VariablesManagerRemove(name)
+function VariablesManager:Remove(name)
     self._v[name] = nil
     self._t[name] = nil
     self._c[name] = nil
     self._ro[name] = nil
 end
 
-function VariablesManagerExport()
+function VariablesManager:Export()
     local dump = {}
     for k, v in next, self._v do dump[k] = v end
     return dump
