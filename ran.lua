@@ -154,7 +154,7 @@ local function loadUtils(url, file)
     return loadstring(readfile(path))()
 end
 
-local vm = loadUtils("https://raw.githubusercontent.com/Kingltnnn/petsim99/refs/heads/main/VariablesManager.lua", "VariablesManager.lua")
+local vm = loadUtils("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/VariablesManager.lua", "VariablesManager.lua")
 vm = vm:new()
 vm:Add("AllBreakables", {}, "table")
 vm:Add("Euids", {}, "table")
