@@ -1143,7 +1143,7 @@ task.spawn(function()
                             local inv = Save.Get().Inventory[invType] or {}
                             
                             local bestUid, bestCraftAmt, bestTier, bestName = nil, 0, 999, ""
-                            local IgnoreEnchants = { "Magnet 3" }   
+                            local IgnoreEnchants = { "Magnet 3","Happy Pets" }   
 
                             for uid, dat in pairs(inv) do
                                 local tier = dat.tn or 1
