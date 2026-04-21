@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V45 (BUG FIXES & STABILITY) 🌸
--- (Sửa lỗi thiếu module InstancingCmds gây lỗi Console)
+-- 🌸 EASTER EVENT - V46 (ULTIMATE FEATURES & FIX %) 🌸
+-- (Sửa lỗi tính %, thêm Ultimate, Free Gifts, Claim Mail)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -39,7 +39,11 @@ local PlayerPet = require(Library.Client.PlayerPet)
 local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
 local EventUpgradesDir = require(Library.Directory.EventUpgrades)
 local Items = require(Library.Items)
-local InstancingCmds = require(Library.Client.InstancingCmds) -- ĐÃ THÊM LẠI MODULE NÀY!
+local InstancingCmds = require(Library.Client.InstancingCmds)
+
+-- MODULES ĐƯỢC BÊ TỪ AUTO RANK SANG
+local UltimateCmds = require(Library.Client.UltimateCmds)
+local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
 -- 🚀 1. EXTREME OPTIMIZE (GIẢM LAG)
@@ -75,17 +79,24 @@ pcall(function() StartEggs = Save.Get().EggsHatched or 0 end)
 local SessionHuges = 0
 local SessionTitanics = 0
 
+-- HÀM LỌC DỮ LIỆU ĐÃ ĐƯỢC LÀM LẠI CỰC MẠNH ĐỂ TÍNH % CHUẨN XÁC
 local function ParseValue(str)
     if not str then return 0 end
-    str = str:lower():gsub(",", "")
-    local suffix = str:sub(-1)
-    local num = tonumber(str:sub(1, -2)) or tonumber(str) or 0
+    str = tostring(str):lower()
+    str = str:gsub("<[^>]+>", "") -- Xóa mã màu HTML nếu có
+    str = str:gsub(",", "")       -- Xóa dấu phẩy
+    str = str:gsub("%s+", "")     -- Xóa khoảng trắng
+    
+    local numStr = str:match("[%d%.]+")
+    local suffix = str:match("[%a]+")
+    local num = tonumber(numStr) or 0
+    
     if suffix == "k" then return num * 1000
     elseif suffix == "m" then return num * 1000000
     elseif suffix == "b" then return num * 1000000000
     elseif suffix == "t" then return num * 1000000000000
     end
-    return tonumber(str) or 0
+    return num
 end
 
 local function FormatValue(Value)
@@ -99,13 +110,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 2. CUSTOM UI GỐC
+-- 🎨 2. CUSTOM UI
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV45"
+	Self.GuiName = "EasterEventGuiV46"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -166,7 +177,7 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V45", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V46", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. Mode},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -256,13 +267,18 @@ task.spawn(function()
             
             local currentEggs = save.EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
-            local chance = (realClientTickets / math.max(1, realTotalTickets)) * 100
+            
+            -- Tính toán Chance %
+            local chance = 0
+            if realTotalTickets > 0 then
+                chance = (realClientTickets / realTotalTickets) * 100
+            end
             
             UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
             UI:SetText("Rares", string.format("Huge: %d | Titanic: %d", SessionHuges, SessionTitanics))
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
-            UI:SetText("Tickets", string.format("Ticket: %s / %s (Chance: %.4f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
+            UI:SetText("Tickets", string.format("Ticket: %s / %s (Chance: %.6f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
             UI:SetText("FPS", "FPS: " .. math.floor(Workspace:GetRealPhysicsFPS()))
         end)
     end
@@ -399,8 +415,47 @@ end
 RunService.Heartbeat:Connect(ClickAura)
 
 -- ==========================================
--- 🚀 5. AUTO UPGRADE & AUTO HATCH
+-- 🚀 5. TÍNH NĂNG NHẬP TỪ AUTO RANK (Mail, Gift, Ult, Upgrade)
 -- ==========================================
+
+-- Claim Mailbox
+task.spawn(function()
+    while task.wait(15) do 
+        pcall(function() Network.Invoke('Mailbox: Claim All') end) 
+    end
+end)
+
+-- Claim Free Gifts
+task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            local save = Save.Get()
+            if not save then return end
+            local redeemed = save.FreeGiftsRedeemed or {}
+            local currentTime = save.FreeGiftsTime or 0
+            for _, gift in pairs(FreeGiftsDirectory) do
+                if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then
+                    Network.Invoke('Redeem Free Gift', gift._id)
+                    break 
+                end
+            end
+        end)
+    end
+end)
+
+-- Sử dụng Ultimate
+task.spawn(function()
+    while task.wait(1.5) do
+        pcall(function()
+            local equipped = UltimateCmds.GetEquippedItem()
+            if equipped and equipped._data and equipped._data.id then
+                UltimateCmds.Activate(equipped._data.id)
+            end
+        end)
+    end
+end)
+
+-- Nâng Cấp Sự Kiện
 task.spawn(function()
     while task.wait(5) do
         if not AutoUpgrade then continue end
@@ -458,6 +513,47 @@ local function TeleportPlayer(cf)
     HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
+local function EnterZonePhysically(portalIndex)
+    _G.FarmReady = false; _G.CurrentFarmCF = nil
+    TeleportPlayer(_G.DynamicPortals[portalIndex]); task.wait(0.5) 
+    
+    pcall(function()
+        for _, prompt in pairs(Workspace:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then
+                if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 50 then fireproximityprompt(prompt) end
+            end
+        end
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end)
+    
+    task.spawn(function()
+        for i = 1, 30 do 
+            pcall(function()
+                for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
+                    if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible and obj.Text:match("Yes!") then
+                        local btn = obj:IsA("TextButton") and obj or obj.Parent
+                        if btn:IsA("GuiButton") then
+                            if getconnections then for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end
+                            local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
+                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
+                            task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1); return 
+                        end
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+
+    local waitTime = 0
+    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
+    if waitTime >= 10 then return end
+    task.wait(1.5) 
+
+    _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
+    TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true
+end
+
 task.spawn(function()
     HumanoidRootPart.Anchored = true
     local retries = 0
@@ -485,50 +581,8 @@ task.spawn(function()
         end
 
         if not State.IsReady then
-            if State.Phase == "FARMING" then
-                _G.FarmReady = false; _G.CurrentFarmCF = nil
-                TeleportPlayer(_G.DynamicPortals[State.CurrentPortal]); task.wait(0.5) 
-                
-                pcall(function()
-                    for _, prompt in pairs(Workspace:GetDescendants()) do
-                        if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then
-                            if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 50 then fireproximityprompt(prompt) end
-                        end
-                    end
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                end)
-                
-                task.spawn(function()
-                    for i = 1, 30 do 
-                        pcall(function()
-                            for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
-                                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible and obj.Text:match("Yes!") then
-                                    local btn = obj:IsA("TextButton") and obj or obj.Parent
-                                    if btn:IsA("GuiButton") then
-                                        if getconnections then for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end
-                                        local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
-                                        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
-                                        task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1); return 
-                                    end
-                                end
-                            end
-                        end)
-                        task.wait(0.1)
-                    end
-                end)
-
-                local waitTime = 0
-                while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
-                if waitTime < 10 then
-                    task.wait(1.5)
-                    _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
-                    TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true
-                end
-                State.IsReady = true
-            else 
-                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
-                TeleportPlayer(targetCF); State.IsReady = true; _G.FarmReady = false 
-            end
+            if State.Phase == "FARMING" then EnterZonePhysically(State.CurrentPortal); State.IsReady = true
+            else local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset); TeleportPlayer(targetCF); State.IsReady = true; _G.FarmReady = false end
         end
 
         if State.IsReady then
