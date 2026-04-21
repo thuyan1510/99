@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER AUTO - V37 (ABSOLUTE HATCH VECTOR & TICKET UI) 🌸
--- (Dịch chuyển bằng tọa độ tuyệt đối + UI cập nhật Tickets)
+-- 🌸 EASTER AUTO - V38 (GROUND HATCH & RAFFLE TICKET TRACKER) 🌸
+-- (Sửa độ cao Hatch bằng mặt đất + Đọc Ticket trực tiếp từ Bảng)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -144,7 +144,6 @@ _G.DynamicHubCF = nil
 _G.DynamicPortals = {}
 local ZoneNames = { "Dewdrop Falls", "Tulip Hollow", "Blossom Vale", "Sunstone Heights" }
 
--- Vector tính từ Bệ rơi Hub (Zero Point)
 local PortalOffsets = {
     [1] = Vector3.new(187.92, 12.48, -73.25), 
     [2] = Vector3.new(200.18, 10.73, -24.80), 
@@ -152,11 +151,9 @@ local PortalOffsets = {
     [4] = Vector3.new(170.03, 12.48, 86.75)   
 }
 
--- Vector tính từ Cửa Cổng đến Giữa Bãi Farm (Tính toán của bạn)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
 
--- Vector tính từ Bệ rơi Hub (Zero Point) đến Khu Ấp Trứng (Tính toán của bạn)
--- Dựa trên: (-18519.03) - (-18581.56) = 62.53 | (-29122.76) - (-29110.16) = -12.60
+-- Vector Ấp trứng của bạn (ĐÃ XÓA CHIỀU CAO Y DƯ THỪA, GIỮ NGUYÊN MẶT ĐẤT)
 local HatchOffset = Vector3.new(62.53, 0, -12.60)
 
 local function FormatValue(Value)
@@ -181,8 +178,8 @@ SafePart.CFrame = HumanoidRootPart.CFrame - Vector3.new(0, 3, 0)
 local function TeleportPlayer(cf)
     if not cf then return end
     HumanoidRootPart.Anchored = false
-    HumanoidRootPart.CFrame = cf + Vector3.new(0, 3, 0)
-    SafePart.CFrame = cf - Vector3.new(0, 1, 0)
+    HumanoidRootPart.CFrame = cf + Vector3.new(0, 1.5, 0) -- Giữ chiều cao gốc của gót chân
+    SafePart.CFrame = cf - Vector3.new(0, 1.5, 0)
     HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
@@ -251,7 +248,7 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER HATCH V37", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER HATCH V38", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. Mode .. " | Hatch: " .. (AutoHatch and "ON" or "OFF")},
         ["Status"]          = {3, "Status: Starting..."},
         ["Phase"]           = {4, "Phase: Initializing"},
@@ -260,7 +257,7 @@ local UI = FarmUI.new({
         ["BreakablesLeft"]  = {7, "Breakables in range: 0"},
         ["Tokens"]          = {8, "Token B/R/S/T: 0/0/0/0"},
         ["EggTokens"]       = {9, "Spring Egg Token: 0"},
-        ["Tickets"]         = {10, "Tickets: 0"}, -- Hiển thị Tickets mới thêm vào
+        ["Tickets"]         = {10, "Tickets: 0"},
         ["FPS"]             = {11, "FPS: 60"}
     }
 })
@@ -269,26 +266,18 @@ task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
             local save = Save.Get()
-            local b, r, s, t, eggToken, tickets = 0, 0, 0, 0, 0, 0
+            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
+            local ticketsStr = "0"
             
-            if save and save.Inventory then
-                if save.Inventory.Misc then
-                    for _, item in pairs(save.Inventory.Misc) do
-                        local id = item.id or ""
-                        if id:find("Bluebell Token") then b = b + (item._am or 1)
-                        elseif id:find("Rose Token") then r = r + (item._am or 1)
-                        elseif id:find("Sunflower Token") then s = s + (item._am or 1)
-                        elseif id:find("Tulip Token") then t = t + (item._am or 1)
-                        elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1)
-                        elseif id:lower():find("ticket") then tickets = tickets + (item._am or 1) end
-                    end
-                end
-                
-                -- Tìm Tickets trong khu vực Currency (nếu có)
-                if save.Inventory.Currency then
-                    for _, item in pairs(save.Inventory.Currency) do
-                        local id = item.id or ""
-                        if id:lower():find("ticket") then tickets = tickets + (item._am or 1) end
+            -- Lấy Tokens từ túi đồ
+            if save and save.Inventory and save.Inventory.Misc then
+                for _, item in pairs(save.Inventory.Misc) do
+                    local id = item.id or ""
+                    if id:find("Bluebell Token") then b = b + (item._am or 1)
+                    elseif id:find("Rose Token") then r = r + (item._am or 1)
+                    elseif id:find("Sunflower Token") then s = s + (item._am or 1)
+                    elseif id:find("Tulip Token") then t = t + (item._am or 1)
+                    elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1)
                     end
                 end
             end
@@ -300,9 +289,25 @@ task.spawn(function()
                 end)
             end
             
+            -- ĐỌC RAFFLE TICKETS TỪ BẢNG (UI SCRAPER)
+            pcall(function()
+                local activeInstance = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER") and Workspace.__THINGS.__INSTANCE_CONTAINER:FindFirstChild("Active")
+                if activeInstance then
+                    for _, v in pairs(activeInstance:GetDescendants()) do
+                        if v:IsA("TextLabel") and v.Text:find("Your Tickets:") then
+                            local val = v.Text:match("Your Tickets:%s*(.+)")
+                            if val then
+                                ticketsStr = val:match("^%s*(.-)%s*$") -- Lấy đúng con số và xóa khoảng trắng thừa
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+            
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
-            UI:SetText("Tickets", "🎟️ Tickets: " .. FormatValue(tickets))
+            UI:SetText("Tickets", "🎟️ Tickets: " .. ticketsStr)
             UI:SetText("FPS", "FPS: " .. math.floor(Workspace:GetRealPhysicsFPS()))
         end)
     end
@@ -580,8 +585,8 @@ task.spawn(function()
                 EnterZonePhysically(State.CurrentPortal)
                 State.IsReady = true
             else
-                -- SỬ DỤNG TỌA ĐỘ VECTOR TUYỆT ĐỐI TÍNH TỪ HUB ĐỂ ĐẾN BÃI ẤP TRỨNG
-                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset) + Vector3.new(0, 3, 0)
+                -- CHUYỂN TỚI KHU ẤP TRỨNG THEO VECTOR, BỎ CỘNG THÊM Y (GIỮ NGUYÊN CHIỀU CAO HUB)
+                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
                 TeleportPlayer(targetCF)
                 
                 State.IsReady = true
@@ -596,8 +601,8 @@ task.spawn(function()
                     TeleportPlayer(currentTarget)
                 end
             elseif State.Phase == "HATCHING" then
-                -- KIỂM TRA VỊ TRÍ HATCH
-                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset) + Vector3.new(0, 3, 0)
+                -- KIỂM TRA ĐỀ PHÒNG BỊ VĂNG KHỎI KHU TRỨNG
+                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
                 if (HumanoidRootPart.Position - targetCF.Position).Magnitude > 30 then
                     TeleportPlayer(targetCF)
                 end
