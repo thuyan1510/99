@@ -1,5 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V40 (THE ULTIMATE VERSION) 🌸
+-- 🌸 EASTER EVENT - V41 (SMART UPGRADE FIX) 🌸
+-- (Sửa lỗi Auto Upgrade lấy cảm hứng từ LuckyRaid)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -26,10 +27,14 @@ local Save = require(Library.Client.Save)
 local CurrencyCmds = require(Library.Client.CurrencyCmds)
 local PlayerPet = require(Library.Client.PlayerPet)
 
+-- MODULE MỚI CHO TÍNH NĂNG NÂNG CẤP (TỪ LUCKY RAID)
+local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
+local EventUpgradesDir = require(Library.Directory.EventUpgrades)
+local Items = require(Library.Items)
+
 -- ==========================================
 -- 📊 TRACKER & MATH UTILS
 -- ==========================================
-local Stats = { Eggs = 0, Huges = 0, Titanics = 0 }
 local function ParseValue(str)
     if not str then return 0 end
     str = str:lower():gsub(",", "")
@@ -69,7 +74,7 @@ FarmUI.__index = FarmUI
 function FarmUI.new()
     local Self = setmetatable({}, FarmUI)
     local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
-    ScreenGui.Name = "EasterV40"
+    ScreenGui.Name = "EasterV41"
     
     local Main = Instance.new("Frame", ScreenGui)
     Main.Size = UDim2.new(0, 320, 0, 420); Main.Position = UDim2.new(0.5, -160, 0.5, -210)
@@ -85,7 +90,7 @@ function FarmUI.new()
         Self[name] = l
     end
     
-    AddLabel("Title", "🐰 EASTER EVENT V40", Color3.fromRGB(0, 255, 150))
+    AddLabel("Title", "🐰 EASTER EVENT V41", Color3.fromRGB(0, 255, 150))
     AddLabel("Mode", "Mode: " .. Mode)
     AddLabel("Time", "Time | Time Left: 00:00 | 00:00")
     AddLabel("TotalEggs", "Total Eggs Hatched: 0", Color3.fromRGB(255, 200, 50))
@@ -100,26 +105,27 @@ end
 local UI = FarmUI.new()
 
 -- ==========================================
--- 🛠️ 3. CORE LOGIC (FAST FARM & TICKET SCRAPER)
+-- 🛠️ 3. CORE LOGIC (TICKETS & TOKENS SCRAPER)
 -- ==========================================
 task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
             local save = Save.Get()
             local b, r, s, t, st = 0, 0, 0, 0, 0
-            for _, item in pairs(save.Inventory.Misc) do
-                local id = item.id or ""
-                if id:find("Bluebell") then b = b + (item._am or 1)
-                elseif id:find("Rose") then r = r + (item._am or 1)
-                elseif id:find("Sunflower") then s = s + (item._am or 1)
-                elseif id:find("Tulip") then t = t + (item._am or 1)
-                elseif id:find("Spring Egg Token") then st = st + (item._am or 1)
+            if save and save.Inventory and save.Inventory.Misc then
+                for _, item in pairs(save.Inventory.Misc) do
+                    local id = item.id or ""
+                    if id:find("Bluebell") then b = b + (item._am or 1)
+                    elseif id:find("Rose") then r = r + (item._am or 1)
+                    elseif id:find("Sunflower") then s = s + (item._am or 1)
+                    elseif id:find("Tulip") then t = t + (item._am or 1)
+                    elseif id:find("Spring Egg Token") then st = st + (item._am or 1)
+                    end
                 end
             end
             UI.TokenBRST.Text = string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t))
             UI.SpringToken.Text = "Spring Egg Token: " .. FormatValue(st)
             
-            -- TICKET & CHANCE CALCULATION [cite: 21, 39]
             local yourTickets, totalTickets = 0, 1
             local active = Workspace.__THINGS.__INSTANCE_CONTAINER.Active:FindFirstChild("EasterHatchEvent", true)
             if active then
@@ -138,7 +144,62 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ⚔️ VRT FAST FARM ENGINE (1:1 SPEED)
+-- 🚀 4. AUTO UPGRADE THÔNG MINH (THEO LOGIC LUCKY RAID)
+-- ==========================================
+task.spawn(function()
+    while task.wait(5) do
+        if not AutoUpgrade then continue end
+        
+        pcall(function()
+            local bestUpgrade = nil
+            local bestCost = math.huge
+            
+            -- Lặp qua tất cả danh sách nâng cấp
+            for upgradeId, upgradeData in pairs(EventUpgradesDir) do
+                -- Lọc ra các Nâng cấp của sự kiện Easter/Spring
+                if upgradeId:find("Easter") or upgradeId:find("Spring") then
+                    
+                    -- Dùng lệnh GetTier chuẩn của game
+                    local currentTier = EventUpgradeCmds.GetTier(upgradeId)
+                    local nextTier = currentTier + 1
+                    local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[nextTier]
+                    
+                    if nextTierCost and nextTierCost._data then
+                        local currencyId = nextTierCost._data.id
+                        local costAmount = nextTierCost._data._am or 1
+                        
+                        -- Lấy số lượng tiền hiện tại (Token)
+                        local currentAmount = 0
+                        pcall(function()
+                            if Items.Misc(currencyId) then
+                                currentAmount = Items.Misc(currencyId):CountExact()
+                            else
+                                currentAmount = CurrencyCmds.Get(currencyId) or 0
+                            end
+                        end)
+                        
+                        -- Nếu đủ tiền, lưu lại Nâng cấp rẻ nhất
+                        if currentAmount >= costAmount then
+                            if costAmount < bestCost then
+                                bestCost = costAmount
+                                bestUpgrade = upgradeId
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Gọi lệnh Mua (Purchase) chuẩn của game
+            if bestUpgrade then
+                EventUpgradeCmds.Purchase(bestUpgrade)
+                print("✅ Đã tự động nâng cấp: " .. bestUpgrade)
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- ⚔️ 5. VRT FAST FARM ENGINE (1:1 SPEED)
 -- ==========================================
 local u55 = {}
 task.spawn(function()
@@ -147,11 +208,15 @@ task.spawn(function()
         table.clear(u55)
         local pos = HumanoidRootPart.Position
         local breakables = {}
-        for _, v in pairs(Workspace.__THINGS.Breakables:GetChildren()) do
-            if v:IsA("Model") and (v.WorldPivot.Position - pos).Magnitude < 100 then table.insert(breakables, v.Name) end
-        end
+        pcall(function()
+            for _, v in pairs(Workspace.__THINGS.Breakables:GetChildren()) do
+                if v:IsA("Model") and (v.WorldPivot.Position - pos).Magnitude < 100 then table.insert(breakables, v.Name) end
+            end
+        end)
         local pets = {}
-        for _, p in pairs(PlayerPet.GetAll()) do if p.owner == Player then table.insert(pets, p) end end
+        pcall(function()
+            for _, p in pairs(PlayerPet.GetAll()) do if p.owner == Player then table.insert(pets, p) end end
+        end)
         
         if #breakables > 0 and #pets > 0 then
             local v90, v91, v95 = math.floor(#pets / #breakables), #pets % #breakables, 1
@@ -165,7 +230,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 VÒNG LẶP DI CHUYỂN & CHẾ ĐỘ (Ground Level Fix) 
+-- 🚀 VÒNG LẶP DI CHUYỂN & CHẾ ĐỘ
 -- ==========================================
 local StartTime = os.time()
 local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = FarmTimeMinutes * 60, CurrentPortal = 1, IsReady = false }
@@ -174,12 +239,13 @@ _G.FarmReady = false
 
 local PortalOffsets = { Vector3.new(187.92, 12.48, -73.25), Vector3.new(200.18, 10.73, -24.80), Vector3.new(198.20, 12.98, 44.73), Vector3.new(170.03, 12.48, 86.75) }
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
-local HatchOffset = Vector3.new(62.53, 0, -12.60) -- Không cộng thêm Y 
+local HatchOffset = Vector3.new(62.53, 0, -12.60) 
 
 task.spawn(function()
     while task.wait(1) do
         local elapsed = os.time() - StartTime
-        UI.Time.Text = string.format("Time: %02d:%02d:%02d | Left: %02d:%02d", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, math.floor(State.TimeLeft/60), State.TimeLeft%60)
+        local timeString = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(State.TimeLeft/60), State.TimeLeft%60)
+        UI.Time.Text = string.format("Time: %02d:%02d:%02d | Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeString)
         UI.FPS.Text = "FPS: " .. math.floor(Workspace:GetRealPhysicsFPS())
         
         State.TimeLeft = State.TimeLeft - 1
