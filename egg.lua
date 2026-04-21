@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER AUTO - V36 (IDLE HATCH OPTIMIZED) 🌸
--- (Cơ chế đứng chờ tự nở - Không gửi lệnh rác)
+-- 🌸 EASTER AUTO - V37 (ABSOLUTE HATCH VECTOR & TICKET UI) 🌸
+-- (Dịch chuyển bằng tọa độ tuyệt đối + UI cập nhật Tickets)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -138,18 +138,26 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- HỆ THỐNG BIẾN QUẢN LÝ & TỌA ĐỘ CỔNG
+-- HỆ THỐNG BIẾN QUẢN LÝ & TỌA ĐỘ VECTOR CHUẨN XÁC
 -- ==========================================
 _G.DynamicHubCF = nil
 _G.DynamicPortals = {}
 local ZoneNames = { "Dewdrop Falls", "Tulip Hollow", "Blossom Vale", "Sunstone Heights" }
+
+-- Vector tính từ Bệ rơi Hub (Zero Point)
 local PortalOffsets = {
     [1] = Vector3.new(187.92, 12.48, -73.25), 
     [2] = Vector3.new(200.18, 10.73, -24.80), 
     [3] = Vector3.new(198.20, 12.98, 44.73),  
     [4] = Vector3.new(170.03, 12.48, 86.75)   
 }
+
+-- Vector tính từ Cửa Cổng đến Giữa Bãi Farm (Tính toán của bạn)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
+
+-- Vector tính từ Bệ rơi Hub (Zero Point) đến Khu Ấp Trứng (Tính toán của bạn)
+-- Dựa trên: (-18519.03) - (-18581.56) = 62.53 | (-29122.76) - (-29110.16) = -12.60
+local HatchOffset = Vector3.new(62.53, 0, -12.60)
 
 local function FormatValue(Value)
     local n = tonumber(Value)
@@ -243,7 +251,7 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER HATCH V36", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER HATCH V37", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. Mode .. " | Hatch: " .. (AutoHatch and "ON" or "OFF")},
         ["Status"]          = {3, "Status: Starting..."},
         ["Phase"]           = {4, "Phase: Initializing"},
@@ -252,7 +260,8 @@ local UI = FarmUI.new({
         ["BreakablesLeft"]  = {7, "Breakables in range: 0"},
         ["Tokens"]          = {8, "Token B/R/S/T: 0/0/0/0"},
         ["EggTokens"]       = {9, "Spring Egg Token: 0"},
-        ["FPS"]             = {10, "FPS: 60"}
+        ["Tickets"]         = {10, "Tickets: 0"}, -- Hiển thị Tickets mới thêm vào
+        ["FPS"]             = {11, "FPS: 60"}
     }
 })
 
@@ -260,26 +269,40 @@ task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
             local save = Save.Get()
-            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
-            if save and save.Inventory and save.Inventory.Misc then
-                for _, item in pairs(save.Inventory.Misc) do
-                    local id = item.id or ""
-                    if id:find("Bluebell Token") then b = b + (item._am or 1)
-                    elseif id:find("Rose Token") then r = r + (item._am or 1)
-                    elseif id:find("Sunflower Token") then s = s + (item._am or 1)
-                    elseif id:find("Tulip Token") then t = t + (item._am or 1)
-                    elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1)
+            local b, r, s, t, eggToken, tickets = 0, 0, 0, 0, 0, 0
+            
+            if save and save.Inventory then
+                if save.Inventory.Misc then
+                    for _, item in pairs(save.Inventory.Misc) do
+                        local id = item.id or ""
+                        if id:find("Bluebell Token") then b = b + (item._am or 1)
+                        elseif id:find("Rose Token") then r = r + (item._am or 1)
+                        elseif id:find("Sunflower Token") then s = s + (item._am or 1)
+                        elseif id:find("Tulip Token") then t = t + (item._am or 1)
+                        elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1)
+                        elseif id:lower():find("ticket") then tickets = tickets + (item._am or 1) end
+                    end
+                end
+                
+                -- Tìm Tickets trong khu vực Currency (nếu có)
+                if save.Inventory.Currency then
+                    for _, item in pairs(save.Inventory.Currency) do
+                        local id = item.id or ""
+                        if id:lower():find("ticket") then tickets = tickets + (item._am or 1) end
                     end
                 end
             end
+            
             if eggToken == 0 then
                 pcall(function()
                     local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token")
                     if c and type(c) == "number" and c > 0 then eggToken = c end
                 end)
             end
+            
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
+            UI:SetText("Tickets", "🎟️ Tickets: " .. FormatValue(tickets))
             UI:SetText("FPS", "FPS: " .. math.floor(Workspace:GetRealPhysicsFPS()))
         end)
     end
@@ -480,7 +503,6 @@ end)
 -- 🚀 6. TẮT HIỆU ỨNG TRỨNG (CHỜ NỞ TỰ ĐỘNG)
 -- ==========================================
 task.spawn(function()
-    -- Chỉ can thiệp vào hàm hiển thị hình ảnh quả trứng của game để chống lag
     if AutoHatch then
         pcall(function()
             local EggFrontend = getsenv(Players.LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"])
@@ -558,23 +580,10 @@ task.spawn(function()
                 EnterZonePhysically(State.CurrentPortal)
                 State.IsReady = true
             else
-                -- TỰ ĐỘNG TÌM VÀ ĐỨNG CHÍNH XÁC VÀO KHU VỰC TRỨNG
-                local targetCF = _G.DynamicHubCF
-                pcall(function()
-                    local customEggs = Workspace.__THINGS:FindFirstChild("CustomEggs")
-                    if customEggs then
-                        for _, egg in pairs(customEggs:GetChildren()) do
-                            if egg:IsA("Model") then
-                                -- Đứng trước mặt trứng khoảng 20 mét (nằm trong vòng hatch tự động)
-                                targetCF = egg:GetPivot() * CFrame.new(0, 0, 20)
-                                targetCF = targetCF + Vector3.new(0, 3, 0)
-                                break
-                            end
-                        end
-                    end
-                end)
-                
+                -- SỬ DỤNG TỌA ĐỘ VECTOR TUYỆT ĐỐI TÍNH TỪ HUB ĐỂ ĐẾN BÃI ẤP TRỨNG
+                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset) + Vector3.new(0, 3, 0)
                 TeleportPlayer(targetCF)
+                
                 State.IsReady = true
                 _G.FarmReady = false
             end
@@ -587,20 +596,8 @@ task.spawn(function()
                     TeleportPlayer(currentTarget)
                 end
             elseif State.Phase == "HATCHING" then
-                local targetCF = _G.DynamicHubCF
-                pcall(function()
-                    local customEggs = Workspace.__THINGS:FindFirstChild("CustomEggs")
-                    if customEggs then
-                        for _, egg in pairs(customEggs:GetChildren()) do
-                            if egg:IsA("Model") then
-                                targetCF = egg:GetPivot() * CFrame.new(0, 0, 20)
-                                targetCF = targetCF + Vector3.new(0, 3, 0)
-                                break
-                            end
-                        end
-                    end
-                end)
-                
+                -- KIỂM TRA VỊ TRÍ HATCH
+                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset) + Vector3.new(0, 3, 0)
                 if (HumanoidRootPart.Position - targetCF.Position).Magnitude > 30 then
                     TeleportPlayer(targetCF)
                 end
