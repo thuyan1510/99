@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V46 (ULTIMATE FEATURES & FIX %) 🌸
--- (Sửa lỗi tính %, thêm Ultimate, Free Gifts, Claim Mail)
+-- 🌸 EASTER EVENT - V47 (PERFECT EGG COUNTER) 🌸
+-- (Sử dụng biến ẩn Easter2026EggsHatched chuẩn từ Server)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -40,8 +40,6 @@ local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
 local EventUpgradesDir = require(Library.Directory.EventUpgrades)
 local Items = require(Library.Items)
 local InstancingCmds = require(Library.Client.InstancingCmds)
-
--- MODULES ĐƯỢC BÊ TỪ AUTO RANK SANG
 local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
@@ -71,21 +69,21 @@ Workspace.DescendantAdded:Connect(ExtremeOptimize)
 Lighting.DescendantAdded:Connect(ExtremeOptimize)
 
 -- ==========================================
--- 📊 HÀM TIỆN ÍCH (MATH & STRING)
+-- 📊 HÀM TIỆN ÍCH & BIẾN TRACKER (ĐÃ SỬA LỖI ĐẾM TRỨNG)
 -- ==========================================
 local StartTime = os.time()
 local StartEggs = 0
-pcall(function() StartEggs = Save.Get().EggsHatched or 0 end)
+-- Dùng biến Easter2026EggsHatched thay vì EggsHatched
+pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
 local SessionHuges = 0
 local SessionTitanics = 0
 
--- HÀM LỌC DỮ LIỆU ĐÃ ĐƯỢC LÀM LẠI CỰC MẠNH ĐỂ TÍNH % CHUẨN XÁC
 local function ParseValue(str)
     if not str then return 0 end
     str = tostring(str):lower()
-    str = str:gsub("<[^>]+>", "") -- Xóa mã màu HTML nếu có
-    str = str:gsub(",", "")       -- Xóa dấu phẩy
-    str = str:gsub("%s+", "")     -- Xóa khoảng trắng
+    str = str:gsub("<[^>]+>", "") 
+    str = str:gsub(",", "")       
+    str = str:gsub("%s+", "")     
     
     local numStr = str:match("[%d%.]+")
     local suffix = str:match("[%a]+")
@@ -116,7 +114,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV46"
+	Self.GuiName = "EasterEventGuiV47"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -177,7 +175,7 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V46", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V47", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. Mode},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -217,9 +215,6 @@ task.spawn(function()
                 end)
             end
             
-            -- =============================================
-            -- ĐỌC TICKET TRỰC TIẾP TỪ GIAO DIỆN
-            -- =============================================
             local realClientTickets = 0
             local realTotalTickets = 1
             local pos = HumanoidRootPart.Position
@@ -265,14 +260,12 @@ task.spawn(function()
                 end
             end)
             
-            local currentEggs = save.EggsHatched or StartEggs
+            -- SỬ DỤNG BIẾN EASTER2026EGGSHATCHED
+            local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
             
-            -- Tính toán Chance %
             local chance = 0
-            if realTotalTickets > 0 then
-                chance = (realClientTickets / realTotalTickets) * 100
-            end
+            if realTotalTickets > 0 then chance = (realClientTickets / realTotalTickets) * 100 end
             
             UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
             UI:SetText("Rares", string.format("Huge: %d | Titanic: %d", SessionHuges, SessionTitanics))
@@ -302,7 +295,12 @@ task.spawn(function()
                             local httprequest = (request or http_request or syn and syn.request)
                             local data = {
                                 ["content"] = "<@" .. DISCORD_USER_ID .. "> 🎉 HATCHED A RARE PET!",
-                                ["embeds"] = {{ ["title"] = "Hatched: " .. pet.id, ["color"] = 16737996, ["fields"] = { {["name"] = "Account", ["value"] = "||" .. Player.Name .. "||"} } }}
+                                ["embeds"] = {{ 
+                                    ["title"] = "Hatched: " .. pet.id, 
+                                    ["color"] = 16737996, 
+                                    ["fields"] = { {["name"] = "Account", ["value"] = "||" .. Player.Name .. "||"} },
+                                    ["footer"] = { ["text"] = "Eggs hatched: " .. tostring((save.Easter2026EggsHatched or StartEggs) - StartEggs) }
+                                }}
                             }
                             pcall(function() httprequest({ Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = game.HttpService:JSONEncode(data) }) end)
                         end
@@ -415,17 +413,12 @@ end
 RunService.Heartbeat:Connect(ClickAura)
 
 -- ==========================================
--- 🚀 5. TÍNH NĂNG NHẬP TỪ AUTO RANK (Mail, Gift, Ult, Upgrade)
+-- 🚀 5. CÁC TÍNH NĂNG NHẬP (Ultimate, Mail, Gifts, Upgrade)
 -- ==========================================
-
--- Claim Mailbox
 task.spawn(function()
-    while task.wait(15) do 
-        pcall(function() Network.Invoke('Mailbox: Claim All') end) 
-    end
+    while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end
 end)
 
--- Claim Free Gifts
 task.spawn(function()
     while task.wait(5) do
         pcall(function()
@@ -443,7 +436,6 @@ task.spawn(function()
     end
 end)
 
--- Sử dụng Ultimate
 task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
@@ -455,7 +447,6 @@ task.spawn(function()
     end
 end)
 
--- Nâng Cấp Sự Kiện
 task.spawn(function()
     while task.wait(5) do
         if not AutoUpgrade then continue end
