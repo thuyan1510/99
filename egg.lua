@@ -1,5 +1,6 @@
 -- ==========================================
--- 🌸 EASTER AUTO - V34 (GLOBAL CONFIG & VRT ENGINE) 🌸
+-- 🌸 EASTER AUTO - V36 (IDLE HATCH OPTIMIZED) 🌸
+-- (Cơ chế đứng chờ tự nở - Không gửi lệnh rác)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -12,8 +13,12 @@ local UserSettings = getgenv().Settings or {}
 local Mode = UserSettings.Mode or "Combine"
 local FarmTimeMinutes = tonumber(UserSettings.FarmTimeMinutes) or 20
 local HatchTimeMinutes = tonumber(UserSettings.HatchTimeMinutes) or 10
+
 local AutoUpgrade = UserSettings.AutoUpgrade
 if AutoUpgrade == nil then AutoUpgrade = true end
+
+local AutoHatch = UserSettings.AutoHatch
+if AutoHatch == nil then AutoHatch = true end
 
 local WEBHOOK_URL = ""
 local DISCORD_USER_ID = ""
@@ -133,26 +138,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- TẢI UTILS
--- ==========================================
-local function loadScript(url, file)
-    local path = "Poodle-Utils/" .. file
-    local ok, res = pcall(game.HttpGet, game, url)
-    if ok and res then
-        if not isfolder("Poodle-Utils") then makefolder("Poodle-Utils") end
-        writefile(path, res) return loadstring(res)()
-    end
-    return loadstring(readfile(path))()
-end
-local vm = loadScript("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/VariablesManager.lua", "VariablesManager.lua")
-
-local vmInst = vm:new()
-vmInst:Add("AllBreakables", {}, "table")
-vmInst:Add("PetIDs", {}, "table")
-vmInst:Add("Euids", {}, "table")
-
--- ==========================================
--- HỆ THỐNG VECTOR KHÔNG GIAN CỔNG
+-- HỆ THỐNG BIẾN QUẢN LÝ & TỌA ĐỘ CỔNG
 -- ==========================================
 _G.DynamicHubCF = nil
 _G.DynamicPortals = {}
@@ -257,8 +243,8 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER HATCH V34", {0.8, 0, 0.08, 0}},
-        ["ModeInfo"]        = {2, "Mode: " .. Mode .. " | Upgrade: " .. (AutoUpgrade and "ON" or "OFF")},
+        ["Title"]           = {1, "🐰 EASTER HATCH V36", {0.8, 0, 0.08, 0}},
+        ["ModeInfo"]        = {2, "Mode: " .. Mode .. " | Hatch: " .. (AutoHatch and "ON" or "OFF")},
         ["Status"]          = {3, "Status: Starting..."},
         ["Phase"]           = {4, "Phase: Initializing"},
         ["TimeLeft"]        = {5, "Time Left: 00:00"},
@@ -491,7 +477,23 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 6. VÒNG LẶP CHÍNH (QUẢN LÝ CHẾ ĐỘ HOẠT ĐỘNG)
+-- 🚀 6. TẮT HIỆU ỨNG TRỨNG (CHỜ NỞ TỰ ĐỘNG)
+-- ==========================================
+task.spawn(function()
+    -- Chỉ can thiệp vào hàm hiển thị hình ảnh quả trứng của game để chống lag
+    if AutoHatch then
+        pcall(function()
+            local EggFrontend = getsenv(Players.LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"])
+            if EggFrontend then
+                EggFrontend.PlayEggAnimation = function() return end
+                EggFrontend.PlayCustom = function() return end
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- 🚀 7. VÒNG LẶP CHÍNH (QUẢN LÝ CHẾ ĐỘ)
 -- ==========================================
 local State = { 
     Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", 
@@ -556,16 +558,52 @@ task.spawn(function()
                 EnterZonePhysically(State.CurrentPortal)
                 State.IsReady = true
             else
-                TeleportPlayer(_G.DynamicHubCF)
+                -- TỰ ĐỘNG TÌM VÀ ĐỨNG CHÍNH XÁC VÀO KHU VỰC TRỨNG
+                local targetCF = _G.DynamicHubCF
+                pcall(function()
+                    local customEggs = Workspace.__THINGS:FindFirstChild("CustomEggs")
+                    if customEggs then
+                        for _, egg in pairs(customEggs:GetChildren()) do
+                            if egg:IsA("Model") then
+                                -- Đứng trước mặt trứng khoảng 20 mét (nằm trong vòng hatch tự động)
+                                targetCF = egg:GetPivot() * CFrame.new(0, 0, 20)
+                                targetCF = targetCF + Vector3.new(0, 3, 0)
+                                break
+                            end
+                        end
+                    end
+                end)
+                
+                TeleportPlayer(targetCF)
                 State.IsReady = true
                 _G.FarmReady = false
             end
         end
 
-        if State.IsReady and _G.FarmReady then
-            local currentTarget = (State.Phase == "FARMING") and _G.CurrentFarmCF or _G.DynamicHubCF
-            if currentTarget and (HumanoidRootPart.Position - currentTarget.Position).Magnitude > 30 then
-                TeleportPlayer(currentTarget)
+        if State.IsReady then
+            if State.Phase == "FARMING" and _G.FarmReady then
+                local currentTarget = _G.CurrentFarmCF
+                if currentTarget and (HumanoidRootPart.Position - currentTarget.Position).Magnitude > 30 then
+                    TeleportPlayer(currentTarget)
+                end
+            elseif State.Phase == "HATCHING" then
+                local targetCF = _G.DynamicHubCF
+                pcall(function()
+                    local customEggs = Workspace.__THINGS:FindFirstChild("CustomEggs")
+                    if customEggs then
+                        for _, egg in pairs(customEggs:GetChildren()) do
+                            if egg:IsA("Model") then
+                                targetCF = egg:GetPivot() * CFrame.new(0, 0, 20)
+                                targetCF = targetCF + Vector3.new(0, 3, 0)
+                                break
+                            end
+                        end
+                    end
+                end)
+                
+                if (HumanoidRootPart.Position - targetCF.Position).Magnitude > 30 then
+                    TeleportPlayer(targetCF)
+                end
             end
         end
         
@@ -581,6 +619,7 @@ task.spawn(function()
         UI:SetText("TimeLeft", "Time Left: " .. timeString)
         UI:SetText("Phase", "Phase: " .. State.Phase)
         UI:SetText("Zone", "Zone: " .. (State.Phase == "FARMING" and ZoneNames[State.CurrentPortal] or "Hub"))
-        if State.Phase == "FARMING" then UI:SetText("Status", "Status: Farm Zone " .. ZoneNames[State.CurrentPortal]) end
+        if State.Phase == "FARMING" then UI:SetText("Status", "Status: Farm Zone " .. ZoneNames[State.CurrentPortal])
+        else UI:SetText("Status", "Status: Hatching in Hub...") end
     end
 end)
