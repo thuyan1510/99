@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V47 (PERFECT EGG COUNTER) 🌸
--- (Sử dụng biến ẩn Easter2026EggsHatched chuẩn từ Server)
+-- 🌸 EASTER EVENT - V50 (NUMERIC MODE ULTIMATE) 🌸
+-- (Chuyển Mode sang Số: 1=Hatch, 2=Farm, 3=Combine | Full Features)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -9,7 +9,23 @@ _G.SpringStarted = true
 -- ⚙️ ĐỌC CẤU HÌNH TỪ GETGENV().SETTINGS
 -- ==========================================
 local UserSettings = getgenv().Settings or {}
-local Mode = UserSettings.Mode or "Combine"
+
+-- BỘ LỌC MODE BẰNG SỐ CỦA BẠN: 1 = Hatch, 2 = Farm, 3 = Combine
+local rawMode = tonumber(UserSettings.Mode) or 3
+local Mode = "Combine"
+local ModeDisplay = "Combine"
+
+if rawMode == 1 then
+    Mode = "HatchOnly"
+    ModeDisplay = "Hatch Only (1)"
+elseif rawMode == 2 then
+    Mode = "FarmOnly"
+    ModeDisplay = "Farm Only (2)"
+elseif rawMode == 3 then
+    Mode = "Combine"
+    ModeDisplay = "Combine (3)"
+end
+
 local FarmTimeMinutes = tonumber(UserSettings.FarmTimeMinutes) or 20
 local HatchTimeMinutes = tonumber(UserSettings.HatchTimeMinutes) or 10
 local AutoUpgrade = UserSettings.AutoUpgrade ~= false
@@ -69,11 +85,22 @@ Workspace.DescendantAdded:Connect(ExtremeOptimize)
 Lighting.DescendantAdded:Connect(ExtremeOptimize)
 
 -- ==========================================
--- 📊 HÀM TIỆN ÍCH & BIẾN TRACKER (ĐÃ SỬA LỖI ĐẾM TRỨNG)
+-- TỌA ĐỘ TUYỆT ĐỐI (CHỐNG KẸT MAP)
+-- ==========================================
+_G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
+_G.DynamicPortals = {}
+local ZoneNames = { "Dewdrop Falls", "Tulip Hollow", "Blossom Vale", "Sunstone Heights" }
+local PortalOffsets = { Vector3.new(187.92, 12.48, -73.25), Vector3.new(200.18, 10.73, -24.80), Vector3.new(198.20, 12.98, 44.73), Vector3.new(170.03, 12.48, 86.75) }
+for i = 1, 4 do _G.DynamicPortals[i] = CFrame.new(_G.DynamicHubCF.Position + PortalOffsets[i]) end
+
+local FarmOffset = Vector3.new(53.53, 0, 0.62)
+local HatchOffset = Vector3.new(62.53, 0, -12.60) 
+
+-- ==========================================
+-- 📊 HÀM TIỆN ÍCH & BIẾN TRACKER 
 -- ==========================================
 local StartTime = os.time()
 local StartEggs = 0
--- Dùng biến Easter2026EggsHatched thay vì EggsHatched
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
 local SessionHuges = 0
 local SessionTitanics = 0
@@ -81,9 +108,7 @@ local SessionTitanics = 0
 local function ParseValue(str)
     if not str then return 0 end
     str = tostring(str):lower()
-    str = str:gsub("<[^>]+>", "") 
-    str = str:gsub(",", "")       
-    str = str:gsub("%s+", "")     
+    str = str:gsub("<[^>]+>", ""); str = str:gsub(",", ""); str = str:gsub("%s+", "")     
     
     local numStr = str:match("[%d%.]+")
     local suffix = str:match("[%a]+")
@@ -114,7 +139,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV47"
+	Self.GuiName = "EasterEventGuiV50"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -175,8 +200,8 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V47", {0.8, 0, 0.08, 0}},
-        ["ModeInfo"]        = {2, "Mode: " .. Mode},
+        ["Title"]           = {1, "🐰 EASTER EVENT V50", {0.8, 0, 0.08, 0}},
+        ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
         ["Rares"]           = {5, "Huge: 0 | Titanic: 0"},
@@ -260,7 +285,6 @@ task.spawn(function()
                 end
             end)
             
-            -- SỬ DỤNG BIẾN EASTER2026EGGSHATCHED
             local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
             
@@ -313,7 +337,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 4. ĐỘNG CƠ FAST FARM GỐC TỪ BẠN
+-- 🚀 4. ĐỘNG CƠ FAST FARM GỐC (BALANCED)
 -- ==========================================
 pcall(function() PlayerPet.CalculateSpeedMultiplier = function() return math.huge end end)
 
@@ -413,7 +437,7 @@ end
 RunService.Heartbeat:Connect(ClickAura)
 
 -- ==========================================
--- 🚀 5. CÁC TÍNH NĂNG NHẬP (Ultimate, Mail, Gifts, Upgrade)
+-- 🚀 5. CÁC TÍNH NĂNG NHẬP THÊM (Ultimate, Mail, Gifts, Upgrade)
 -- ==========================================
 task.spawn(function()
     while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end
@@ -483,13 +507,12 @@ end)
 -- ==========================================
 -- 🚀 6. VÒNG LẶP ĐIỀU HƯỚNG CHẾ ĐỘ
 -- ==========================================
-_G.DynamicHubCF = nil
-_G.DynamicPortals = {}
-local PortalOffsets = { Vector3.new(187.92, 12.48, -73.25), Vector3.new(200.18, 10.73, -24.80), Vector3.new(198.20, 12.98, 44.73), Vector3.new(170.03, 12.48, 86.75) }
-local FarmOffset = Vector3.new(53.53, 0, 0.62)
-local HatchOffset = Vector3.new(62.53, 0, -12.60) 
-
-local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
+local State = { 
+    Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", 
+    TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), 
+    CurrentPortal = 1, 
+    IsReady = false 
+}
 _G.CurrentPhase = State.Phase
 _G.FarmReady = false
 
@@ -553,11 +576,6 @@ task.spawn(function()
         task.wait(1.5); retries = retries + 1
     end
     HumanoidRootPart.Anchored = false
-    
-    if not _G.DynamicHubCF then 
-        HumanoidRootPart.Anchored = true; task.wait(1); _G.DynamicHubCF = HumanoidRootPart.CFrame; HumanoidRootPart.Anchored = false
-        for i = 1, 4 do _G.DynamicPortals[i] = CFrame.new(_G.DynamicHubCF.Position + PortalOffsets[i]) end
-    end
     
     while task.wait(1) do
         State.TimeLeft = State.TimeLeft - 1
