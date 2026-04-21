@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V44 (PURE UI TICKET SCRAPER) 🌸
--- (Loại bỏ hoàn toàn lỗi check túi đồ, quét Ticket chuẩn 100%)
+-- 🌸 EASTER EVENT - V45 (BUG FIXES & STABILITY) 🌸
+-- (Sửa lỗi thiếu module InstancingCmds gây lỗi Console)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -39,6 +39,7 @@ local PlayerPet = require(Library.Client.PlayerPet)
 local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
 local EventUpgradesDir = require(Library.Directory.EventUpgrades)
 local Items = require(Library.Items)
+local InstancingCmds = require(Library.Client.InstancingCmds) -- ĐÃ THÊM LẠI MODULE NÀY!
 
 -- ==========================================
 -- 🚀 1. EXTREME OPTIMIZE (GIẢM LAG)
@@ -104,7 +105,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV44"
+	Self.GuiName = "EasterEventGuiV45"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -165,7 +166,7 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V44", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V45", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. Mode},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -186,7 +187,6 @@ task.spawn(function()
             local save = Save.Get()
             local b, r, s, t, eggToken = 0, 0, 0, 0, 0
             
-            -- CHỈ QUÉT TOKEN TỪ TÚI ĐỒ (TUYỆT ĐỐI KHÔNG QUÉT TICKET Ở ĐÂY NỮA)
             if save and save.Inventory and save.Inventory.Misc then
                 for _, item in pairs(save.Inventory.Misc) do
                     local id = item.id or ""
@@ -207,13 +207,12 @@ task.spawn(function()
             end
             
             -- =============================================
-            -- ĐỌC TICKET TRỰC TIẾP TỪ GIAO DIỆN (PURE UI SCRAPER)
+            -- ĐỌC TICKET TRỰC TIẾP TỪ GIAO DIỆN
             -- =============================================
             local realClientTickets = 0
             local realTotalTickets = 1
             local pos = HumanoidRootPart.Position
             
-            -- LỚP 1: Lấy vé cá nhân từ UI trên màn hình (Chính xác nhất)
             pcall(function()
                 local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
                 if easterGui and easterGui:FindFirstChild("SideInfo") and easterGui.SideInfo:FindFirstChild("Tickets") then
@@ -225,7 +224,6 @@ task.spawn(function()
                 end
             end)
             
-            -- LỚP 2: Lấy vé tổng từ Bảng 3D Gần Nhất
             pcall(function()
                 local closestBoard = nil
                 local minDist = math.huge
@@ -246,7 +244,6 @@ task.spawn(function()
                         if parsed > 0 and parsed ~= 999000 then realTotalTickets = parsed end
                     end
                     
-                    -- Nếu UI màn hình bị lỗi/ẩn, lấy vé cá nhân từ bảng gần nhất bù vào
                     if realClientTickets == 0 then
                         local clientText = closestBoard:FindFirstChild("ClientTickets", true)
                         if clientText and clientText:FindFirstChild("Amount") then
@@ -257,7 +254,6 @@ task.spawn(function()
                 end
             end)
             
-            -- CẬP NHẬT DỮ LIỆU LÊN BẢNG
             local currentEggs = save.EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
             local chance = (realClientTickets / math.max(1, realTotalTickets)) * 100
@@ -462,47 +458,6 @@ local function TeleportPlayer(cf)
     HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
-local function EnterZonePhysically(portalIndex)
-    _G.FarmReady = false; _G.CurrentFarmCF = nil
-    TeleportPlayer(_G.DynamicPortals[portalIndex]); task.wait(0.5) 
-    
-    pcall(function()
-        for _, prompt in pairs(Workspace:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then
-                if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 50 then fireproximityprompt(prompt) end
-            end
-        end
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-    end)
-    
-    task.spawn(function()
-        for i = 1, 30 do 
-            pcall(function()
-                for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
-                    if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible and obj.Text:match("Yes!") then
-                        local btn = obj:IsA("TextButton") and obj or obj.Parent
-                        if btn:IsA("GuiButton") then
-                            if getconnections then for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end
-                            local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
-                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
-                            task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1); return 
-                        end
-                    end
-                end
-            end)
-            task.wait(0.1)
-        end
-    end)
-
-    local waitTime = 0
-    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
-    if waitTime >= 10 then return end
-    task.wait(1.5) 
-
-    _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
-    TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true
-end
-
 task.spawn(function()
     HumanoidRootPart.Anchored = true
     local retries = 0
@@ -530,8 +485,50 @@ task.spawn(function()
         end
 
         if not State.IsReady then
-            if State.Phase == "FARMING" then EnterZonePhysically(State.CurrentPortal); State.IsReady = true
-            else local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset); TeleportPlayer(targetCF); State.IsReady = true; _G.FarmReady = false end
+            if State.Phase == "FARMING" then
+                _G.FarmReady = false; _G.CurrentFarmCF = nil
+                TeleportPlayer(_G.DynamicPortals[State.CurrentPortal]); task.wait(0.5) 
+                
+                pcall(function()
+                    for _, prompt in pairs(Workspace:GetDescendants()) do
+                        if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then
+                            if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 50 then fireproximityprompt(prompt) end
+                        end
+                    end
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game); task.wait(0.5); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                end)
+                
+                task.spawn(function()
+                    for i = 1, 30 do 
+                        pcall(function()
+                            for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
+                                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible and obj.Text:match("Yes!") then
+                                    local btn = obj:IsA("TextButton") and obj or obj.Parent
+                                    if btn:IsA("GuiButton") then
+                                        if getconnections then for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end
+                                        local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
+                                        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
+                                        task.wait(0.05); VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1); return 
+                                    end
+                                end
+                            end
+                        end)
+                        task.wait(0.1)
+                    end
+                end)
+
+                local waitTime = 0
+                while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
+                if waitTime < 10 then
+                    task.wait(1.5)
+                    _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
+                    TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true
+                end
+                State.IsReady = true
+            else 
+                local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
+                TeleportPlayer(targetCF); State.IsReady = true; _G.FarmReady = false 
+            end
         end
 
         if State.IsReady then
