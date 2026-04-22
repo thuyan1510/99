@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V61 (PHYSICAL MACRO & BUG FIXES) 🌸
--- (Sửa lỗi LocalScript Line 11, Tối ưu Anti-AFK Hooking)
+-- 🌸 EASTER EVENT - V62 (MACRO UPGRADE FIXED) 🌸
+-- (Sửa lỗi bán kính quét nhầm trứng 4, tự bấm nút Okay)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -50,14 +50,12 @@ local InstancingCmds = require(Library.Client.InstancingCmds)
 local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
--- Biến điều hướng hệ thống Macro
 _G.HighestEggSelected = _G.HighestEggSelected or 1
 _G.IsUpgrading = false
 
 -- ==========================================
 -- 🛡️ ANTI AFK (BỨC TƯỜNG LỬA CHỐNG VĂNG GAME)
 -- ==========================================
--- [Lớp 1 Tối ưu]: Chặn gói tin AFK bằng tường lửa thay vì sửa mã game (Sửa lỗi Line 11)
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
@@ -65,13 +63,12 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local args = {...}
         local cmd = tostring(args[1] or "")
         if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then
-            return -- Bóp chết gói tin AFK ngay lập tức
+            return 
         end
     end
     return oldNamecall(self, ...)
 end)
 
--- [Lớp 2 & 3]: Vô hiệu hóa Idled và Window Focus (Giữ nguyên thuật toán của bạn)
 pcall(function()
     local UserInputService = game:GetService("UserInputService")
     if getconnections then
@@ -81,7 +78,6 @@ pcall(function()
     end
 end)
 
--- [Lớp Dự Phòng]: Nhảy và Click mỗi 5 phút
 pcall(function()
     local vu = game:GetService("VirtualUser")
     task.spawn(function()
@@ -157,7 +153,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV61"
+	Self.GuiName = "EasterEventGuiV62"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -202,7 +198,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V61", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V62", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -408,28 +404,29 @@ local SpringEggUnlocks = {
     { number = 2, cost = 300,   pos = Vector3.new(-18522.117, 17.02, -29174.19) } 
 }
 
--- Hàm Click chuẩn hóa hỗ trợ tốt cho Delta
+-- [FIX 2]: Hàm Click mở rộng nhận diện chữ "Okay" và "Ok"
 local function ClickYesUI()
-    for i = 1, 15 do
+    for i = 1, 25 do -- Lặp 25 lần (2.5 giây) để đợi bảng UI hiện lên
         local clicked = false
         pcall(function()
             for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
-                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible and obj.Text:match("Yes!") then
-                    local btn = obj:IsA("TextButton") and obj or obj.Parent
-                    if btn:IsA("GuiButton") then 
-                        -- Dùng getconnections nếu executor hỗ trợ
-                        if getconnections then 
-                            for _, c in pairs(getconnections(btn.MouseButton1Click)) do 
-                                if type(c.Function) == "function" then c.Function()
-                                elseif type(c.Fire) == "function" then c:Fire() end
-                            end 
+                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible then
+                    local textStr = obj.Text:lower()
+                    if textStr:match("yes") or textStr:match("okay") or textStr == "ok" then
+                        local btn = obj:IsA("TextButton") and obj or obj.Parent
+                        if btn:IsA("GuiButton") then 
+                            if getconnections then 
+                                for _, c in pairs(getconnections(btn.MouseButton1Click)) do 
+                                    if type(c.Function) == "function" then c.Function()
+                                    elseif type(c.Fire) == "function" then c:Fire() end
+                                end 
+                            end
+                            local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
+                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
+                            task.wait(0.05)
+                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1)
+                            clicked = true
                         end
-                        -- Backup bằng VirtualInputManager (Mô phỏng ngón tay chạm)
-                        local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
-                        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
-                        task.wait(0.05)
-                        VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1)
-                        clicked = true
                     end
                 end
             end
@@ -439,12 +436,12 @@ local function ClickYesUI()
     end
 end
 
--- Hàm kích hoạt nút E chuẩn hóa
+-- [FIX 1]: Giảm bán kính quét E từ 20 xuống 8 studs để bắt chính xác trứng
 local function FireProx()
     pcall(function()
         for _, prompt in pairs(Workspace:GetDescendants()) do 
             if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then 
-                if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 20 then 
+                if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 8 then 
                     if fireproximityprompt then 
                         fireproximityprompt(prompt) 
                     else
@@ -486,12 +483,12 @@ task.spawn(function()
                         HumanoidRootPart.CFrame = CFrame.new(egg.pos) + Vector3.new(0, 3, 0)
                         task.wait(1) 
                         
-                        -- Lần 1: Mở khóa
+                        -- Lần 1: Mở khóa / Bấm Okay nếu đã mua
                         FireProx()
                         task.wait(0.5)
                         ClickYesUI()
                         
-                        -- Chờ hoạt ảnh
+                        -- Chờ hoạt ảnh (Nếu nó đã mua rồi thì bảng select sẽ hiện ra luôn ở lần 2)
                         task.wait(3.5)
                         
                         -- Lần 2: Chọn trứng
@@ -544,7 +541,11 @@ end
 local function EnterZonePhysically(portalIndex)
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     TeleportPlayer(_G.DynamicPortals[portalIndex]); task.wait(0.5) 
-    FireProx(); ClickYesUI()
+    
+    FireProx()
+    task.wait(0.5)
+    ClickYesUI()
+    
     local waitTime = 0
     while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
     if waitTime >= 10 then return end
