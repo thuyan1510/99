@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V56 (ULTIMATE ANTI-AFK) 🌸
--- (Tích hợp getconnections() vô hiệu hóa hoàn toàn Idled)
+-- 🌸 EASTER EVENT - V57 (PERFECT AUTO UPGRADE) 🌸
+-- (Tích hợp lệnh SelectEgg chuẩn xác từ log X-Ray)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -53,17 +53,14 @@ local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 -- ==========================================
 -- 🛡️ ANTI AFK (NÂNG CẤP TỐI THƯỢNG)
 -- ==========================================
--- 1. Cắt đứt hệ thống AFK mặc định của Roblox (Đoạn code của bạn)
 pcall(function()
     if getconnections then
         for i, v in pairs(getconnections(game:GetService("Players").LocalPlayer.Idled)) do
             v:Disable()
         end
-        print("🛡️ [ANTI-AFK] Đã vô hiệu hóa thành công LocalPlayer.Idled")
     end
 end)
 
--- 2. Vòng lặp lừa hệ thống PS99 mỗi 5 phút
 pcall(function()
     local vu = game:GetService("VirtualUser")
     task.spawn(function()
@@ -71,11 +68,8 @@ pcall(function()
             pcall(function()
                 vu:CaptureController()
                 vu:ClickButton2(Vector2.new())
-                
-                -- Nhảy nhẹ một cái để ghi nhận thao tác vật lý
                 local hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
                 if hum then hum.Jump = true end
-                print("🛡️ [ANTI-AFK] Đã gửi tín hiệu chống văng game (Jump & Click)!")
             end)
         end
     end)
@@ -142,7 +136,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV56"
+	Self.GuiName = "EasterEventGuiV57"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -187,7 +181,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V56", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V57", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -360,11 +354,19 @@ RunService.Heartbeat:Connect(ClickAura)
 -- ==========================================
 -- 🚀 CÁC TÍNH NĂNG PHỤ (MAIL, GIFTS, ULTIMATE, UPGRADE, HATCH)
 -- ==========================================
-local SpringEggUnlocks = { { name = "Spring Egg 2", nameAlt = "SpringEgg2", cost = 300 }, { name = "Spring Egg 3", nameAlt = "SpringEgg3", cost = 1500 }, { name = "Spring Egg 4", nameAlt = "SpringEgg4", cost = 6000 }, { name = "Spring Egg 5", nameAlt = "SpringEgg5", cost = 20000 } }
+-- Bảng giá trị và số thứ tự của trứng để gửi lệnh SelectEgg
+local SpringEggUnlocks = { 
+    { number = 5, cost = 20000 }, 
+    { number = 4, cost = 6000 }, 
+    { number = 3, cost = 1500 }, 
+    { number = 2, cost = 300 } 
+}
+
 task.spawn(function()
     while task.wait(5) do
         if AutoUpgrade then
             pcall(function()
+                -- Mua máy móc Upgrade của Event
                 for upgradeId, upgradeData in pairs(EventUpgradesDir) do
                     if upgradeId:find("Easter") or upgradeId:find("Spring") then
                         local currentTier = EventUpgradeCmds.GetTier(upgradeId)
@@ -376,12 +378,30 @@ task.spawn(function()
                         end
                     end
                 end
+                
+                -- Mua nâng cấp Trứng Sự Kiện bằng lệnh chuẩn xác
                 local eggToken = 0
                 local save = Save.Get()
-                if save.Inventory and save.Inventory.Misc then for _, item in pairs(save.Inventory.Misc) do if item.id and item.id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1) end end end
-                if eggToken == 0 then local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token"); if type(c) == "number" then eggToken = c end end
+                if save.Inventory and save.Inventory.Misc then 
+                    for _, item in pairs(save.Inventory.Misc) do 
+                        if item.id and item.id:find("Spring Egg Token") then 
+                            eggToken = eggToken + (item._am or 1) 
+                        end 
+                    end 
+                end
+                if eggToken == 0 then 
+                    local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token"); 
+                    if type(c) == "number" then eggToken = c end 
+                end
+                
+                -- Quét từ trứng xịn nhất (5) về (2), đủ tiền là bắn lệnh SelectEgg
                 for _, egg in ipairs(SpringEggUnlocks) do
-                    if eggToken >= egg.cost then pcall(function() Network.Invoke("Eggs_RequestPurchase", egg.name, 1); Network.Invoke("Eggs_RequestPurchase", egg.nameAlt, 1) end) end
+                    if eggToken >= egg.cost then 
+                        pcall(function() 
+                            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) 
+                        end)
+                        break -- Chỉ cần bắn nâng cấp quả xịn nhất hiện có thể mua
+                    end
                 end
             end)
         end
