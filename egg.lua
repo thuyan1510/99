@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V57 (PERFECT AUTO UPGRADE) 🌸
--- (Tích hợp lệnh SelectEgg chuẩn xác từ log X-Ray)
+-- 🌸 EASTER EVENT - V58 (SMART FARM ENGINE) 🌸
+-- (Tích hợp thuật toán Farm độc lập: Radius 50, Pets 3, Aura siêu tốc)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -55,9 +55,7 @@ local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 -- ==========================================
 pcall(function()
     if getconnections then
-        for i, v in pairs(getconnections(game:GetService("Players").LocalPlayer.Idled)) do
-            v:Disable()
-        end
+        for i, v in pairs(getconnections(game:GetService("Players").LocalPlayer.Idled)) do v:Disable() end
     end
 end)
 
@@ -136,7 +134,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV57"
+	Self.GuiName = "EasterEventGuiV58"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -181,7 +179,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V57", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V58", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -297,76 +295,142 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ FAST FARM GỐC (BALANCED)
+-- 🚀 ĐỘNG CƠ SMART FARM V2 (TỐI ƯU HÓA THEO YÊU CẦU)
 -- ==========================================
-pcall(function() PlayerPet.CalculateSpeedMultiplier = function() return math.huge end end)
+pcall(function() PlayerPet.CalculateSpeedMultiplier = function() return 200 end end)
+
+local FARM_RADIUS = 50 -- Chỉ quét trong phạm vi 50
+local MAX_PETS_PER_TARGET = 3 -- Tối đa 3 thú cưng vây đánh 1 cục
+
 local function GetMyPets()
     local pets = {}
-    pcall(function() for _, pet in ipairs(PlayerPet.GetAll()) do if pet.owner == Player then table.insert(pets, pet) end end end)
+    pcall(function() 
+        for _, pet in ipairs(PlayerPet.GetAll()) do 
+            if pet.owner == Player then table.insert(pets, pet) end 
+        end 
+    end)
     return pets
 end
-local function GetNearbyBreakables()
-    local breakables, pos = {}, HumanoidRootPart.Position
+
+local function GetBreakables()
+    local breakables = {}
+    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return breakables end
+    local pos = root.Position
+
+    local function ScanFolder(folder)
+        if not folder then return end
+        for _, b in ipairs(folder:GetChildren()) do
+            if b:IsA("Model") and b.PrimaryPart then
+                local dist = (b.PrimaryPart.Position - pos).Magnitude
+                if dist <= FARM_RADIUS then
+                    table.insert(breakables, { name = b.Name, dist = dist, obj = b })
+                end
+            end
+        end
+    end
+
+    pcall(function() ScanFolder(Workspace.__THINGS:FindFirstChild("Breakables")) end)
     pcall(function()
-        local main = Workspace.__THINGS:FindFirstChild("Breakables")
-        if main then for _, b in ipairs(main:GetChildren()) do if b:IsA("Model") and (b.WorldPivot.Position - pos).Magnitude <= 100 then table.insert(breakables, b.Name) end end end
         local container = Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER")
         if container and container:FindFirstChild("Active") then
             for _, inst in ipairs(container.Active:GetChildren()) do
-                local folder = inst:FindFirstChild("Breakables") or inst
-                for _, b in ipairs(folder:GetChildren()) do if b:IsA("Model") and (b.WorldPivot.Position - pos).Magnitude <= 100 then table.insert(breakables, b.Name) end end
+                ScanFolder(inst:FindFirstChild("Breakables") or inst)
             end
         end
     end)
+
+    -- Sắp xếp ưu tiên vật thể gần nhất
+    table.sort(breakables, function(a, b) return a.dist < b.dist end)
     return breakables
 end
-local function CollectOrbs()
+
+local function MagneticLoot()
     pcall(function()
+        -- Hút Orbs
         local orbs = Workspace.__THINGS:FindFirstChild("Orbs")
-        if not orbs then return end
-        for _, orb in ipairs(orbs:GetChildren()) do if orb:IsA("Part") or orb:IsA("MeshPart") then Network.Fire("Orbs: Collect", {tonumber(orb.Name)}); orb:Destroy() end end
+        if orbs then
+            local orbIds = {}
+            for _, orb in ipairs(orbs:GetChildren()) do
+                if orb:IsA("Part") or orb:IsA("MeshPart") then
+                    table.insert(orbIds, tonumber(orb.Name))
+                    orb:Destroy()
+                end
+            end
+            if #orbIds > 0 then Network.Fire("Orbs: Collect", orbIds) end
+        end
+
+        -- Hút Lootbags
+        local bags = Workspace.__THINGS:FindFirstChild("Lootbags")
+        if bags then
+            local bagIds = {}
+            for _, bag in ipairs(bags:GetChildren()) do
+                if bag:IsA("Model") or bag:IsA("Part") then
+                    table.insert(bagIds, bag.Name)
+                    bag:Destroy()
+                end
+            end
+            if #bagIds > 0 then Network.Fire("Lootbags_Claim", bagIds) end
+        end
     end)
 end
-local function BalancedFastFarm()
-    local pets, breakables = GetMyPets(), GetNearbyBreakables()
-    if #pets == 0 or #breakables == 0 then return end
-    local mapping, petsPer, extra, index = {}, math.floor(#pets / #breakables), #pets % #breakables, 1
-    for i, breakName in ipairs(breakables) do
-        local count = petsPer + (i <= extra and 1 or 0)
-        for _ = 1, count do if index <= #pets then mapping[pets[index].euid] = breakName; index = index + 1 end end
-    end
-    if next(mapping) then pcall(function() Network.Fire("Breakables_JoinPetBulk", mapping) end) end
-end
+
+-- Vòng lặp điều phối Pet đi đánh
 task.spawn(function()
     while true do
-        if _G.CurrentPhase == "FARMING" and _G.FarmReady then BalancedFastFarm(); CollectOrbs() end
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then 
+            pcall(function()
+                local myPets = GetMyPets()
+                local targets = GetBreakables()
+                
+                if #myPets > 0 and #targets > 0 then
+                    local petMapping = {}
+                    local petIndex = 1
+                    
+                    for _, target in ipairs(targets) do
+                        for i = 1, MAX_PETS_PER_TARGET do
+                            if petIndex <= #myPets then
+                                petMapping[myPets[petIndex].euid] = target.name
+                                petIndex = petIndex + 1
+                            else
+                                break
+                            end
+                        end
+                        if petIndex > #myPets then break end
+                    end
+                    
+                    if next(petMapping) then
+                        Network.Fire("Breakables_JoinPetBulk", petMapping)
+                    end
+                end
+                
+                MagneticLoot()
+            end)
+        end
         task.wait(0.12)
     end
 end)
-local function ClickAura()
+
+-- Vòng lặp đập tay (Aura) siêu tốc: Đập thẳng vào 5 vật thể gần nhất
+RunService.Heartbeat:Connect(function()
     if _G.CurrentPhase ~= "FARMING" or not _G.FarmReady then return end
-    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    for _, bName in ipairs(GetNearbyBreakables()) do pcall(function() Network.UnreliableFire("Breakables_PlayerDealDamage", bName) end); return end
-end
-RunService.Heartbeat:Connect(ClickAura)
+    pcall(function()
+        local targets = GetBreakables()
+        for i = 1, math.min(5, #targets) do
+            Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i].name)
+        end
+    end)
+end)
 
 -- ==========================================
 -- 🚀 CÁC TÍNH NĂNG PHỤ (MAIL, GIFTS, ULTIMATE, UPGRADE, HATCH)
 -- ==========================================
--- Bảng giá trị và số thứ tự của trứng để gửi lệnh SelectEgg
-local SpringEggUnlocks = { 
-    { number = 5, cost = 20000 }, 
-    { number = 4, cost = 6000 }, 
-    { number = 3, cost = 1500 }, 
-    { number = 2, cost = 300 } 
-}
+local SpringEggUnlocks = { { number = 5, cost = 20000 }, { number = 4, cost = 6000 }, { number = 3, cost = 1500 }, { number = 2, cost = 300 } }
 
 task.spawn(function()
     while task.wait(5) do
         if AutoUpgrade then
             pcall(function()
-                -- Mua máy móc Upgrade của Event
                 for upgradeId, upgradeData in pairs(EventUpgradesDir) do
                     if upgradeId:find("Easter") or upgradeId:find("Spring") then
                         local currentTier = EventUpgradeCmds.GetTier(upgradeId)
@@ -379,7 +443,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- Mua nâng cấp Trứng Sự Kiện bằng lệnh chuẩn xác
                 local eggToken = 0
                 local save = Save.Get()
                 if save.Inventory and save.Inventory.Misc then 
@@ -394,13 +457,10 @@ task.spawn(function()
                     if type(c) == "number" then eggToken = c end 
                 end
                 
-                -- Quét từ trứng xịn nhất (5) về (2), đủ tiền là bắn lệnh SelectEgg
                 for _, egg in ipairs(SpringEggUnlocks) do
                     if eggToken >= egg.cost then 
-                        pcall(function() 
-                            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) 
-                        end)
-                        break -- Chỉ cần bắn nâng cấp quả xịn nhất hiện có thể mua
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
+                        break
                     end
                 end
             end)
