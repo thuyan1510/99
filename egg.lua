@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V50 (NUMERIC MODE ULTIMATE) 🌸
--- (Chuyển Mode sang Số: 1=Hatch, 2=Farm, 3=Combine | Full Features)
+-- 🌸 EASTER EVENT - V52 (ANTI AFK & TRUE FPS) 🌸
+-- (Tích hợp chống văng game và đếm FPS thực tế)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -10,7 +10,6 @@ _G.SpringStarted = true
 -- ==========================================
 local UserSettings = getgenv().Settings or {}
 
--- BỘ LỌC MODE BẰNG SỐ CỦA BẠN: 1 = Hatch, 2 = Farm, 3 = Combine
 local rawMode = tonumber(UserSettings.Mode) or 3
 local Mode = "Combine"
 local ModeDisplay = "Combine"
@@ -60,6 +59,15 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
+-- 🛡️ ANTI AFK (CHỐNG VĂNG GAME) [Từ file của bạn]
+-- ==========================================
+local VirtualUser = game:GetService("VirtualUser")
+Player.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- ==========================================
 -- 🚀 1. EXTREME OPTIMIZE (GIẢM LAG)
 -- ==========================================
 local function ExtremeOptimize(v)
@@ -85,7 +93,7 @@ Workspace.DescendantAdded:Connect(ExtremeOptimize)
 Lighting.DescendantAdded:Connect(ExtremeOptimize)
 
 -- ==========================================
--- TỌA ĐỘ TUYỆT ĐỐI (CHỐNG KẸT MAP)
+-- TỌA ĐỘ TUYỆT ĐỐI & TRUE FPS TRACKER
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 _G.DynamicPortals = {}
@@ -95,6 +103,12 @@ for i = 1, 4 do _G.DynamicPortals[i] = CFrame.new(_G.DynamicHubCF.Position + Por
 
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
 local HatchOffset = Vector3.new(62.53, 0, -12.60) 
+
+-- Đếm FPS thực tế
+local TrueFPS = 60
+RunService.RenderStepped:Connect(function(deltaTime)
+    TrueFPS = math.floor(1 / deltaTime)
+end)
 
 -- ==========================================
 -- 📊 HÀM TIỆN ÍCH & BIẾN TRACKER 
@@ -139,7 +153,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV50"
+	Self.GuiName = "EasterEventGuiV52"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -200,7 +214,7 @@ end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V50", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V52", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -296,7 +310,9 @@ task.spawn(function()
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
             UI:SetText("Tickets", string.format("Ticket: %s / %s (Chance: %.6f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
-            UI:SetText("FPS", "FPS: " .. math.floor(Workspace:GetRealPhysicsFPS()))
+            
+            -- SỬ DỤNG TRUE FPS
+            UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
         end)
     end
 end)
@@ -437,8 +453,59 @@ end
 RunService.Heartbeat:Connect(ClickAura)
 
 -- ==========================================
--- 🚀 5. CÁC TÍNH NĂNG NHẬP THÊM (Ultimate, Mail, Gifts, Upgrade)
+-- 🚀 5. TỰ ĐỘNG NÂNG CẤP & MỞ KHÓA TRỨNG
 -- ==========================================
+local SpringEggUnlocks = {
+    { name = "Spring Egg 2", nameAlt = "SpringEgg2", cost = 300 },
+    { name = "Spring Egg 3", nameAlt = "SpringEgg3", cost = 1500 },
+    { name = "Spring Egg 4", nameAlt = "SpringEgg4", cost = 6000 },
+    { name = "Spring Egg 5", nameAlt = "SpringEgg5", cost = 20000 }
+}
+
+task.spawn(function()
+    while task.wait(5) do
+        if not AutoUpgrade then continue end
+        
+        pcall(function()
+            for upgradeId, upgradeData in pairs(EventUpgradesDir) do
+                if upgradeId:find("Easter") or upgradeId:find("Spring") then
+                    local currentTier = EventUpgradeCmds.GetTier(upgradeId)
+                    local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
+                    if nextTierCost and nextTierCost._data then
+                        local cId = nextTierCost._data.id
+                        local costAmount = nextTierCost._data._am or 1
+                        
+                        local currentAmount = 0
+                        if Items.Misc(cId) then currentAmount = Items.Misc(cId):CountExact()
+                        else currentAmount = CurrencyCmds.Get(cId) or 0 end
+                        
+                        if currentAmount >= costAmount then EventUpgradeCmds.Purchase(upgradeId) end
+                    end
+                end
+            end
+            
+            local save = Save.Get()
+            local eggToken = 0
+            if save.Inventory and save.Inventory.Misc then
+                for _, item in pairs(save.Inventory.Misc) do
+                    if item.id and item.id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1) end
+                end
+            end
+            if eggToken == 0 then
+                local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token")
+                if type(c) == "number" then eggToken = c end
+            end
+
+            for _, egg in ipairs(SpringEggUnlocks) do
+                if eggToken >= egg.cost then
+                    pcall(function() Network.Invoke("Eggs_RequestPurchase", egg.name, 1) end)
+                    pcall(function() Network.Invoke("Eggs_RequestPurchase", egg.nameAlt, 1) end)
+                end
+            end
+        end)
+    end
+end)
+
 task.spawn(function()
     while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end
 end)
@@ -466,30 +533,6 @@ task.spawn(function()
             local equipped = UltimateCmds.GetEquippedItem()
             if equipped and equipped._data and equipped._data.id then
                 UltimateCmds.Activate(equipped._data.id)
-            end
-        end)
-    end
-end)
-
-task.spawn(function()
-    while task.wait(5) do
-        if not AutoUpgrade then continue end
-        pcall(function()
-            for upgradeId, upgradeData in pairs(EventUpgradesDir) do
-                if upgradeId:find("Easter") or upgradeId:find("Spring") then
-                    local currentTier = EventUpgradeCmds.GetTier(upgradeId)
-                    local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
-                    if nextTierCost and nextTierCost._data then
-                        local cId = nextTierCost._data.id
-                        local costAmount = nextTierCost._data._am or 1
-                        
-                        local currentAmount = 0
-                        if Items.Misc(cId) then currentAmount = Items.Misc(cId):CountExact()
-                        else currentAmount = CurrencyCmds.Get(cId) or 0 end
-                        
-                        if currentAmount >= costAmount then EventUpgradeCmds.Purchase(upgradeId) end
-                    end
-                end
             end
         end)
     end
@@ -605,6 +648,11 @@ task.spawn(function()
         
         local elapsed = os.time() - StartTime
         local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(State.TimeLeft/60), State.TimeLeft%60)
+        
+        local statusText = ""
+        if State.Phase == "FARMING" then statusText = "Status: Farm Zone " .. ZoneNames[State.CurrentPortal]
+        else statusText = "Status: Hatching in Hub..." end
+        
         UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
     end
 end)
