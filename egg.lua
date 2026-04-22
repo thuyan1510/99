@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V55 (ANTI AFK 5 MINS & TRUE FPS) 🌸
--- (Sửa lỗi AFK: Kích hoạt mỗi 5 phút, giả lập Jump & Click)
+-- 🌸 EASTER EVENT - V56 (ULTIMATE ANTI-AFK) 🌸
+-- (Tích hợp getconnections() vô hiệu hóa hoàn toàn Idled)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -51,27 +51,31 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
--- 🛡️ ANTI AFK (TIMER 5 PHÚT - TRỊ AUTO RECONNECT CỦA PS99)
+-- 🛡️ ANTI AFK (NÂNG CẤP TỐI THƯỢNG)
 -- ==========================================
+-- 1. Cắt đứt hệ thống AFK mặc định của Roblox (Đoạn code của bạn)
+pcall(function()
+    if getconnections then
+        for i, v in pairs(getconnections(game:GetService("Players").LocalPlayer.Idled)) do
+            v:Disable()
+        end
+        print("🛡️ [ANTI-AFK] Đã vô hiệu hóa thành công LocalPlayer.Idled")
+    end
+end)
+
+-- 2. Vòng lặp lừa hệ thống PS99 mỗi 5 phút
 pcall(function()
     local vu = game:GetService("VirtualUser")
-    
-    -- Vô hiệu hóa bộ đếm AFK mặc định
-    if getconnections then
-        for _, v in pairs(getconnections(Player.Idled)) do v:Disable() end
-    end
-    
-    -- Vòng lặp chống AFK mỗi 5 phút (300 giây)
     task.spawn(function()
         while task.wait(300) do
             pcall(function()
                 vu:CaptureController()
                 vu:ClickButton2(Vector2.new())
                 
-                -- Nhảy nhẹ một cái để PS99 ghi nhận nhân vật có hoạt động vật lý
+                -- Nhảy nhẹ một cái để ghi nhận thao tác vật lý
                 local hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
                 if hum then hum.Jump = true end
-                print("🛡️ [ANTI-AFK] Đã gửi tín hiệu chống văng game!")
+                print("🛡️ [ANTI-AFK] Đã gửi tín hiệu chống văng game (Jump & Click)!")
             end)
         end
     end)
@@ -138,7 +142,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV55"
+	Self.GuiName = "EasterEventGuiV56"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -183,7 +187,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V55", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V56", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -388,6 +392,20 @@ task.spawn(function() while task.wait(15) do pcall(function() Network.Invoke('Ma
 task.spawn(function() while task.wait(5) do pcall(function() local save = Save.Get(); if not save then return end; local redeemed = save.FreeGiftsRedeemed or {}; local currentTime = save.FreeGiftsTime or 0; for _, gift in pairs(FreeGiftsDirectory) do if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id); break end end end) end end)
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 task.spawn(function() if AutoHatch then pcall(function() local EggFrontend = getsenv(Players.LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"]); if EggFrontend then EggFrontend.PlayEggAnimation = function() return end; EggFrontend.PlayCustom = function() return end end end) end end)
+
+-- ==========================================
+-- 🚀 SIÊU TỐC ĐỘ ẤP TRỨNG (FAST HATCH SPAMMER)
+-- ==========================================
+task.spawn(function()
+    while true do
+        if _G.CurrentPhase == "HATCHING" then
+            pcall(function() Network.Invoke("EasterHatchEvent", "HatchRequest") end)
+            task.wait(0.1) 
+        else
+            task.wait(1)
+        end
+    end
+end)
 
 -- ==========================================
 -- 🚀 VÒNG LẶP ĐIỀU HƯỚNG CHẾ ĐỘ
