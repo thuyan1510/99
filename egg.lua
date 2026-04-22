@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V58 (SMART FARM ENGINE) 🌸
--- (Tích hợp thuật toán Farm độc lập: Radius 50, Pets 3, Aura siêu tốc)
+-- 🌸 EASTER EVENT - V59 (PERFECT ANTI-AFK & UPGRADE FIX) 🌸
+-- (Tích hợp Anti-AFK 3 Lớp & Sửa lỗi nhảy cấp mở khóa trứng)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -51,14 +51,46 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
--- 🛡️ ANTI AFK (NÂNG CẤP TỐI THƯỢNG)
+-- 🛡️ ANTI AFK (NÂNG CẤP TỐI THƯỢNG V3 - PHÒNG THỦ 3 LỚP)
 -- ==========================================
+-- [Lớp 1]: Chặn gói tin báo cáo AFK gửi lên server của Pet Simulator 99
 pcall(function()
+    local v3 = require(ReplicatedStorage.Library.Client.Network)
+    local _Fire = v3.Fire
+    setreadonly(v3, false)
+    v3.Fire = function(...)
+        local args = {...}
+        if args[1] == 'Idle Tracking: Update Timer' then
+            return -- Hủy gói tin AFK của game
+        end
+        return _Fire(...)
+    end
+    setreadonly(v3, true)
+end)
+
+-- [Lớp 2]: Che mắt game khi bạn Alt-Tab hoặc thu nhỏ cửa sổ (Bypass Window Focus)
+pcall(function()
+    local UserInputService = game:GetService("UserInputService")
     if getconnections then
-        for i, v in pairs(getconnections(game:GetService("Players").LocalPlayer.Idled)) do v:Disable() end
+        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do
+            if v.Disable then v:Disable() end
+        end
+        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do
+            if v.Disable then v:Disable() end
+        end
     end
 end)
 
+-- [Lớp 3]: Vô hiệu hóa hệ thống kick 20 phút mặc định của Roblox Engine
+pcall(function()
+    if getconnections then
+        for _, v in pairs(getconnections(Player.Idled)) do
+            if v.Disable then v:Disable() end
+        end
+    end
+end)
+
+-- Backup Layer: Giả lập click chuột và nhảy định kỳ để chắc chắn 100%
 pcall(function()
     local vu = game:GetService("VirtualUser")
     task.spawn(function()
@@ -134,7 +166,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV58"
+	Self.GuiName = "EasterEventGuiV59"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -179,7 +211,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V58", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V59", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -340,42 +372,32 @@ local function GetBreakables()
         end
     end)
 
-    -- Sắp xếp ưu tiên vật thể gần nhất
     table.sort(breakables, function(a, b) return a.dist < b.dist end)
     return breakables
 end
 
 local function MagneticLoot()
     pcall(function()
-        -- Hút Orbs
         local orbs = Workspace.__THINGS:FindFirstChild("Orbs")
         if orbs then
             local orbIds = {}
             for _, orb in ipairs(orbs:GetChildren()) do
-                if orb:IsA("Part") or orb:IsA("MeshPart") then
-                    table.insert(orbIds, tonumber(orb.Name))
-                    orb:Destroy()
-                end
+                if orb:IsA("Part") or orb:IsA("MeshPart") then table.insert(orbIds, tonumber(orb.Name)); orb:Destroy() end
             end
             if #orbIds > 0 then Network.Fire("Orbs: Collect", orbIds) end
         end
 
-        -- Hút Lootbags
         local bags = Workspace.__THINGS:FindFirstChild("Lootbags")
         if bags then
             local bagIds = {}
             for _, bag in ipairs(bags:GetChildren()) do
-                if bag:IsA("Model") or bag:IsA("Part") then
-                    table.insert(bagIds, bag.Name)
-                    bag:Destroy()
-                end
+                if bag:IsA("Model") or bag:IsA("Part") then table.insert(bagIds, bag.Name); bag:Destroy() end
             end
             if #bagIds > 0 then Network.Fire("Lootbags_Claim", bagIds) end
         end
     end)
 end
 
--- Vòng lặp điều phối Pet đi đánh
 task.spawn(function()
     while true do
         if _G.CurrentPhase == "FARMING" and _G.FarmReady then 
@@ -399,9 +421,7 @@ task.spawn(function()
                         if petIndex > #myPets then break end
                     end
                     
-                    if next(petMapping) then
-                        Network.Fire("Breakables_JoinPetBulk", petMapping)
-                    end
+                    if next(petMapping) then Network.Fire("Breakables_JoinPetBulk", petMapping) end
                 end
                 
                 MagneticLoot()
@@ -411,21 +431,24 @@ task.spawn(function()
     end
 end)
 
--- Vòng lặp đập tay (Aura) siêu tốc: Đập thẳng vào 5 vật thể gần nhất
 RunService.Heartbeat:Connect(function()
     if _G.CurrentPhase ~= "FARMING" or not _G.FarmReady then return end
     pcall(function()
         local targets = GetBreakables()
-        for i = 1, math.min(5, #targets) do
-            Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i].name)
-        end
+        for i = 1, math.min(5, #targets) do Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i].name) end
     end)
 end)
 
 -- ==========================================
 -- 🚀 CÁC TÍNH NĂNG PHỤ (MAIL, GIFTS, ULTIMATE, UPGRADE, HATCH)
 -- ==========================================
-local SpringEggUnlocks = { { number = 5, cost = 20000 }, { number = 4, cost = 6000 }, { number = 3, cost = 1500 }, { number = 2, cost = 300 } }
+-- Sắp xếp Mở khóa Trứng từ thấp lên cao để mở khóa tuần tự (Không nhảy cóc)
+local SpringEggUnlocks = { 
+    { number = 2, cost = 300 }, 
+    { number = 3, cost = 1500 }, 
+    { number = 4, cost = 6000 }, 
+    { number = 5, cost = 20000 } 
+}
 
 task.spawn(function()
     while task.wait(5) do
@@ -457,10 +480,11 @@ task.spawn(function()
                     if type(c) == "number" then eggToken = c end 
                 end
                 
+                -- Bắn lệnh tuần tự: Quả 2 -> 3 -> 4 -> 5 (Server sẽ tự kiểm tra điều kiện và bỏ qua nếu đã mua hoặc không đủ tiền)
                 for _, egg in ipairs(SpringEggUnlocks) do
                     if eggToken >= egg.cost then 
                         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
-                        break
+                        task.wait(0.5) -- Đợi server xử lý xong 1 quả trước khi gửi lệnh nâng cấp quả tiếp theo
                     end
                 end
             end)
