@@ -1,37 +1,39 @@
--- ==========================================
--- 🌸 EASTER EVENT - V60 (PHYSICAL MACRO UPGRADE) 🌸
--- Tích hợp PetSimModule cho PS99
--- ==========================================
-if _G.SpringStarted then return end
-_G.SpringStarted = true
+-- ========== TẢI MODULE TỪ GITHUB (CÓ FALLBACK AN TOÀN) ==========
+local Module = {
+    -- Fallback functions nếu module không tải được
+    Optimize = function(fps) setfpscap(fps or 15) end,
+    SetPetSpeed = function(speed) end,
+    Noclip = function(enable) end,
+    AddSuffix = function(v) return tostring(v) end,
+    RemoveSuffix = function(v) return tonumber(v) or 0 end,
+    ConvertTime = function(s) return s .. "s" end,
+    MoveTo = function(cf, speed) 
+        local hrp = HumanoidRootPart
+        local tween = TweenService:Create(hrp, TweenInfo.new((hrp.Position - cf.Position).Magnitude / (speed or 50), Enum.EasingStyle.Linear), {CFrame = cf})
+        tween:Play()
+        tween.Completed:Wait()
+    end,
+    EnterInstance = function(name) end,
+    FarmBreakables = function() end
+}
 
--- ========== TẢI MODULE TỪ GITHUB ==========
-local Module
 if not _G.PetSimModule then
     local success, result = pcall(function()
         return loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/PetSimModule.lua"))()
     end)
     if success and type(result) == "table" then
         _G.PetSimModule = result
-        Module = result
+        -- Ghi đè các hàm fallback bằng hàm thật từ module
+        for k, v in pairs(result) do
+            Module[k] = v
+        end
         print("✅ Module PS99 đã tải thành công!")
     else
-        warn("❌ Không thể tải module: " .. tostring(result))
-        -- Định nghĩa module giả để tránh lỗi
-        Module = {
-            Optimize = function() end,
-            Noclip = function() end,
-            AddSuffix = function(v) return tostring(v) end,
-            RemoveSuffix = function(v) return tonumber(v) or 0 end,
-            ConvertTime = function(s) return s .. "s" end,
-            MoveTo = function() end,
-            FarmBreakables = function() end
-        }
+        warn("❌ Không thể tải module, dùng fallback. Lỗi: " .. tostring(result))
     end
 else
     Module = _G.PetSimModule
 end
-
 -- ========== CẤU HÌNH NGƯỜI DÙNG ==========
 local UserSettings = getgenv().Settings or {}
 local function SafeNumber(val, default)
@@ -56,6 +58,7 @@ local rawDiscordId = type(WebhookCfg) == "table" and WebhookCfg["Discord Id to p
 local DISCORD_USER_ID = type(rawDiscordId) == "table" and (rawDiscordId[1] or "") or tostring(rawDiscordId)
 
 -- ========== DỊCH VỤ ==========
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -76,7 +79,7 @@ local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
 local InstancingCmds = require(Library.Client.InstancingCmds)
 
 -- ========== TỐI ƯU HÓA ==========
-Module.Optimize(15)  -- Giảm FPS và tắt hiệu ứng để giảm lag
+Module.Optimize(60)  -- Giảm FPS và tắt hiệu ứng để giảm lag
 
 -- ========== CHỐNG AFK 3 LỚP ==========
 pcall(function()
@@ -443,8 +446,19 @@ task.spawn(farmLoop)
 task.spawn(hatchLoop)
 task.spawn(zoneSwitcher)
 
+-- Di chuyển đến zone đầu tiên
 moveToCFrame(_G.DynamicPortals[1])
-pcall(function() InstancingCmds.Enter("Dewdrop Falls") end)
+task.wait(1)  -- Chờ 1 giây sau khi đến portal
+
+-- Kiểm tra xem đã vào đúng instance chưa, nếu chưa thì đợi load rồi vào
+if InstancingCmds.GetInstanceID() ~= "Dewdrop Falls" then
+    print("⏳ Đang chờ vào instance Dewdrop Falls...")
+    Module.EnterInstance("Dewdrop Falls")
+    -- Đợi thêm để map load hoàn tất
+    repeat task.wait(0.5) until InstancingCmds.GetInstanceID() == "Dewdrop Falls" or not _G.SpringStarted
+    task.wait(3)  -- Chờ thêm 3 giây để map load hoàn chỉnh
+    print("✅ Đã vào map Dewdrop Falls")
+end
 
 -- Giữ script sống
 while _G.SpringStarted do task.wait(10) end
