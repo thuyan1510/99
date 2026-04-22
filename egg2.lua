@@ -1,10 +1,3 @@
--- ==========================================
--- 🌸 EASTER EVENT - V60 (PHYSICAL MACRO UPGRADE) 🌸
--- Tích hợp PetSimModule để tối ưu & farm
--- ==========================================
-if _G.SpringStarted then return end
-_G.SpringStarted = true
-
 -- ========== TẢI MODULE TỪ GITHUB ==========
 local Module
 if not _G.PetSimModule then
@@ -14,14 +7,23 @@ if not _G.PetSimModule then
     if success then
         _G.PetSimModule = result
         Module = result
+        print("✅ Module PS99 đã tải thành công!")
     else
-        warn("Không thể tải module từ GitHub: " .. tostring(result))
-        return
+        warn("❌ Không thể tải module: " .. tostring(result))
+        -- Bạn có thể cho script tiếp tục chạy mà không cần module bằng cách định nghĩa các hàm giả
+        Module = {
+            Optimize = function() end,
+            Noclip = function() end,
+            AddSuffix = function(v) return tostring(v) end,
+            RemoveSuffix = function(v) return tonumber(v) or 0 end,
+            ConvertTime = function(s) return s .. "s" end,
+            MoveTo = function() end,
+            FarmBreakables = function() end
+        }
     end
 else
     Module = _G.PetSimModule
 end
-
 -- ========== CẤU HÌNH ==========
 local UserSettings = getgenv().Settings or {}
 local function SafeNumber(val, default) return tonumber(val) or default end
