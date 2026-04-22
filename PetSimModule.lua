@@ -1,14 +1,11 @@
 -- ==========================================
--- PET SIMULATOR X - UTILITY MODULE V2
--- (Tối ưu cho sự kiện Easter V60)
+-- PET SIMULATOR X - UTILITY MODULE V2.1
+-- (Đã sửa lỗi tương thích, bỏ qua module không tồn tại)
 -- ==========================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
-local VirtualUser = game:GetService("VirtualUser")
-local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local Terrain = workspace:FindFirstChildOfClass("Terrain")
 
@@ -21,38 +18,58 @@ local Character = LocalPlayer.Character
 local HumanoidRootPart = Character.HumanoidRootPart
 local NLibrary = ReplicatedStorage:FindFirstChild("Library")
 
--- Tải các module của game (nếu chưa có)
+-- Tải các module của game (bọc trong pcall, bỏ qua nếu lỗi)
 if not getgenv().Library then
     getgenv().Library = {}
     local function LoadModules(path, isOne, loadItself)
         if isOne then
-            local s, m = pcall(require, path)
-            if s then getgenv().Library[path.Name] = m end
+            pcall(function()
+                local s, m = pcall(require, path)
+                if s then getgenv().Library[path.Name] = m end
+            end)
             return
         end
         if loadItself then
-            local s, m = pcall(require, path)
-            if s then getgenv().Library[path.Name] = m end
+            pcall(function()
+                local s, m = pcall(require, path)
+                if s then getgenv().Library[path.Name] = m end
+            end)
         end
         for _, v in ipairs(path:GetChildren()) do
             if v:IsA("ModuleScript") and not v:GetAttribute("NOLOAD") and v.Name ~= "ToRomanNum" then
-                local s, m = pcall(require, v)
-                if s then getgenv().Library[v.Name] = m end
+                pcall(function()
+                    local s, m = pcall(require, v)
+                    if s then getgenv().Library[v.Name] = m end
+                end)
             end
         end
     end
 
-    for _, folder in ipairs({NLibrary, NLibrary.Directory, NLibrary.Client, NLibrary.Util, NLibrary.Types, NLibrary.Items, NLibrary.Functions, NLibrary.Modules, NLibrary.Balancing}) do
-        LoadModules(folder)
+    -- Các thư mục cốt lõi
+    local coreFolders = {
+        NLibrary,
+        NLibrary:FindFirstChild("Directory"),
+        NLibrary:FindFirstChild("Client"),
+        NLibrary:FindFirstChild("Util"),
+        NLibrary:FindFirstChild("Types"),
+        NLibrary:FindFirstChild("Items"),
+        NLibrary:FindFirstChild("Functions"),
+        NLibrary:FindFirstChild("Modules"),
+        NLibrary:FindFirstChild("Balancing")
+    }
+    for _, folder in ipairs(coreFolders) do
+        if folder then LoadModules(folder) end
     end
-    LoadModules(NLibrary.Shared.Variables, true)
-    LoadModules(NLibrary.Client.OrbCmds.Orb, true)
-    LoadModules(NLibrary.Client.MiningCmds.BlockWorldClient, true)
+
+    -- Các module đặc biệt (có thể không tồn tại)
+    pcall(function() LoadModules(NLibrary.Shared.Variables, true) end)
+    pcall(function() LoadModules(NLibrary.Client.OrbCmds.Orb, true) end)
+    pcall(function() LoadModules(NLibrary.Client.MiningCmds.BlockWorldClient, true) end)
 end
 
 local Library = getgenv().Library
 
--- Xử lý Breakables
+-- ========== XỬ LÝ BREAKABLES ==========
 local Breakables = {}
 local function CreateBreakable(data)
     pcall(function()
@@ -67,41 +84,65 @@ end
 local function CleanBreakable(uid) pcall(function() Breakables[uid] = nil end) end
 
 local Events = { Created = CreateBreakable, Ping = CreateBreakable, Destroyed = CleanBreakable, Cleanup = CleanBreakable }
-for action, func in pairs(Events) do
-    Library.Network.Fired("Breakables_" .. action):Connect(function(data)
-        for i = 1, #data do func(unpack(data[i])) end
-    end)
-end
-for _, v in ipairs(workspace.__THINGS.Breakables:GetChildren()) do
-    if v:IsA("Model") then
-        Breakables[v:GetAttribute("BreakableUID")] = {
-            UID = v:GetAttribute("BreakableUID"),
-            CFrame = v:GetPivot(),
-            ID = v:GetAttribute("BreakableID"),
-            Zone = v:GetAttribute("ParentID")
-        }
+if Library.Network and Library.Network.Fired then
+    for action, func in pairs(Events) do
+        local eventName = "Breakables_" .. action
+        pcall(function()
+            Library.Network.Fired(eventName):Connect(function(data)
+                for i = 1, #data do func(unpack(data[i])) end
+            end)
+        end)
     end
 end
 
--- Pet Equip Handling
-local Pets = {}
-for _, v in pairs(Library.PetNetworking.EquippedPets()) do Pets[v.euid] = true end
-Library.Network.Fired("Pets_LocalPetsUpdated"):Connect(function(petList)
-    for _, v in pairs(petList) do Pets[v.ePet.euid] = true end
-end)
-Library.Network.Fired("Pets_LocalPetsUnequipped"):Connect(function(petList)
-    for _, v in pairs(petList) do Pets[v] = nil end
+pcall(function()
+    for _, v in ipairs(workspace.__THINGS.Breakables:GetChildren()) do
+        if v:IsA("Model") then
+            Breakables[v:GetAttribute("BreakableUID")] = {
+                UID = v:GetAttribute("BreakableUID"),
+                CFrame = v:GetPivot(),
+                ID = v:GetAttribute("BreakableID"),
+                Zone = v:GetAttribute("ParentID")
+            }
+        end
+    end
 end)
 
--- Orb Auto-Collect
-Library.Orb.new = function() end
-Library.Orb.ComputeInitialCFrame = function() return CFrame.new() end
-Library.Network.Fired("Orbs: Create"):Connect(function(orbs)
-    local ids = {}
-    for _, v in ipairs(orbs) do table.insert(ids, tonumber(v.id)) end
-    Library.Network.Fire("Orbs: Collect", ids)
+-- ========== PET EQUIP HANDLING ==========
+local Pets = {}
+if Library.PetNetworking then
+    pcall(function()
+        for _, v in pairs(Library.PetNetworking.EquippedPets()) do Pets[v.euid] = true end
+    end)
+    pcall(function()
+        Library.Network.Fired("Pets_LocalPetsUpdated"):Connect(function(petList)
+            for _, v in pairs(petList) do Pets[v.ePet.euid] = true end
+        end)
+    end)
+    pcall(function()
+        Library.Network.Fired("Pets_LocalPetsUnequipped"):Connect(function(petList)
+            for _, v in pairs(petList) do Pets[v] = nil end
+        end)
+    end)
+end
+
+-- ========== ORB AUTO-COLLECT ==========
+if Library.Orb then
+    pcall(function()
+        Library.Orb.new = function() end
+        Library.Orb.ComputeInitialCFrame = function() return CFrame.new() end
+    end)
+    pcall(function()
+        Library.Network.Fired("Orbs: Create"):Connect(function(orbs)
+            local ids = {}
+            for _, v in ipairs(orbs) do table.insert(ids, tonumber(v.id)) end
+            Library.Network.Fire("Orbs: Collect", ids)
+        end)
+    end)
+end
+pcall(function()
+    workspace.__THINGS.Orbs.ChildAdded:Connect(function(orb) if orb then orb:Destroy() end end)
 end)
-workspace.__THINGS.Orbs.ChildAdded:Connect(function(orb) if orb then orb:Destroy() end end)
 
 -- ========== MODULE EXPORT ==========
 local Module = {}
@@ -115,7 +156,9 @@ function Module.GetEquippedPets()
 end
 
 function Module.SetPetSpeed(speed)
-    Library.PlayerPet.CalculateSpeedMultiplier = function() return tonumber(speed) or 200 end
+    if Library.PlayerPet then
+        Library.PlayerPet.CalculateSpeedMultiplier = function() return tonumber(speed) or 200 end
+    end
 end
 
 function Module.Noclip(enable)
@@ -144,6 +187,7 @@ function Module.Noclip(enable)
 end
 
 function Module.FarmBreakables(settings)
+    if not Library.Network then return end
     settings = settings or {}
     local ignoreIDs = settings.IgnoreIDs or {}
     local ignoreZones = settings.IgnoreZones or {}
@@ -167,61 +211,62 @@ function Module.FarmBreakables(settings)
     end
 
     if next(assignments) then
-        Library.Network.UnreliableFire("Breakables_PlayerDealDamage", validBreakables[1])
-        Library.Network.Fire("Breakables_JoinPetBulk", assignments)
+        pcall(function() Library.Network.UnreliableFire("Breakables_PlayerDealDamage", validBreakables[1]) end)
+        pcall(function() Library.Network.Fire("Breakables_JoinPetBulk", assignments) end)
     end
 end
 
 function Module.Optimize(fpsCap)
-    local UserSettings = UserSettings()
-    local GameSettings = UserSettings:GetService("UserGameSettings")
-    GameSettings.GraphicsQualityLevel = 1
-    GameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
-    GameSettings.MasterVolume = 0
-    settings().Rendering.QualityLevel = 1
-    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
-    sethiddenproperty(Terrain, "Decoration", false)
-    sethiddenproperty(Lighting, "Technology", 2)
+    pcall(function()
+        local UserSettings = UserSettings()
+        local GameSettings = UserSettings:GetService("UserGameSettings")
+        GameSettings.GraphicsQualityLevel = 1
+        GameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
+        GameSettings.MasterVolume = 0
+        settings().Rendering.QualityLevel = 1
+        settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+        if Terrain then sethiddenproperty(Terrain, "Decoration", false) end
+        sethiddenproperty(Lighting, "Technology", 2)
 
-    for _, v in ipairs(Lighting:GetChildren()) do v:Destroy() end
-    Lighting.GlobalShadows = false
-    Lighting.Brightness = 0
-    Lighting.Ambient = Color3.new(0, 0, 0)
-    Lighting.FogEnd = 0
-    Lighting.Technology = Enum.Technology.Voxel
+        for _, v in ipairs(Lighting:GetChildren()) do v:Destroy() end
+        Lighting.GlobalShadows = false
+        Lighting.Brightness = 0
+        Lighting.Ambient = Color3.new(0, 0, 0)
+        Lighting.FogEnd = 0
+        Lighting.Technology = Enum.Technology.Voxel
 
-    if Terrain then
-        Terrain.WaterWaveSize = 0
-        Terrain.WaterWaveSpeed = 0
-        Terrain.WaterReflectance = 0
-        Terrain.WaterTransparency = 1
-    end
-
-    local function ClearItem(v)
-        if v.Name == "SystemExodus" then return end
-        if v:IsA("Model") and v.Parent == workspace and v.Name ~= LocalPlayer.Name then v:Destroy()
-        elseif v:IsA("Workspace") then
-            v.Terrain.WaterWaveSize = 0
-            v.Terrain.WaterWaveSpeed = 0
-            sethiddenproperty(v, "StreamingTargetRadius", 64)
-            sethiddenproperty(v, "StreamingPauseMode", 2)
-            sethiddenproperty(v.Terrain, "Decoration", false)
-        elseif v:IsA("Model") then sethiddenproperty(v, "LevelOfDetail", 1)
-        elseif v:IsA("TextButton") or v:IsA("TextLabel") or v:IsA("ImageLabel") then v.Visible = false
-        elseif v:IsA("BasePart") then v.Material = Enum.Material.Plastic; v.Reflectance = 0
-        elseif v:IsA("Texture") or v:IsA("Decal") then v.Texture = ""; v.Transparency = 1
-        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false
-        elseif v:IsA("Sound") then v.Playing = false; v.Volume = 0
+        if Terrain then
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 1
         end
-    end
 
-    for _, v in ipairs(workspace:GetDescendants()) do ClearItem(v) end
-    workspace.DescendantAdded:Connect(ClearItem)
+        local function ClearItem(v)
+            if v.Name == "SystemExodus" then return end
+            if v:IsA("Model") and v.Parent == workspace and v.Name ~= LocalPlayer.Name then v:Destroy()
+            elseif v:IsA("Workspace") then
+                v.Terrain.WaterWaveSize = 0
+                v.Terrain.WaterWaveSpeed = 0
+                sethiddenproperty(v, "StreamingTargetRadius", 64)
+                sethiddenproperty(v, "StreamingPauseMode", 2)
+                sethiddenproperty(v.Terrain, "Decoration", false)
+            elseif v:IsA("Model") then sethiddenproperty(v, "LevelOfDetail", 1)
+            elseif v:IsA("TextButton") or v:IsA("TextLabel") or v:IsA("ImageLabel") then v.Visible = false
+            elseif v:IsA("BasePart") then v.Material = Enum.Material.Plastic; v.Reflectance = 0
+            elseif v:IsA("Texture") or v:IsA("Decal") then v.Texture = ""; v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false
+            elseif v:IsA("Sound") then v.Playing = false; v.Volume = 0
+            end
+        end
+
+        for _, v in ipairs(workspace:GetDescendants()) do ClearItem(v) end
+        workspace.DescendantAdded:Connect(ClearItem)
+    end)
 
     if fpsCap then setfpscap(fpsCap) end
 end
 
--- Tiện ích chuyển đổi số
 function Module.AddSuffix(amount)
     local suffixes = {"", "k", "m", "b", "t"}
     local index = 1
@@ -233,7 +278,7 @@ end
 function Module.RemoveSuffix(str)
     local num = tonumber(str:match("[%d%.]+")) or 0
     local suffix = str:match("%a+")
-    local mult = ({k=1e3, m=1e6, b=1e9, t=1e12})[suffix:lower()] or 1
+    local mult = ({k=1e3, m=1e6, b=1e9, t=1e12})[suffix and suffix:lower() or ""] or 1
     return num * mult
 end
 
@@ -245,6 +290,7 @@ function Module.ConvertTime(sec)
 end
 
 function Module.EnterInstance(name)
+    if not Library.InstancingCmds then return end
     if Library.InstancingCmds.GetInstanceID() == name then return end
     setthreadidentity(2)
     Library.InstancingCmds.Enter(name)
