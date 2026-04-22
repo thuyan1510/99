@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V65 (PERFECT NETWORK FIX) 🌸
--- (Sửa lỗi Server từ chối lệnh cổng do đứng quá xa)
+-- 🌸 EASTER EVENT - V66 (FINAL PORTAL FIX) 🌸
+-- (Sửa lỗi sai chỉ số Zone từ Server: Hub=1, Dewdrop=2)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -142,7 +142,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV65"
+	Self.GuiName = "EasterEventGuiV66"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -187,7 +187,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V65 (NETWORK FIX)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V66", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -356,7 +356,6 @@ task.spawn(function()
                     if type(c) == "number" then eggToken = c end 
                 end
                 
-                -- Bắn lệnh tuần tự từ rẻ lên đắt bằng Code
                 for _, egg in ipairs(SpringEggUnlocks) do
                     if eggToken >= egg.cost then 
                         pcall(function() 
@@ -390,7 +389,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 PURE NETWORK PORTAL LOGIC (FIXED)
+-- 🚀 PURE NETWORK PORTAL LOGIC (FIXED SERVER ZONE INDEX)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
@@ -402,20 +401,21 @@ end
 local function EnterZoneNetwork(portalIndex)
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     
-    -- [BẢN V65 FIX]: Phải dịch chuyển lại gần cổng để pass hệ thống kiểm tra khoảng cách của Server
     if _G.DynamicPortals[portalIndex] then
         TeleportPlayer(_G.DynamicPortals[portalIndex])
         task.wait(0.5)
     end
     
-    -- Bắn lệnh xin vào cổng
-    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", portalIndex) end)
+    -- [BẢN V66 FIX]: Server tính Hub là Zone 1, nên các cổng Farm phải cộng thêm 1.
+    -- Dewdrop Falls = 2, Tulip Hollow = 3, Blossom Vale = 4, Sunstone Heights = 5.
+    local serverZoneIndex = portalIndex + 1
+    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneIndex) end)
     
-    -- Chờ khoảng cách ra xa khỏi sảnh (nghĩa là đã bị server ném vào khu Farm)
     local waitTime = 0
-    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
-    if waitTime >= 10 then 
-        print("❌ Lỗi: Server từ chối lệnh vào cổng số " .. portalIndex .. ". Có thể bạn chưa đủ cấp/sao để mở cổng này!")
+    -- Tăng thời gian chờ lên 15 giây để phòng khi điện thoại lag load map chậm
+    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 15 do task.wait(0.5); waitTime = waitTime + 0.5 end
+    if waitTime >= 15 then 
+        print("❌ Lỗi: Server từ chối lệnh vào cổng số " .. serverZoneIndex .. " (Khu " .. ZoneNames[portalIndex] .. "). Có thể bạn chưa mở khóa!")
         return 
     end
     
@@ -425,19 +425,16 @@ end
 local function ReturnToHubNetwork()
     _G.FarmReady = false
     
-    -- Bắn lệnh xin về sảnh
     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
     
-    -- Chờ khoảng cách tới sảnh rút ngắn lại (nghĩa là đã bị ném về sảnh)
     local waitTime = 0
-    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
+    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 15 do task.wait(0.5); waitTime = waitTime + 0.5 end
     
     task.wait(1.5)
     local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
     TeleportPlayer(targetCF)
 end
 
--- Vòng lặp điều phối chính
 local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
 _G.CurrentPhase = State.Phase
 
