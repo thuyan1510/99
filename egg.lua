@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V64 (PERFECT NETWORK EDITION) 🌸
--- (100% Code: Tự động Mở Khóa & Vào Cổng không chạm UI)
+-- 🌸 EASTER EVENT - V65 (PERFECT NETWORK FIX) 🌸
+-- (Sửa lỗi Server từ chối lệnh cổng do đứng quá xa)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -103,6 +103,11 @@ Lighting.DescendantAdded:Connect(ExtremeOptimize)
 -- TỌA ĐỘ TUYỆT ĐỐI & TRUE FPS TRACKER
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
+_G.DynamicPortals = {}
+local ZoneNames = { "Dewdrop Falls", "Tulip Hollow", "Blossom Vale", "Sunstone Heights" }
+local PortalOffsets = { Vector3.new(187.92, 12.48, -73.25), Vector3.new(200.18, 10.73, -24.80), Vector3.new(198.20, 12.98, 44.73), Vector3.new(170.03, 12.48, 86.75) }
+for i = 1, 4 do _G.DynamicPortals[i] = CFrame.new(_G.DynamicHubCF.Position + PortalOffsets[i]) end
+
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
 local HatchOffset = Vector3.new(62.53, 0, -12.60) 
 
@@ -137,7 +142,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV64"
+	Self.GuiName = "EasterEventGuiV65"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -182,7 +187,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V64 (PURE NETWORK)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V65 (NETWORK FIX)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -385,7 +390,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 PURE NETWORK PORTAL LOGIC
+-- 🚀 PURE NETWORK PORTAL LOGIC (FIXED)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
@@ -397,12 +402,22 @@ end
 local function EnterZoneNetwork(portalIndex)
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     
-    -- Lệnh Vàng: Vào cổng bằng Code
+    -- [BẢN V65 FIX]: Phải dịch chuyển lại gần cổng để pass hệ thống kiểm tra khoảng cách của Server
+    if _G.DynamicPortals[portalIndex] then
+        TeleportPlayer(_G.DynamicPortals[portalIndex])
+        task.wait(0.5)
+    end
+    
+    -- Bắn lệnh xin vào cổng
     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", portalIndex) end)
     
+    -- Chờ khoảng cách ra xa khỏi sảnh (nghĩa là đã bị server ném vào khu Farm)
     local waitTime = 0
     while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
-    if waitTime >= 10 then return end
+    if waitTime >= 10 then 
+        print("❌ Lỗi: Server từ chối lệnh vào cổng số " .. portalIndex .. ". Có thể bạn chưa đủ cấp/sao để mở cổng này!")
+        return 
+    end
     
     task.wait(1.5); _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset); TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true
 end
@@ -410,9 +425,10 @@ end
 local function ReturnToHubNetwork()
     _G.FarmReady = false
     
-    -- Lệnh Vàng: Trở về Hub bằng Code
+    -- Bắn lệnh xin về sảnh
     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
     
+    -- Chờ khoảng cách tới sảnh rút ngắn lại (nghĩa là đã bị ném về sảnh)
     local waitTime = 0
     while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
     
