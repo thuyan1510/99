@@ -41,6 +41,7 @@ local WEBHOOK_URL = type(WebhookCfg) == "table" and WebhookCfg.url or ""
 local DISCORD_USER_ID = type(WebhookCfg) == "table" and (type(WebhookCfg["Discord Id to ping"]) == "table" and WebhookCfg["Discord Id to ping"][1] or "") or tostring(WebhookCfg["Discord Id to ping"])
 
 -- ========== DỊCH VỤ ==========
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
