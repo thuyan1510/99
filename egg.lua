@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V68 (THE ULTIMATE INSTANT TELEPORT) 🌸
--- (Bắn lệnh xuyên không gian từ Hub, check 1s tối ưu nhất)
+-- 🌸 EASTER EVENT - V69 (IMMORTAL ANTI-AFK) 🌸
+-- (Anti-AFK Bạo lực: Xoay Camera, VIM Input, Network Hook)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -27,6 +27,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -45,49 +46,55 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
--- 🛡️ ANTI AFK (PHÒNG THỦ 3 LỚP)
+-- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ V4)
 -- ==========================================
-pcall(function()
-    local v3 = require(ReplicatedStorage.Library.Client.Network)
-    local _Fire = v3.Fire
-    setreadonly(v3, false)
-    v3.Fire = function(...)
+-- 1. Hook Cấp Thấp: Chặn toàn bộ Ping AFK
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "InvokeServer" then
         local args = {...}
-        if args[1] == 'Idle Tracking: Update Timer' then return end
-        return _Fire(...)
+        local cmd = tostring(args[1] or "")
+        if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then
+            return -- Hủy mọi báo cáo treo máy
+        end
     end
-    setreadonly(v3, true)
+    return oldNamecall(self, ...)
 end)
 
+-- 2. Vô hiệu hóa Client Idled & Focus
 pcall(function()
     local UserInputService = game:GetService("UserInputService")
     if getconnections then
-        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do if type(v.Disable) == "function" then v:Disable() end end
-        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do if type(v.Disable) == "function" then v:Disable() end end
-        for _, v in pairs(getconnections(Player.Idled)) do if type(v.Disable) == "function" then v:Disable() end end
+        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do pcall(function() v:Disable() end) end
+        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do pcall(function() v:Disable() end) end
+        for _, v in pairs(getconnections(Player.Idled)) do pcall(function() v:Disable() end) end
     end
 end)
 
-pcall(function()
-    local vu = game:GetService("VirtualUser")
-    task.spawn(function()
-        while task.wait(300) do
-            pcall(function()
-                vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
-                local hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
-                if hum then hum.Jump = true end
-            end)
-        end
-    end)
+-- 3. Động Cơ Vật Lý Giả Lập (Mỗi 60s)
+task.spawn(function()
+    while task.wait(60) do
+        pcall(function()
+            -- Giả lập bấm Space (Nhảy) ở tầng Engine
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            
+            -- Đánh lừa hệ thống Track Camera của game
+            local cam = workspace.CurrentCamera
+            if cam then
+                local currentCFrame = cam.CFrame
+                -- Xoay nhẹ sang trái 5 độ
+                cam.CFrame = currentCFrame * CFrame.Angles(0, math.rad(5), 0)
+                task.wait(0.5)
+                -- Xoay về chỗ cũ
+                cam.CFrame = currentCFrame
+            end
+        end)
+    end
 end)
-local VirtualInputManager = game:GetService("VirtualInputManager")
-while task.wait() do
-        VirtualInputManager:SendKeyEvent(true, "Space", false, game)
-        task.wait(.2)
-        VirtualInputManager:SendKeyEvent(false, "Space", false, game)
-        task.wait(300)
-end
+
 -- ==========================================
 -- 🚀 EXTREME OPTIMIZE (GIẢM LAG)
 -- ==========================================
@@ -143,7 +150,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV68"
+	Self.GuiName = "EasterEventGuiV69"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -188,7 +195,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V68 (ZERO TELEPORT)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V69 (IMMORTAL)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -389,7 +396,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 INSTANT ZERO-TELEPORT PORTAL LOGIC (BY YOUR IDEA)
+-- 🚀 INSTANT ZERO-TELEPORT PORTAL LOGIC
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
@@ -406,13 +413,11 @@ local function EnterZoneNetwork()
     local targetPortalIndex = State.CurrentPortal
     local serverZoneIndex = targetPortalIndex + 1 
     
-    print("🚀 Bắn lệnh vào cổng số " .. serverZoneIndex .. " (Không cần di chuyển)...")
     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneIndex) end)
     
-    -- Thuật toán 1 giây "Đo điểm Zero" của bạn
     local waitTime = 0
     local success = false
-    while waitTime < 2 do -- Kiểm tra nhanh trong 2 giây (Dư dả cho lag mạng)
+    while waitTime < 2 do 
         if (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 then
             success = true
             break
@@ -422,12 +427,10 @@ local function EnterZoneNetwork()
     end
     
     if not success then 
-        print("❌ Lệnh bị từ chối! Cổng bị khóa. Đang lùi cổng...")
         if State.CurrentPortal > 1 then State.CurrentPortal = State.CurrentPortal - 1 end
         return false
     end
     
-    -- Khi thành công (Đã bị Server ném đi), nhích CFrame vào đúng giữa tâm bãi farm
     task.wait(1) 
     _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
     TeleportPlayer(_G.CurrentFarmCF)
