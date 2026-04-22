@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V62 (MACRO UPGRADE FIXED) 🌸
--- (Sửa lỗi bán kính quét nhầm trứng 4, tự bấm nút Okay)
+-- 🌸 EASTER EVENT - V64 (PERFECT NETWORK EDITION) 🌸
+-- (100% Code: Tự động Mở Khóa & Vào Cổng không chạm UI)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -22,16 +22,10 @@ local HatchTimeMinutes = SafeNumber(UserSettings.HatchTimeMinutes, 10)
 local AutoUpgrade = UserSettings.AutoUpgrade ~= false
 local AutoHatch = UserSettings.AutoHatch ~= false
 
-local WebhookCfg = UserSettings.Webhook or {}
-local WEBHOOK_URL = type(WebhookCfg) == "table" and WebhookCfg.url or ""
-local rawDiscordId = type(WebhookCfg) == "table" and WebhookCfg["Discord Id to ping"] or ""
-local DISCORD_USER_ID = type(rawDiscordId) == "table" and (rawDiscordId[1] or "") or tostring(rawDiscordId)
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 local Lighting = game:GetService("Lighting")
 
 local Player = Players.LocalPlayer
@@ -50,23 +44,19 @@ local InstancingCmds = require(Library.Client.InstancingCmds)
 local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
-_G.HighestEggSelected = _G.HighestEggSelected or 1
-_G.IsUpgrading = false
-
 -- ==========================================
--- 🛡️ ANTI AFK (BỨC TƯỜNG LỬA CHỐNG VĂNG GAME)
+-- 🛡️ ANTI AFK (PHÒNG THỦ 3 LỚP)
 -- ==========================================
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    if method == "FireServer" or method == "InvokeServer" then
+pcall(function()
+    local v3 = require(ReplicatedStorage.Library.Client.Network)
+    local _Fire = v3.Fire
+    setreadonly(v3, false)
+    v3.Fire = function(...)
         local args = {...}
-        local cmd = tostring(args[1] or "")
-        if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then
-            return 
-        end
+        if args[1] == 'Idle Tracking: Update Timer' then return end
+        return _Fire(...)
     end
-    return oldNamecall(self, ...)
+    setreadonly(v3, true)
 end)
 
 pcall(function()
@@ -113,11 +103,6 @@ Lighting.DescendantAdded:Connect(ExtremeOptimize)
 -- TỌA ĐỘ TUYỆT ĐỐI & TRUE FPS TRACKER
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
-_G.DynamicPortals = {}
-local ZoneNames = { "Dewdrop Falls", "Tulip Hollow", "Blossom Vale", "Sunstone Heights" }
-local PortalOffsets = { Vector3.new(187.92, 12.48, -73.25), Vector3.new(200.18, 10.73, -24.80), Vector3.new(198.20, 12.98, 44.73), Vector3.new(170.03, 12.48, 86.75) }
-for i = 1, 4 do _G.DynamicPortals[i] = CFrame.new(_G.DynamicHubCF.Position + PortalOffsets[i]) end
-
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
 local HatchOffset = Vector3.new(62.53, 0, -12.60) 
 
@@ -127,7 +112,6 @@ RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / de
 local StartTime = os.time()
 local StartEggs = 0
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
-local SessionHuges, SessionTitanics = 0, 0
 
 local function ParseValue(str)
     if not str then return 0 end
@@ -153,7 +137,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV62"
+	Self.GuiName = "EasterEventGuiV64"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -198,14 +182,13 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V62", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V64 (PURE NETWORK)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
-        ["Rares"]           = {5, "Huge: 0 | Titanic: 0"},
         ["Tokens"]          = {6, "Token B/R/S/T: 0/0/0/0"},
         ["EggTokens"]       = {7, "Spring Egg Token: 0"},
-        ["Tickets"]         = {8, "Ticket: 0 / 0 (Chance: 0%)"},
+        ["Tickets"]         = {8, "Ticket: 0 / 0"},
         ["FPS"]             = {9, "FPS: 60"}
     }
 })
@@ -238,66 +221,14 @@ task.spawn(function()
                 end
             end)
             
-            pcall(function()
-                local closestBoard, minDist = nil, math.huge
-                local container = Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER")
-                if container and container:FindFirstChild("Active") then
-                    for _, v in ipairs(container.Active:GetDescendants()) do
-                        if v.Name == "RaffleBoard" and v:IsA("Model") then
-                            local dist = (v:GetPivot().Position - pos).Magnitude
-                            if dist < minDist then minDist = dist; closestBoard = v end
-                        end
-                    end
-                end
-                if closestBoard then
-                    local totalText = closestBoard:FindFirstChild("TotalTickets", true)
-                    if totalText and totalText:FindFirstChild("Amount") then local parsed = ParseValue(totalText.Amount.Text); if parsed > 0 and parsed ~= 999000 then realTotalTickets = parsed end end
-                    if realClientTickets == 0 then
-                        local clientText = closestBoard:FindFirstChild("ClientTickets", true)
-                        if clientText and clientText:FindFirstChild("Amount") then local parsedClient = ParseValue(clientText.Amount.Text); if parsedClient > 0 and parsedClient ~= 999000 then realClientTickets = parsedClient end end
-                    end
-                end
-            end)
-            
             local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
-            local chance = realTotalTickets > 0 and (realClientTickets / realTotalTickets) * 100 or 0
             
             UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
-            UI:SetText("Rares", string.format("Huge: %d | Titanic: %d", SessionHuges, SessionTitanics))
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
-            UI:SetText("Tickets", string.format("Ticket: %s / %s (Chance: %.6f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
+            UI:SetText("Tickets", string.format("Ticket: %s / %s", FormatValue(realClientTickets), FormatValue(realTotalTickets)))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
-        end)
-    end
-end)
-
--- WEBHOOK TRACKER
-local foundHuges, firstWebhookCheck = {}, true
-task.spawn(function()
-    while task.wait(10) do
-        pcall(function()
-            local save = Save.Get()
-            if not save or not save.Inventory or not save.Inventory.Pet then return end
-            local currentHuges = {}
-            for uid, pet in pairs(save.Inventory.Pet) do
-                if pet.id:match("Huge") or pet.id:match("Titanic") then
-                    currentHuges[uid] = pet
-                    if not firstWebhookCheck and not foundHuges[uid] then
-                        if pet.id:match("Titanic") then SessionTitanics = SessionTitanics + 1 else SessionHuges = SessionHuges + 1 end
-                        if WEBHOOK_URL ~= "" then
-                            local httprequest = (request or http_request or syn and syn.request)
-                            local data = {
-                                ["content"] = "<@" .. DISCORD_USER_ID .. "> 🎉 HATCHED A RARE PET!",
-                                ["embeds"] = {{ ["title"] = "Hatched: " .. pet.id, ["color"] = 16737996, ["fields"] = { {["name"] = "Account", ["value"] = "||" .. Player.Name .. "||"} }, ["footer"] = { ["text"] = "Eggs hatched: " .. tostring((save.Easter2026EggsHatched or StartEggs) - StartEggs) } }}
-                            }
-                            pcall(function() httprequest({ Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = game.HttpService:JSONEncode(data) }) end)
-                        end
-                    end
-                end
-            end
-            foundHuges = currentHuges; firstWebhookCheck = false
         end)
     end
 end)
@@ -363,7 +294,7 @@ end
 
 task.spawn(function()
     while true do
-        if _G.CurrentPhase == "FARMING" and _G.FarmReady and not _G.IsUpgrading then 
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then 
             pcall(function()
                 local myPets = GetMyPets()
                 local targets = GetBreakables()
@@ -387,7 +318,7 @@ task.spawn(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-    if _G.CurrentPhase ~= "FARMING" or not _G.FarmReady or _G.IsUpgrading then return end
+    if _G.CurrentPhase ~= "FARMING" or not _G.FarmReady then return end
     pcall(function()
         local targets = GetBreakables()
         for i = 1, math.min(5, #targets) do Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i].name) end
@@ -395,69 +326,14 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- 🚀 MACRO UPGRADE: VẬT LÝ AN TOÀN CHO MOBILE
+-- 🚀 PURE NETWORK EGG UPGRADE
 -- ==========================================
 local SpringEggUnlocks = { 
-    { number = 5, cost = 20000, pos = Vector3.new(-18475.59, 17.61, -29174.61) }, 
-    { number = 4, cost = 6000,  pos = Vector3.new(-18490.04, 17.03, -29174.38) }, 
-    { number = 3, cost = 1500,  pos = Vector3.new(-18506.71, 17.03, -29174.15) }, 
-    { number = 2, cost = 300,   pos = Vector3.new(-18522.117, 17.02, -29174.19) } 
+    { number = 2, cost = 300 }, 
+    { number = 3, cost = 1500 }, 
+    { number = 4, cost = 6000 }, 
+    { number = 5, cost = 20000 } 
 }
-
--- [FIX 2]: Hàm Click mở rộng nhận diện chữ "Okay" và "Ok"
-local function ClickYesUI()
-    for i = 1, 25 do -- Lặp 25 lần (2.5 giây) để đợi bảng UI hiện lên
-        local clicked = false
-        pcall(function()
-            for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
-                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible then
-                    local textStr = obj.Text:lower()
-                    if textStr:match("yes") or textStr:match("okay") or textStr == "ok" then
-                        local btn = obj:IsA("TextButton") and obj or obj.Parent
-                        if btn:IsA("GuiButton") then 
-                            if getconnections then 
-                                for _, c in pairs(getconnections(btn.MouseButton1Click)) do 
-                                    if type(c.Function) == "function" then c.Function()
-                                    elseif type(c.Fire) == "function" then c:Fire() end
-                                end 
-                            end
-                            local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
-                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
-                            task.wait(0.05)
-                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1)
-                            clicked = true
-                        end
-                    end
-                end
-            end
-        end)
-        if clicked then break end
-        task.wait(0.1)
-    end
-end
-
--- [FIX 1]: Giảm bán kính quét E từ 20 xuống 8 studs để bắt chính xác trứng
-local function FireProx()
-    pcall(function()
-        for _, prompt in pairs(Workspace:GetDescendants()) do 
-            if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then 
-                if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 8 then 
-                    if fireproximityprompt then 
-                        fireproximityprompt(prompt) 
-                    else
-                        prompt.HoldDuration = 0
-                        prompt:InputHoldBegin()
-                        task.wait(0.1)
-                        prompt:InputHoldEnd()
-                    end
-                end 
-            end 
-        end
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-        task.wait(0.1)
-        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-    end)
-end
 
 task.spawn(function()
     while task.wait(5) do
@@ -475,30 +351,13 @@ task.spawn(function()
                     if type(c) == "number" then eggToken = c end 
                 end
                 
+                -- Bắn lệnh tuần tự từ rẻ lên đắt bằng Code
                 for _, egg in ipairs(SpringEggUnlocks) do
-                    if eggToken >= egg.cost and egg.number > _G.HighestEggSelected then 
-                        _G.IsUpgrading = true
-                        task.wait(1) 
-                        
-                        HumanoidRootPart.CFrame = CFrame.new(egg.pos) + Vector3.new(0, 3, 0)
-                        task.wait(1) 
-                        
-                        -- Lần 1: Mở khóa / Bấm Okay nếu đã mua
-                        FireProx()
-                        task.wait(0.5)
-                        ClickYesUI()
-                        
-                        -- Chờ hoạt ảnh (Nếu nó đã mua rồi thì bảng select sẽ hiện ra luôn ở lần 2)
-                        task.wait(3.5)
-                        
-                        -- Lần 2: Chọn trứng
-                        FireProx()
-                        task.wait(0.5)
-                        ClickYesUI()
-                        
-                        _G.HighestEggSelected = egg.number
-                        _G.IsUpgrading = false
-                        break 
+                    if eggToken >= egg.cost then 
+                        pcall(function() 
+                            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) 
+                        end)
+                        task.wait(0.2)
                     end
                 end
             end)
@@ -516,7 +375,7 @@ task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = 
 -- ==========================================
 task.spawn(function()
     while true do
-        if _G.CurrentPhase == "HATCHING" and not _G.IsUpgrading then
+        if _G.CurrentPhase == "HATCHING" then
             pcall(function() Network.Invoke("EasterHatchEvent", "HatchRequest") end)
             task.wait(0.1) 
         else
@@ -526,11 +385,8 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 VÒNG LẶP ĐIỀU HƯỚNG CHẾ ĐỘ
+-- 🚀 PURE NETWORK PORTAL LOGIC
 -- ==========================================
-local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
-_G.CurrentPhase = State.Phase; _G.FarmReady = false
-
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
 local function TeleportPlayer(cf)
@@ -538,19 +394,36 @@ local function TeleportPlayer(cf)
     HumanoidRootPart.Anchored = false; HumanoidRootPart.CFrame = cf + Vector3.new(0, 1.5, 0); SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
-local function EnterZonePhysically(portalIndex)
+local function EnterZoneNetwork(portalIndex)
     _G.FarmReady = false; _G.CurrentFarmCF = nil
-    TeleportPlayer(_G.DynamicPortals[portalIndex]); task.wait(0.5) 
     
-    FireProx()
-    task.wait(0.5)
-    ClickYesUI()
+    -- Lệnh Vàng: Vào cổng bằng Code
+    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", portalIndex) end)
     
     local waitTime = 0
     while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude < 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
     if waitTime >= 10 then return end
+    
     task.wait(1.5); _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset); TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true
 end
+
+local function ReturnToHubNetwork()
+    _G.FarmReady = false
+    
+    -- Lệnh Vàng: Trở về Hub bằng Code
+    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
+    
+    local waitTime = 0
+    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 10 do task.wait(0.5); waitTime = waitTime + 0.5 end
+    
+    task.wait(1.5)
+    local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
+    TeleportPlayer(targetCF)
+end
+
+-- Vòng lặp điều phối chính
+local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
+_G.CurrentPhase = State.Phase
 
 task.spawn(function()
     HumanoidRootPart.Anchored = true
@@ -559,8 +432,6 @@ task.spawn(function()
     HumanoidRootPart.Anchored = false
     
     while task.wait(1) do
-        if _G.IsUpgrading then continue end 
-        
         State.TimeLeft = State.TimeLeft - 1
         if State.TimeLeft <= 0 then
             State.IsReady = false; _G.FarmReady = false
@@ -571,8 +442,13 @@ task.spawn(function()
         end
 
         if not State.IsReady then
-            if State.Phase == "FARMING" then EnterZonePhysically(State.CurrentPortal); State.IsReady = true
-            else local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset); TeleportPlayer(targetCF); State.IsReady = true; _G.FarmReady = false end
+            if State.Phase == "FARMING" then 
+                EnterZoneNetwork(State.CurrentPortal)
+                State.IsReady = true
+            else 
+                ReturnToHubNetwork()
+                State.IsReady = true; _G.FarmReady = false 
+            end
         end
 
         if State.IsReady then
