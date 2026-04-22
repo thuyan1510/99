@@ -53,58 +53,13 @@ local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 -- ==========================================
 -- 🛡️ ANTI AFK (NÂNG CẤP TỐI THƯỢNG V3 - PHÒNG THỦ 3 LỚP)
 -- ==========================================
--- [Lớp 1]: Chặn gói tin báo cáo AFK gửi lên server của Pet Simulator 99
-pcall(function()
-    local v3 = require(ReplicatedStorage.Library.Client.Network)
-    local _Fire = v3.Fire
-    setreadonly(v3, false)
-    v3.Fire = function(...)
-        local args = {...}
-        if args[1] == 'Idle Tracking: Update Timer' then
-            return -- Hủy gói tin AFK của game
-        end
-        return _Fire(...)
-    end
-    setreadonly(v3, true)
+LocalPlayer.PlayerScripts.Scripts.Core["Server Closing"].Enabled = false
+LocalPlayer.PlayerScripts.Scripts.Core["Idle Tracking"].Enabled = false
+Network.Fire("Idle Tracking: Stop Timer")
+LocalPlayer.Idled:Connect(function() 
+	VirtualUser:CaptureController() 
+	VirtualUser:ClickButton2(Vector2.new()) 
 end)
-
--- [Lớp 2]: Che mắt game khi bạn Alt-Tab hoặc thu nhỏ cửa sổ (Bypass Window Focus)
-pcall(function()
-    local UserInputService = game:GetService("UserInputService")
-    if getconnections then
-        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do
-            if v.Disable then v:Disable() end
-        end
-        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do
-            if v.Disable then v:Disable() end
-        end
-    end
-end)
-
--- [Lớp 3]: Vô hiệu hóa hệ thống kick 20 phút mặc định của Roblox Engine
-pcall(function()
-    if getconnections then
-        for _, v in pairs(getconnections(Player.Idled)) do
-            if v.Disable then v:Disable() end
-        end
-    end
-end)
-
--- Backup Layer: Giả lập click chuột và nhảy định kỳ để chắc chắn 100%
-pcall(function()
-    local vu = game:GetService("VirtualUser")
-    task.spawn(function()
-        while task.wait(300) do
-            pcall(function()
-                vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
-                local hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
-                if hum then hum.Jump = true end
-            end)
-        end
-    end)
-end)
-
 -- ==========================================
 -- 🚀 EXTREME OPTIMIZE (GIẢM LAG)
 -- ==========================================
