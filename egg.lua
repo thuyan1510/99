@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V76 (PERFECT UI + ULTIMATE LOGIC) 🌸
--- (Khôi phục UI gốc, giữ nguyên Exploit 100x & Auto Purchase)
+-- 🌸 EASTER EVENT - V81 (THE SPEED MASTER) 🌸
+-- (Tích hợp RAM Bypass + 100x Async Hatch vào Bản V76 gốc)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -44,6 +44,40 @@ local Items = require(Library.Items)
 local InstancingCmds = require(Library.Client.InstancingCmds)
 local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
+
+-- ==========================================
+-- 🧲 MÁY QUÉT RAM AN TOÀN & TRIỆT TIÊU COOLDOWN
+-- ==========================================
+task.spawn(function()
+    print("🚀 Đang khởi động Máy Quét RAM an toàn...")
+    local foundCooldowns, bypassedMods = 0, 0
+
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" then
+            local isHatchMod = false
+            pcall(function()
+                if rawget(v, "HatchDelay") and type(rawget(v, "HatchDelay")) == "number" then v.HatchDelay = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+                if rawget(v, "Cooldown") and type(rawget(v, "Cooldown")) == "number" then v.Cooldown = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+                if rawget(v, "AnimationDelay") and type(rawget(v, "AnimationDelay")) == "number" then v.AnimationDelay = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+                if rawget(v, "OpenSpeed") and type(rawget(v, "OpenSpeed")) == "number" then v.OpenSpeed = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+                if rawget(v, "WaitTime") and type(rawget(v, "WaitTime")) == "number" then v.WaitTime = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+            end)
+            if isHatchMod then bypassedMods = bypassedMods + 1 end
+        end
+    end
+    print("🎯 Đã bẻ khóa an toàn " .. foundCooldowns .. " biến Cooldown!")
+
+    local oldTaskWait
+    oldTaskWait = hookfunction(task.wait, function(time)
+        if time and type(time) == "number" and time > 0 and time < 3 then
+            local callStack = debug.traceback()
+            if callStack:lower():match("egg") or callStack:lower():match("hatch") then
+                return oldTaskWait(0.01) 
+            end
+        end
+        return oldTaskWait(time)
+    end)
+end)
 
 -- ==========================================
 -- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ V4)
@@ -125,13 +159,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 CUSTOM UI (ĐÃ KHÔI PHỤC BẢN GỐC TỪ V74)
+-- 🎨 CUSTOM UI (TÍCH HỢP TỐC ĐỘ 8 EGGS/S)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV76"
+	Self.GuiName = "EasterEventGuiV81"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -176,10 +210,11 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V76 (PRO EDITION)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V81 (SPEED MASTER)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
+        ["Speed"]           = {5, "⚡ Speed: 0 Eggs/sec"},
         ["Tokens"]          = {6, "Token B/R/S/T: 0/0/0/0"},
         ["EggTokens"]       = {7, "Spring Egg Token: 0"},
         ["Tickets"]         = {8, "Tickets: 0"},
@@ -188,22 +223,19 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (FIX TICKET TỪ SAVE DATA)
+-- 🚀 DATA UPDATER (KẾT HỢP ĐO TỐC ĐỘ VÀ TICKET)
 -- ==========================================
+local lastEggs = StartEggs
 task.spawn(function()
-    while task.wait(1.5) do
+    while task.wait(1) do
         pcall(function()
             local save = Save.Get()
             local b, r, s, t, eggToken, totalTickets = 0, 0, 0, 0, 0, 0
             
-            -- Lấy Ticket chính xác 100% từ Save Data
             if save and save.Easter2026ZoneTickets then
-                for _, val in pairs(save.Easter2026ZoneTickets) do 
-                    totalTickets = totalTickets + val 
-                end
+                for _, val in pairs(save.Easter2026ZoneTickets) do totalTickets = totalTickets + val end
             end
 
-            -- Lấy Token chính xác từ Currency và Misc
             local function checkCategory(cat)
                 if not cat then return end
                 for _, item in pairs(cat) do
@@ -219,10 +251,7 @@ task.spawn(function()
                 end
             end
 
-            if save and save.Inventory then
-                checkCategory(save.Inventory.Currency)
-                checkCategory(save.Inventory.Misc)
-            end
+            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
             
             if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
             if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
@@ -232,8 +261,16 @@ task.spawn(function()
 
             local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
+            local speed = currentEggs - lastEggs
+            lastEggs = currentEggs
             
             UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
+            UI:SetText("Speed", "⚡ Speed: " .. tostring(speed) .. " Eggs/sec")
+            if UI.Elements["Speed"] then
+                if speed > 5 then UI.Elements["Speed"].TextColor3 = Color3.fromRGB(255, 50, 50)
+                else UI.Elements["Speed"].TextColor3 = Color3.fromRGB(255, 255, 0) end
+            end
+
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
             UI:SetText("Tickets", "Total Tickets: " .. FormatValue(totalTickets))
@@ -348,7 +385,6 @@ task.spawn(function()
     while task.wait(5) do
         if AutoUpgrade then
             pcall(function()
-                -- 1. NÂNG CẤP BẢNG KỸ NĂNG
                 for upgradeId, upgradeData in pairs(EventUpgradesDir) do
                     if upgradeId:find("Easter") or upgradeId:find("Spring") then
                         local currentTier = EventUpgradeCmds.GetTier(upgradeId)
@@ -363,7 +399,6 @@ task.spawn(function()
                     end
                 end
 
-                -- 2. ĐỌC SAVE DATA ĐỂ TỰ ĐỘNG MUA TRỨNG MỚI (TÀNG HÌNH)
                 local save = Save.Get()
                 if save then
                     local eggToken = 0
@@ -401,11 +436,12 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC (100x EXPLOIT)
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC (RAM BYPASS + 100x EXPLOIT)
 -- ==========================================
 local EggAmount = 100 
 local CurrentTargetEgg = nil
 
+-- Radar định vị trứng (Cập nhật 1 giây 1 lần để chống lag FPS)
 task.spawn(function()
     while true do
         if _G.CurrentPhase == "HATCHING" and AutoHatch then
@@ -430,6 +466,7 @@ task.spawn(function()
     end
 end)
 
+-- Hỏa lực xả đạn (Nhờ RAM Bypass, tốc độ bắn sẽ mượt mà lên tới 8 eggs/s)
 task.spawn(function()
     local NetworkFolder = ReplicatedStorage:WaitForChild("Network")
     local HatchRemote = NetworkFolder:WaitForChild("CustomEggs_Hatch")
@@ -439,9 +476,10 @@ task.spawn(function()
             pcall(function() 
                 HatchRemote:InvokeServer(CurrentTargetEgg, EggAmount) 
             end)
-            task.wait(0.1) 
+            -- Bỏ qua độ trễ 0.1s của V76 gốc, bắn tối đa công suất bằng task.wait() trần
+            task.wait() 
         else
-            task.wait(1)
+            task.wait(0.5)
         end
     end
 end)
