@@ -1,6 +1,5 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V82 (THE SPEED MASTER - FIXED) 🌸
--- (Fix lỗi kẹt Máy Quét RAM + Sử dụng lệnh HatchRequest 8 eggs/s)
+-- 🌸 EASTER EVENT - V86 (PERFECT SCANNER EDITION) 🌸
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -47,7 +46,7 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
--- 🧲 MÁY QUÉT RAM AN TOÀN (ĐÃ FIX CHẠY LUỒNG CHÍNH)
+-- 🧲 MÁY QUÉT RAM AN TOÀN
 -- ==========================================
 print("🚀 Đang khởi động Máy Quét RAM an toàn...")
 local foundCooldowns, bypassedMods = 0, 0
@@ -79,7 +78,7 @@ oldTaskWait = hookfunction(task.wait, function(time)
 end)
 
 -- ==========================================
--- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ V4)
+-- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ)
 -- ==========================================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
@@ -127,12 +126,13 @@ for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
 for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
 
 -- ==========================================
--- TỌA ĐỘ TUYỆT ĐỐI & TRUE FPS TRACKER
+-- TỌA ĐỘ TUYỆT ĐỐI 
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
--- Tọa độ Zone Hatch cố định (tâm bệ trứng)
-local HatchZoneCF = CFrame.new(-18491.31, 15.57, -29161.17)
+
+-- Tọa độ Zone Hatch chuẩn xác
+local HatchZoneCF = CFrame.new(-18514.40, 16.24, -29111.44)
 
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
@@ -150,13 +150,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 CUSTOM UI (TÍCH HỢP TỐC ĐỘ)
+-- 🎨 CUSTOM UI
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV82"
+	Self.GuiName = "EasterEventGuiV86"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -201,7 +201,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V82 (SPEED MASTER)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER V86 (PERFECT SCANNER)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -271,7 +271,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ SMART FARM V2
+-- 🚀 ĐỘNG CƠ SMART FARM
 -- ==========================================
 pcall(function() PlayerPet.CalculateSpeedMultiplier = function() return 200 end end)
 
@@ -363,7 +363,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- 🚀 100% NETWORK AUTO UPGRADE LÕI KÉP
+-- 🚀 NETWORK AUTO UPGRADE
 -- ==========================================
 local SpringEggUnlocks = { { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 } }
 
@@ -420,18 +420,17 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC (8 EGGS/S - HATCH REQUEST LÕI)
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG (8 EGGS/S TỪ NETWORK.INVOKE)
 -- ==========================================
 task.spawn(function()
     while true do
         if _G.CurrentPhase == "HATCHING" and AutoHatch then
-            -- Tận dụng luồng riêng nã lệnh Request mà bạn đã tìm ra
             task.spawn(function()
                 pcall(function() 
                     Network.Invoke("EasterHatchEvent", "HatchRequest")
                 end)
             end)
-            task.wait(0.05) -- Độ trễ lý tưởng để đẩy lên tốc độ bàn thờ
+            task.wait(0.05) 
         else
             task.wait(0.5)
         end
@@ -439,47 +438,59 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 INSTANT ZERO-TELEPORT PORTAL LOGIC
+-- 🚀 INSTANT ZERO-TELEPORT PORTAL LOGIC (LOGIC CỦA BẠN)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
 local function TeleportPlayer(cf)
     if not cf then return end
-    HumanoidRootPart.Anchored = false; HumanoidRootPart.CFrame = cf + Vector3.new(0, 1.5, 0); SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); HumanoidRootPart.Velocity = Vector3.new(0,0,0)
+    HumanoidRootPart.Anchored = false; 
+    HumanoidRootPart.CFrame = cf + Vector3.new(0, 1.5, 0); 
+    SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); 
+    HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
 local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
 _G.CurrentPhase = State.Phase
 
+-- Hàm áp dụng đúng logic quét cổng mà bạn đã Test
 local function EnterZoneNetwork()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
-    local targetPortalIndex = State.CurrentPortal
-    local serverZoneIndex = targetPortalIndex + 1 
     
-    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneIndex) end)
+    local max_portals = 4 
     
-    local waitTime = 0
-    local success = false
-    while waitTime < 2 do 
-        if (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 then
-            success = true
-            break
+    for portalIndex = 1, max_portals do
+        local serverZoneID = portalIndex + 1 
+        
+        pcall(function()
+            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID)
+        end)
+        
+        local waitTime = 0
+        local success = false
+        
+        while waitTime < 2 do
+            local currentDist = (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude
+            if currentDist > 50 then
+                success = true
+                break
+            end
+            task.wait(0.25)
+            waitTime = waitTime + 0.25
         end
-        task.wait(0.25)
-        waitTime = waitTime + 0.25
+        
+        if success then
+            task.wait(1) 
+            _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
+            TeleportPlayer(_G.CurrentFarmCF)
+            task.wait(0.5)
+            _G.FarmReady = true
+            State.CurrentPortal = portalIndex
+            return true
+        end
     end
     
-    if not success then 
-        if State.CurrentPortal > 1 then State.CurrentPortal = State.CurrentPortal - 1 end
-        return false
-    end
-    
-    task.wait(1) 
-    _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
-    TeleportPlayer(_G.CurrentFarmCF)
-    task.wait(0.5)
-    _G.FarmReady = true
-    return true
+    return false
 end
 
 local function ReturnToHubNetwork()
@@ -490,7 +501,6 @@ local function ReturnToHubNetwork()
     while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 3 do task.wait(0.5); waitTime = waitTime + 0.5 end
     
     task.wait(1)
-    -- Lập tức Teleport thẳng vào lõi của Hatch Zone (thay vì tọa độ lơ lửng)
     TeleportPlayer(HatchZoneCF)
 end
 
@@ -504,16 +514,38 @@ task.spawn(function()
         State.TimeLeft = State.TimeLeft - 1
         if State.TimeLeft <= 0 then
             State.IsReady = false; _G.FarmReady = false
-            if Mode == "Combine" then if State.Phase == "FARMING" then State.Phase = "HATCHING"; State.TimeLeft = HatchTimeMinutes * 60 else State.Phase = "FARMING"; State.TimeLeft = math.max(20, FarmTimeMinutes) * 60; State.CurrentPortal = (State.CurrentPortal % 4) + 1 end
-            elseif Mode == "FarmOnly" then State.Phase = "FARMING"; State.TimeLeft = math.max(20, FarmTimeMinutes) * 60; State.CurrentPortal = (State.CurrentPortal % 4) + 1
-            elseif Mode == "HatchOnly" then State.Phase = "HATCHING"; State.TimeLeft = math.huge end
+            if Mode == "Combine" then 
+                if State.Phase == "FARMING" then 
+                    State.Phase = "HATCHING"
+                    State.TimeLeft = HatchTimeMinutes * 60 
+                else 
+                    State.Phase = "FARMING"
+                    State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
+                end
+            elseif Mode == "FarmOnly" then 
+                State.Phase = "FARMING"
+                State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
+            elseif Mode == "HatchOnly" then 
+                State.Phase = "HATCHING"
+                State.TimeLeft = math.huge 
+            end
             _G.CurrentPhase = State.Phase
         end
 
         if not State.IsReady then
             if State.Phase == "FARMING" then 
                 local entered = EnterZoneNetwork()
-                if entered then State.IsReady = true end
+                if entered then 
+                    State.IsReady = true 
+                else
+                    -- Nếu kẹt toàn bộ, đổi sang ấp trứng 60s
+                    UI:SetText("ModeInfo", "All Portals Locked! Force Hatching...")
+                    State.Phase = "HATCHING"
+                    _G.CurrentPhase = State.Phase
+                    State.TimeLeft = 60
+                    ReturnToHubNetwork()
+                    State.IsReady = true
+                end
             else 
                 ReturnToHubNetwork()
                 State.IsReady = true; _G.FarmReady = false 
@@ -524,7 +556,6 @@ task.spawn(function()
             if State.Phase == "FARMING" and _G.FarmReady then 
                 if _G.CurrentFarmCF and (HumanoidRootPart.Position - _G.CurrentFarmCF.Position).Magnitude > 30 then TeleportPlayer(_G.CurrentFarmCF) end
             elseif State.Phase == "HATCHING" then 
-                -- Đảm bảo không bao giờ bị lệch ra khỏi Zone
                 if (HumanoidRootPart.Position - HatchZoneCF.Position).Magnitude > 30 then TeleportPlayer(HatchZoneCF) end 
             end
         end
