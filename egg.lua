@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V69 (IMMORTAL ANTI-AFK) 🌸
--- (Anti-AFK Bạo lực: Xoay Camera, VIM Input, Network Hook)
+-- 🌸 EASTER EVENT - V71 (FULL UPGRADE RESTORED) 🌸
+-- (Khôi phục Auto Upgrade dùng Token B/R/S/T)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -45,24 +45,23 @@ local InstancingCmds = require(Library.Client.InstancingCmds)
 local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
+_G.HighestEggSelected = _G.HighestEggSelected or 1
+_G.IsUpgrading = false
+
 -- ==========================================
 -- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ V4)
 -- ==========================================
--- 1. Hook Cấp Thấp: Chặn toàn bộ Ping AFK
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     if method == "FireServer" or method == "InvokeServer" then
         local args = {...}
         local cmd = tostring(args[1] or "")
-        if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then
-            return -- Hủy mọi báo cáo treo máy
-        end
+        if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then return end
     end
     return oldNamecall(self, ...)
 end)
 
--- 2. Vô hiệu hóa Client Idled & Focus
 pcall(function()
     local UserInputService = game:GetService("UserInputService")
     if getconnections then
@@ -72,23 +71,17 @@ pcall(function()
     end
 end)
 
--- 3. Động Cơ Vật Lý Giả Lập (Mỗi 60s)
 task.spawn(function()
     while task.wait(60) do
         pcall(function()
-            -- Giả lập bấm Space (Nhảy) ở tầng Engine
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
             task.wait(0.1)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-            
-            -- Đánh lừa hệ thống Track Camera của game
             local cam = workspace.CurrentCamera
             if cam then
                 local currentCFrame = cam.CFrame
-                -- Xoay nhẹ sang trái 5 độ
                 cam.CFrame = currentCFrame * CFrame.Angles(0, math.rad(5), 0)
                 task.wait(0.5)
-                -- Xoay về chỗ cũ
                 cam.CFrame = currentCFrame
             end
         end)
@@ -115,7 +108,7 @@ Lighting.DescendantAdded:Connect(ExtremeOptimize)
 -- ==========================================
 -- TỌA ĐỘ TUYỆT ĐỐI & TRUE FPS TRACKER
 -- ==========================================
-_G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16) -- ĐIỂM ZERO
+_G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
 local HatchOffset = Vector3.new(62.53, 0, -12.60) 
 
@@ -150,7 +143,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV69"
+	Self.GuiName = "EasterEventGuiV71"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -195,7 +188,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V69 (IMMORTAL)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V71 (FULL UPGRADE)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -307,7 +300,7 @@ end
 
 task.spawn(function()
     while true do
-        if _G.CurrentPhase == "FARMING" and _G.FarmReady then 
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady and not _G.IsUpgrading then 
             pcall(function()
                 local myPets = GetMyPets()
                 local targets = GetBreakables()
@@ -331,7 +324,7 @@ task.spawn(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-    if _G.CurrentPhase ~= "FARMING" or not _G.FarmReady then return end
+    if _G.CurrentPhase ~= "FARMING" or not _G.FarmReady or _G.IsUpgrading then return end
     pcall(function()
         local targets = GetBreakables()
         for i = 1, math.min(5, #targets) do Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i].name) end
@@ -339,19 +332,88 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- 🚀 PURE NETWORK EGG UPGRADE
+-- 🚀 VẬT LÝ NÂNG CẤP TRỨNG & BẢNG KỸ NĂNG
 -- ==========================================
 local SpringEggUnlocks = { 
-    { number = 2, cost = 300 }, 
-    { number = 3, cost = 1500 }, 
-    { number = 4, cost = 6000 }, 
-    { number = 5, cost = 20000 } 
+    { number = 5, cost = 20000, pos = Vector3.new(-18475.59, 17.61, -29174.61) }, 
+    { number = 4, cost = 6000,  pos = Vector3.new(-18490.04, 17.03, -29174.38) }, 
+    { number = 3, cost = 1500,  pos = Vector3.new(-18506.71, 17.03, -29174.15) }, 
+    { number = 2, cost = 300,   pos = Vector3.new(-18522.117, 17.02, -29174.19) } 
 }
+
+local function ClickYesUI()
+    for i = 1, 25 do
+        local clicked = false
+        pcall(function()
+            for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
+                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible then
+                    local textStr = obj.Text:lower()
+                    if textStr:match("yes") or textStr:match("okay") or textStr == "ok" then
+                        local btn = obj:IsA("TextButton") and obj or obj.Parent
+                        if btn:IsA("GuiButton") then 
+                            if getconnections then 
+                                for _, c in pairs(getconnections(btn.MouseButton1Click)) do 
+                                    if type(c.Function) == "function" then c.Function()
+                                    elseif type(c.Fire) == "function" then c:Fire() end
+                                end 
+                            end
+                            local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
+                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, true, game, 1)
+                            task.wait(0.05)
+                            VirtualInputManager:SendMouseButtonEvent(center.X, center.Y + 36, 0, false, game, 1)
+                            clicked = true
+                        end
+                    end
+                end
+            end
+        end)
+        if clicked then break end
+        task.wait(0.1)
+    end
+end
+
+local function FireProx()
+    pcall(function()
+        for _, prompt in pairs(Workspace:GetDescendants()) do 
+            if prompt:IsA("ProximityPrompt") and prompt.Parent and prompt.Parent:IsA("BasePart") then 
+                if (prompt.Parent.Position - HumanoidRootPart.Position).Magnitude <= 8 then 
+                    if fireproximityprompt then 
+                        fireproximityprompt(prompt) 
+                    else
+                        prompt.HoldDuration = 0
+                        prompt:InputHoldBegin()
+                        task.wait(0.1)
+                        prompt:InputHoldEnd()
+                    end
+                end 
+            end 
+        end
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end)
+end
 
 task.spawn(function()
     while task.wait(5) do
         if AutoUpgrade then
             pcall(function()
+                -- 1. NÂNG CẤP BẢNG KỸ NĂNG (DÙNG TOKEN B/R/S/T) BẰNG CODE
+                for upgradeId, upgradeData in pairs(EventUpgradesDir) do
+                    if upgradeId:find("Easter") or upgradeId:find("Spring") then
+                        local currentTier = EventUpgradeCmds.GetTier(upgradeId)
+                        local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
+                        if nextTierCost and nextTierCost._data then
+                            local cId, costAmount = nextTierCost._data.id, nextTierCost._data._am or 1
+                            local currentAmount = Items.Misc(cId) and Items.Misc(cId):CountExact() or (CurrencyCmds.Get(cId) or 0)
+                            if currentAmount >= costAmount then 
+                                EventUpgradeCmds.Purchase(upgradeId) 
+                            end
+                        end
+                    end
+                end
+
+                -- 2. NÂNG CẤP TRỨNG CHÍNH (DÙNG SPRING EGG TOKEN) BẰNG VẬT LÝ
                 local eggToken = 0
                 local save = Save.Get()
                 if save.Inventory and save.Inventory.Misc then 
@@ -365,11 +427,23 @@ task.spawn(function()
                 end
                 
                 for _, egg in ipairs(SpringEggUnlocks) do
-                    if eggToken >= egg.cost then 
-                        pcall(function() 
-                            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) 
-                        end)
-                        task.wait(0.2)
+                    if eggToken >= egg.cost and egg.number > _G.HighestEggSelected then 
+                        _G.IsUpgrading = true
+                        print("🌸 KÍCH HOẠT MUA TRỨNG SỐ: " .. egg.number)
+                        task.wait(1) 
+                        
+                        local oldCF = HumanoidRootPart.CFrame
+                        HumanoidRootPart.CFrame = CFrame.new(egg.pos) + Vector3.new(0, 3, 0)
+                        task.wait(1) 
+                        
+                        FireProx(); task.wait(0.5); ClickYesUI() 
+                        task.wait(3.5) 
+                        FireProx(); task.wait(0.5); ClickYesUI() 
+                        
+                        _G.HighestEggSelected = egg.number
+                        _G.IsUpgrading = false
+                        HumanoidRootPart.CFrame = oldCF
+                        break 
                     end
                 end
             end)
@@ -386,7 +460,7 @@ task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = 
 -- ==========================================
 task.spawn(function()
     while true do
-        if _G.CurrentPhase == "HATCHING" then
+        if _G.CurrentPhase == "HATCHING" and not _G.IsUpgrading then
             pcall(function() Network.Invoke("EasterHatchEvent", "HatchRequest") end)
             task.wait(0.1) 
         else
@@ -458,6 +532,8 @@ task.spawn(function()
     HumanoidRootPart.Anchored = false
     
     while task.wait(1) do
+        if _G.IsUpgrading then continue end 
+        
         State.TimeLeft = State.TimeLeft - 1
         if State.TimeLeft <= 0 then
             State.IsReady = false; _G.FarmReady = false
