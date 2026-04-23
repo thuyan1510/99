@@ -132,7 +132,7 @@ for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
 -- Tọa độ Zone Hatch cố định (tâm bệ trứng)
-local HatchZoneCF = CFrame.new(-18491.31, 18.57, -29161.17)
+local HatchZoneCF = CFrame.new(-18491.31, 15.57, -29161.17)
 
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
