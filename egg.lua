@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V71 (FULL UPGRADE RESTORED) 🌸
--- (Khôi phục Auto Upgrade dùng Token B/R/S/T)
+-- 🌸 EASTER EVENT - V72 (FIXED UPGRADE SEQUENCE) 🌸
+-- (Mua trứng theo thứ tự từ thấp lên cao: 2 -> 3 -> 4 -> 5)
 -- ==========================================
 if _G.SpringStarted then return end
 _G.SpringStarted = true
@@ -143,7 +143,7 @@ local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV71"
+	Self.GuiName = "EasterEventGuiV72"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -188,7 +188,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V71 (FULL UPGRADE)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V72 (SEQ FIX)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -334,11 +334,12 @@ end)
 -- ==========================================
 -- 🚀 VẬT LÝ NÂNG CẤP TRỨNG & BẢNG KỸ NĂNG
 -- ==========================================
+-- ĐÃ LẬT NGƯỢC THỨ TỰ: Quét từ quả 2 -> 3 -> 4 -> 5 để mua tuần tự
 local SpringEggUnlocks = { 
-    { number = 5, cost = 20000, pos = Vector3.new(-18475.59, 17.61, -29174.61) }, 
-    { number = 4, cost = 6000,  pos = Vector3.new(-18490.04, 17.03, -29174.38) }, 
-    { number = 3, cost = 1500,  pos = Vector3.new(-18506.71, 17.03, -29174.15) }, 
-    { number = 2, cost = 300,   pos = Vector3.new(-18522.117, 17.02, -29174.19) } 
+    { number = 2, cost = 300,   pos = Vector3.new(-18522.117, 17.02, -29174.19) },
+    { number = 3, cost = 1500,  pos = Vector3.new(-18506.71, 17.03, -29174.15) },
+    { number = 4, cost = 6000,  pos = Vector3.new(-18490.04, 17.03, -29174.38) },
+    { number = 5, cost = 20000, pos = Vector3.new(-18475.59, 17.61, -29174.61) }
 }
 
 local function ClickYesUI()
@@ -413,7 +414,7 @@ task.spawn(function()
                     end
                 end
 
-                -- 2. NÂNG CẤP TRỨNG CHÍNH (DÙNG SPRING EGG TOKEN) BẰNG VẬT LÝ
+                -- 2. NÂNG CẤP TRỨNG CHÍNH (DÙNG SPRING EGG TOKEN) BẰNG VẬT LÝ TUẦN TỰ
                 local eggToken = 0
                 local save = Save.Get()
                 if save.Inventory and save.Inventory.Misc then 
