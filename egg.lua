@@ -1,6 +1,5 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V89 (THE FLAWLESS UI) 🌸
--- (Sửa lỗi treo giao diện, quét đúng Ticket từ Inventory)
+-- 🌸 EASTER EVENT - V86 (PERFECT TICKET & UI FIX) 🌸
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -79,7 +78,7 @@ oldTaskWait = hookfunction(task.wait, function(time)
 end)
 
 -- ==========================================
--- 🛡️ ANTI AFK & OPTIMIZE
+-- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ)
 -- ==========================================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
@@ -111,6 +110,9 @@ task.spawn(function()
     end
 end)
 
+-- ==========================================
+-- 🚀 EXTREME OPTIMIZE (GIẢM LAG)
+-- ==========================================
 local function ExtremeOptimize(v)
     pcall(function()
         if v:IsA("BasePart") then v.Material = Enum.Material.Plastic; v.Reflectance = 0; v.CastShadow = false
@@ -124,7 +126,7 @@ for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
 for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
 
 -- ==========================================
--- 📍 TỌA ĐỘ
+-- TỌA ĐỘ TUYỆT ĐỐI & TRÌNH XỬ LÝ SỐ
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
@@ -137,6 +139,16 @@ local StartTime = os.time()
 local StartEggs = 0
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
 
+-- [BẢN V68] Khôi phục hàm ParseValue để đọc Ticket
+local function ParseValue(str)
+    if not str then return 0 end
+    str = tostring(str):lower():gsub("<[^>]+>", ""):gsub(",", ""):gsub("%s+", "")     
+    local numStr, suffix = str:match("[%d%.]+"), str:match("[%a]+")
+    local num = tonumber(numStr) or 0
+    if suffix == "k" then return num * 1000 elseif suffix == "m" then return num * 1000000 elseif suffix == "b" then return num * 1000000000 elseif suffix == "t" then return num * 1000000000000 end
+    return num
+end
+
 local function FormatValue(Value)
     local n = tonumber(Value)
     if not n then return tostring(Value) end
@@ -146,13 +158,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 GIAO DIỆN UI (SẮP XẾP CHUẨN XÁC)
+-- 🎨 CUSTOM UI (CẤU TRÚC V68 + GỘP EGG & SPEED)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV89"
+	Self.GuiName = "EasterEventGuiV86_Perfect"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -197,37 +209,19 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER V89 (FLAWLESS UI)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER V86 (PERFECT UI)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
-        ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
-        ["Speed"]           = {5, "⚡ Speed: 0 Eggs/sec"},
-        ["Tokens"]          = {6, "Token B/R/S/T: 0/0/0/0"},
-        ["EggTokens"]       = {7, "Spring Egg Token: 0"},
-        ["Tickets"]         = {8, "Tickets: 0 / 0 (0%)"},
-        ["FPS"]             = {9, "FPS: 60"}
+        ["EggsHatched"]     = {4, "Total Eggs: 0 | ⚡ Speed: 0 Eggs/s"}, -- Gộp dòng như bạn yêu cầu
+        ["Tokens"]          = {5, "Token B/R/S/T: 0/0/0/0"},
+        ["EggTokens"]       = {6, "Spring Egg Token: 0"},
+        ["Tickets"]         = {7, "Ticket: 0 / 0"},
+        ["FPS"]             = {8, "FPS: 60"}
     }
 })
 
 -- ==========================================
--- 🚀 BỘ TẢI DỮ LIỆU TICKET MÁY CHỦ (CHẠY NGẦM)
--- ==========================================
-local GlobalTickets = 0
-task.spawn(function()
-    while task.wait(10) do
-        pcall(function()
-            -- Nhốt lệnh này vào luồng riêng. Nếu nó bị treo, giao diện vẫn chạy bình thường.
-            local status = Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "GetStatus")
-            if not status then status = Network.Invoke("EasterHatchEvent", "GetStatus") end
-            if status and type(status) == "table" and status.TotalTickets then
-                GlobalTickets = status.TotalTickets
-            end
-        end)
-    end
-end)
-
--- ==========================================
--- 🚀 CẬP NHẬT DỮ LIỆU (KHÔNG BAO GIỜ TREO)
+-- 🚀 DATA UPDATER (LOGIC TICKET HOÀN HẢO TỪ V68)
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -235,42 +229,52 @@ task.spawn(function()
         pcall(function()
             local save = Save.Get()
             
-            -- Lấy Token, EggToken và Ticket THỰC TẾ từ túi đồ
-            local b, r, s, t, eggToken, yourTickets = 0, 0, 0, 0, 0, 0
+            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
             
+            -- ==========================================
+            -- LẤY TICKET TRỰC TIẾP TỪ UI GIỐNG V68
+            -- ==========================================
+            local realClientTickets = 0
+            local realTotalTickets = 1
+            
+            pcall(function()
+                local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
+                if easterGui and easterGui:FindFirstChild("SideInfo") and easterGui.SideInfo:FindFirstChild("Tickets") then
+                    for _, lbl in pairs(easterGui.SideInfo.Tickets:GetChildren()) do 
+                        if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then 
+                            realClientTickets = ParseValue(lbl.Text) 
+                        end 
+                    end
+                end
+                
+                -- Lấy tổng máy chủ để hiển thị (từ V86)
+                local status = Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "GetStatus")
+                if not status then status = Network.Invoke("EasterHatchEvent", "GetStatus") end
+                if status and status.TotalTickets then realTotalTickets = status.TotalTickets end
+            end)
+            
+            local percent = 0
+            if realTotalTickets > 0 then percent = (realClientTickets / realTotalTickets) * 100 end
+            UI:SetText("Tickets", string.format("Ticket: %s / %s (%.3f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), percent))
+            -- ==========================================
+
             local function checkCategory(cat)
                 if not cat then return end
                 for _, item in pairs(cat) do
                     if type(item.id) == "string" then
                         local idStr = item.id:lower()
                         local amount = item._am or 1
-                        
                         if idStr:match("bluebell") then b = b + amount
                         elseif idStr:match("rose") then r = r + amount
                         elseif idStr:match("sunflower") then s = s + amount
                         elseif idStr:match("tulip") then t = t + amount
-                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount
-                        -- QUÉT ĐÚNG VÉ (TICKET) BẠN ĐANG SỞ HỮU TRONG TÚI
-                        elseif idStr:match("ticket") then yourTickets = yourTickets + amount end
+                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount end
                     end
                 end
             end
 
-            if save and save.Inventory then 
-                checkCategory(save.Inventory.Currency)
-                checkCategory(save.Inventory.Misc) 
-            end
-
-            -- Cập nhật Giao diện Ticket %
-            if GlobalTickets > 0 then
-                local percent = (yourTickets / GlobalTickets) * 100
-                UI:SetText("Tickets", string.format("Tickets: %s / %s (%.4f%%)", FormatValue(yourTickets), FormatValue(GlobalTickets), percent))
-            else
-                -- Nếu máy chủ chưa phản hồi, chỉ hiện số vé của bạn
-                UI:SetText("Tickets", string.format("Tickets: %s (Syncing Global...)", FormatValue(yourTickets)))
-            end
-
-            -- Cập nhật các UI còn lại
+            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
+            
             if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
             if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
             if s == 0 then s = type(CurrencyCmds.Get("SunflowerToken")) == "number" and CurrencyCmds.Get("SunflowerToken") or 0 end
@@ -282,13 +286,9 @@ task.spawn(function()
             local speed = currentEggs - lastEggs
             lastEggs = currentEggs
             
-            UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
-            UI:SetText("Speed", "⚡ Speed: " .. tostring(speed) .. " Eggs/sec")
-            if UI.Elements["Speed"] then
-                if speed > 5 then UI.Elements["Speed"].TextColor3 = Color3.fromRGB(255, 50, 50)
-                else UI.Elements["Speed"].TextColor3 = Color3.fromRGB(255, 255, 0) end
-            end
-
+            -- GỘP EGG VÀ SPEED VÀO 1 DÒNG
+            UI:SetText("EggsHatched", string.format("Total Eggs: %s | ⚡ Speed: %s Eggs/s", FormatValue(hatchedThisSession), tostring(speed)))
+            
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
@@ -446,7 +446,7 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG (8 EGGS/S TỪ NETWORK.INVOKE)
 -- ==========================================
 task.spawn(function()
     while true do
@@ -464,15 +464,15 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 CỔNG THÔNG MINH (PORTAL SCANNER - V86 GỐC)
+-- 🚀 INSTANT ZERO-TELEPORT PORTAL LOGIC
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
 local function TeleportPlayer(cf)
     if not cf then return end
-    HumanoidRootPart.Anchored = false; 
+    HumanoidRootPart.Anchored = false;
     HumanoidRootPart.CFrame = cf + Vector3.new(0, 1.5, 0); 
-    SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); 
+    SafePart.CFrame = cf - Vector3.new(0, 1.5, 0);
     HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
@@ -480,7 +480,8 @@ local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeL
 _G.CurrentPhase = State.Phase
 
 local function EnterZoneNetwork()
-    _G.FarmReady = false; _G.CurrentFarmCF = nil
+    _G.FarmReady = false;
+    _G.CurrentFarmCF = nil
     
     local max_portals = 4 
     
@@ -548,7 +549,7 @@ task.spawn(function()
                     State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
                 end
             elseif Mode == "FarmOnly" then 
-                State.Phase = "FARMING"
+                 State.Phase = "FARMING"
                 State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
             elseif Mode == "HatchOnly" then 
                 State.Phase = "HATCHING"
@@ -581,7 +582,7 @@ task.spawn(function()
                 if _G.CurrentFarmCF and (HumanoidRootPart.Position - _G.CurrentFarmCF.Position).Magnitude > 30 then TeleportPlayer(_G.CurrentFarmCF) end
             elseif State.Phase == "HATCHING" then 
                 if (HumanoidRootPart.Position - HatchZoneCF.Position).Magnitude > 30 then TeleportPlayer(HatchZoneCF) end 
-            end
+             end
         end
         
         local elapsed = os.time() - StartTime
