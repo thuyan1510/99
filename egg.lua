@@ -1,7 +1,8 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V81 (THE SPEED MASTER) 🌸
--- (Tích hợp RAM Bypass + 100x Async Hatch vào Bản V76 gốc)
+-- 🌸 EASTER EVENT - V82 (THE SPEED MASTER - FIXED) 🌸
+-- (Fix lỗi kẹt Máy Quét RAM + Sử dụng lệnh HatchRequest 8 eggs/s)
 -- ==========================================
+repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
 _G.SpringStarted = true
 
@@ -46,37 +47,35 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
 -- ==========================================
--- 🧲 MÁY QUÉT RAM AN TOÀN & TRIỆT TIÊU COOLDOWN
+-- 🧲 MÁY QUÉT RAM AN TOÀN (ĐÃ FIX CHẠY LUỒNG CHÍNH)
 -- ==========================================
-task.spawn(function()
-    print("🚀 Đang khởi động Máy Quét RAM an toàn...")
-    local foundCooldowns, bypassedMods = 0, 0
+print("🚀 Đang khởi động Máy Quét RAM an toàn...")
+local foundCooldowns, bypassedMods = 0, 0
 
-    for _, v in pairs(getgc(true)) do
-        if type(v) == "table" then
-            local isHatchMod = false
-            pcall(function()
-                if rawget(v, "HatchDelay") and type(rawget(v, "HatchDelay")) == "number" then v.HatchDelay = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
-                if rawget(v, "Cooldown") and type(rawget(v, "Cooldown")) == "number" then v.Cooldown = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
-                if rawget(v, "AnimationDelay") and type(rawget(v, "AnimationDelay")) == "number" then v.AnimationDelay = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
-                if rawget(v, "OpenSpeed") and type(rawget(v, "OpenSpeed")) == "number" then v.OpenSpeed = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
-                if rawget(v, "WaitTime") and type(rawget(v, "WaitTime")) == "number" then v.WaitTime = 0; isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
-            end)
-            if isHatchMod then bypassedMods = bypassedMods + 1 end
+for _, v in pairs(getgc(true)) do
+    if type(v) == "table" then
+        local isHatchMod = false
+        pcall(function()
+            if rawget(v, "HatchDelay") and type(rawget(v, "HatchDelay")) == "number" then rawset(v, "HatchDelay", 0); isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+            if rawget(v, "Cooldown") and type(rawget(v, "Cooldown")) == "number" then rawset(v, "Cooldown", 0); isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+            if rawget(v, "AnimationDelay") and type(rawget(v, "AnimationDelay")) == "number" then rawset(v, "AnimationDelay", 0); isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+            if rawget(v, "OpenSpeed") and type(rawget(v, "OpenSpeed")) == "number" then rawset(v, "OpenSpeed", 0); isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+            if rawget(v, "WaitTime") and type(rawget(v, "WaitTime")) == "number" then rawset(v, "WaitTime", 0); isHatchMod = true; foundCooldowns = foundCooldowns + 1 end
+        end)
+        if isHatchMod then bypassedMods = bypassedMods + 1 end
+    end
+end
+print("🎯 Đã bẻ khóa an toàn " .. foundCooldowns .. " biến Cooldown!")
+
+local oldTaskWait
+oldTaskWait = hookfunction(task.wait, function(time)
+    if time and type(time) == "number" and time > 0 and time < 3 then
+        local callStack = debug.traceback()
+        if callStack:lower():match("egg") or callStack:lower():match("hatch") then
+            return oldTaskWait(0.01) 
         end
     end
-    print("🎯 Đã bẻ khóa an toàn " .. foundCooldowns .. " biến Cooldown!")
-
-    local oldTaskWait
-    oldTaskWait = hookfunction(task.wait, function(time)
-        if time and type(time) == "number" and time > 0 and time < 3 then
-            local callStack = debug.traceback()
-            if callStack:lower():match("egg") or callStack:lower():match("hatch") then
-                return oldTaskWait(0.01) 
-            end
-        end
-        return oldTaskWait(time)
-    end)
+    return oldTaskWait(time)
 end)
 
 -- ==========================================
@@ -108,13 +107,6 @@ task.spawn(function()
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
             task.wait(0.1)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-            local cam = workspace.CurrentCamera
-            if cam then
-                local currentCFrame = cam.CFrame
-                cam.CFrame = currentCFrame * CFrame.Angles(0, math.rad(5), 0)
-                task.wait(0.5)
-                cam.CFrame = currentCFrame
-            end
         end)
     end
 end)
@@ -133,15 +125,14 @@ local function ExtremeOptimize(v)
 end
 for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
 for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
-Workspace.DescendantAdded:Connect(ExtremeOptimize)
-Lighting.DescendantAdded:Connect(ExtremeOptimize)
 
 -- ==========================================
 -- TỌA ĐỘ TUYỆT ĐỐI & TRUE FPS TRACKER
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
-local HatchOffset = Vector3.new(62.53, 0, -12.60) 
+-- Tọa độ Zone Hatch cố định (tâm bệ trứng)
+local HatchZoneCF = CFrame.new(-18491.31, 18.57, -29161.17)
 
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
@@ -159,13 +150,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 CUSTOM UI (TÍCH HỢP TỐC ĐỘ 8 EGGS/S)
+-- 🎨 CUSTOM UI (TÍCH HỢP TỐC ĐỘ)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV81"
+	Self.GuiName = "EasterEventGuiV82"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -210,7 +201,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V81 (SPEED MASTER)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V82 (SPEED MASTER)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
@@ -223,7 +214,7 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (KẾT HỢP ĐO TỐC ĐỘ VÀ TICKET)
+-- 🚀 DATA UPDATER (TICKET VÀ ĐO TỐC ĐỘ)
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -374,12 +365,7 @@ end)
 -- ==========================================
 -- 🚀 100% NETWORK AUTO UPGRADE LÕI KÉP
 -- ==========================================
-local SpringEggUnlocks = { 
-    { number = 2, cost = 300 },
-    { number = 3, cost = 1500 },
-    { number = 4, cost = 6000 },
-    { number = 5, cost = 20000 }
-}
+local SpringEggUnlocks = { { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 } }
 
 task.spawn(function()
     while task.wait(5) do
@@ -408,9 +394,7 @@ task.spawn(function()
                             if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
                         end 
                     end
-                    if eggToken == 0 then 
-                        eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0
-                    end
+                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
                     
                     local currentUnlocked = save.Easter2026UnlockedEggs or 1
                     local activeEgg = save.Easter2026ActiveEgg or 1
@@ -436,48 +420,18 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC (RAM BYPASS + 100x EXPLOIT)
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC (8 EGGS/S - HATCH REQUEST LÕI)
 -- ==========================================
-local EggAmount = 100 
-local CurrentTargetEgg = nil
-
--- Radar định vị trứng (Cập nhật 1 giây 1 lần để chống lag FPS)
 task.spawn(function()
     while true do
         if _G.CurrentPhase == "HATCHING" and AutoHatch then
-            local nearest, nearest_distance = nil, math.huge
-            local customEggsFolder = Workspace.__THINGS:FindFirstChild("CustomEggs")
-            
-            if customEggsFolder and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                local rootPos = Player.Character.HumanoidRootPart.Position
-                for _, v in ipairs(customEggsFolder:GetChildren()) do
-                    if v:IsA("Model") and v.PrimaryPart then
-                        local dist = (rootPos - v.PrimaryPart.Position).Magnitude
-                        if dist < nearest_distance then
-                            nearest = v.Name
-                            nearest_distance = dist
-                        end
-                    end
-                end
-            end
-            CurrentTargetEgg = nearest
-        end
-        task.wait(1) 
-    end
-end)
-
--- Hỏa lực xả đạn (Nhờ RAM Bypass, tốc độ bắn sẽ mượt mà lên tới 8 eggs/s)
-task.spawn(function()
-    local NetworkFolder = ReplicatedStorage:WaitForChild("Network")
-    local HatchRemote = NetworkFolder:WaitForChild("CustomEggs_Hatch")
-    
-    while true do
-        if _G.CurrentPhase == "HATCHING" and AutoHatch and CurrentTargetEgg then
-            pcall(function() 
-                HatchRemote:InvokeServer(CurrentTargetEgg, EggAmount) 
+            -- Tận dụng luồng riêng nã lệnh Request mà bạn đã tìm ra
+            task.spawn(function()
+                pcall(function() 
+                    Network.Invoke("EasterHatchEvent", "HatchRequest")
+                end)
             end)
-            -- Bỏ qua độ trễ 0.1s của V76 gốc, bắn tối đa công suất bằng task.wait() trần
-            task.wait() 
+            task.wait(0.05) -- Độ trễ lý tưởng để đẩy lên tốc độ bàn thờ
         else
             task.wait(0.5)
         end
@@ -536,8 +490,8 @@ local function ReturnToHubNetwork()
     while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 3 do task.wait(0.5); waitTime = waitTime + 0.5 end
     
     task.wait(1)
-    local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset)
-    TeleportPlayer(targetCF)
+    -- Lập tức Teleport thẳng vào lõi của Hatch Zone (thay vì tọa độ lơ lửng)
+    TeleportPlayer(HatchZoneCF)
 end
 
 task.spawn(function()
@@ -567,8 +521,12 @@ task.spawn(function()
         end
 
         if State.IsReady then
-            if State.Phase == "FARMING" and _G.FarmReady then if _G.CurrentFarmCF and (HumanoidRootPart.Position - _G.CurrentFarmCF.Position).Magnitude > 30 then TeleportPlayer(_G.CurrentFarmCF) end
-            elseif State.Phase == "HATCHING" then local targetCF = CFrame.new(_G.DynamicHubCF.Position + HatchOffset); if (HumanoidRootPart.Position - targetCF.Position).Magnitude > 30 then TeleportPlayer(targetCF) end end
+            if State.Phase == "FARMING" and _G.FarmReady then 
+                if _G.CurrentFarmCF and (HumanoidRootPart.Position - _G.CurrentFarmCF.Position).Magnitude > 30 then TeleportPlayer(_G.CurrentFarmCF) end
+            elseif State.Phase == "HATCHING" then 
+                -- Đảm bảo không bao giờ bị lệch ra khỏi Zone
+                if (HumanoidRootPart.Position - HatchZoneCF.Position).Magnitude > 30 then TeleportPlayer(HatchZoneCF) end 
+            end
         end
         
         local elapsed = os.time() - StartTime
