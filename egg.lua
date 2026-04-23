@@ -156,141 +156,55 @@ local function FormatValue(Value)
     while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
     return (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
 end
-
--- ==========================================
--- 🎨 CUSTOM UI (CẤU TRÚC V68 + GỘP EGG & SPEED)
--- ==========================================
-local FarmUI = {}
-FarmUI.__index = FarmUI
-function FarmUI.new(UIConfig)
-	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV86_Perfect"
-	Self.Elements = {}
-	Self.Parent = game:GetService("CoreGui")
-    if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
-
-	local ScreenGui = Instance.new("ScreenGui")
-	ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
-	Self.ScreenGui = ScreenGui
-
-	local Background = Instance.new("Frame", ScreenGui)
-	Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150)
-	Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
-
-	local Container = Instance.new("Frame", Background)
-	Container.Size = UDim2.new(1, 0, 1, 0); Container.BackgroundTransparency = 1; Self.Container = Container
-
-	local Layout = Instance.new("UIListLayout", Container)
-	Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center; Layout.SortOrder = Enum.SortOrder.LayoutOrder
-
-    local ToggleBtn = Instance.new("TextButton", ScreenGui)
-    ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 22; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
-    ToggleBtn.MouseButton1Click:Connect(function() Background.Visible = not Background.Visible; ToggleBtn.Text = Background.Visible and "👁" or "🙈" end)
-
-	local Sorted = {}
-	for Name, Data in pairs(UIConfig.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
-	table.sort(Sorted, function(A, B) return A.Order < B.Order end)
-
-	for Index, Item in ipairs(Sorted) do
-		local Label = Instance.new("TextLabel", Self.Container)
-		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
-		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true
-		Self.Elements[Item.Name] = Label
-		if Index < #Sorted then
-			local Spacer = Instance.new("Frame", Self.Container)
-			Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
-		end
-	end
-	return Self
-end
-
 function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(function() self.Elements[Name].Text = Text end) end end
-
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER V86 (PERFECT UI)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V66", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
-        ["EggsHatched"]     = {4, "Total Eggs: 0 | ⚡ Speed: 0 Eggs/s"}, -- Gộp dòng như bạn yêu cầu
-        ["Tokens"]          = {5, "Token B/R/S/T: 0/0/0/0"},
-        ["EggTokens"]       = {6, "Spring Egg Token: 0"},
-        ["Tickets"]         = {7, "Ticket: 0 / 0"},
-        ["FPS"]             = {8, "FPS: 60"}
+        ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
+        ["Tokens"]          = {6, "Token B/R/S/T: 0/0/0/0"},
+        ["EggTokens"]       = {7, "Spring Egg Token: 0"},
+        ["Tickets"]         = {8, "Ticket: 0 / 0"},
+        ["FPS"]             = {9, "FPS: 60"}
     }
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (LOGIC TICKET HOÀN HẢO TỪ V68)
+-- 🚀 DATA UPDATER 
 -- ==========================================
-local lastEggs = StartEggs
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(1.5) do
         pcall(function()
             local save = Save.Get()
-            
             local b, r, s, t, eggToken = 0, 0, 0, 0, 0
+            if save and save.Inventory and save.Inventory.Misc then
+                for _, item in pairs(save.Inventory.Misc) do
+                    local id = item.id or ""
+                    if id:find("Bluebell Token") then b = b + (item._am or 1)
+                    elseif id:find("Rose Token") then r = r + (item._am or 1)
+                    elseif id:find("Sunflower Token") then s = s + (item._am or 1)
+                    elseif id:find("Tulip Token") then t = t + (item._am or 1)
+                    elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1) end
+                end
+            end
+            if eggToken == 0 then pcall(function() local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token"); if c and type(c) == "number" and c > 0 then eggToken = c end end) end
             
-            -- ==========================================
-            -- LẤY TICKET TRỰC TIẾP TỪ UI GIỐNG V68
-            -- ==========================================
-            local realClientTickets = 0
-            local realTotalTickets = 1
-            
+            local realClientTickets, realTotalTickets, pos = 0, 1, HumanoidRootPart.Position
             pcall(function()
                 local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
                 if easterGui and easterGui:FindFirstChild("SideInfo") and easterGui.SideInfo:FindFirstChild("Tickets") then
-                    for _, lbl in pairs(easterGui.SideInfo.Tickets:GetChildren()) do 
-                        if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then 
-                            realClientTickets = ParseValue(lbl.Text) 
-                        end 
-                    end
+                    for _, lbl in pairs(easterGui.SideInfo.Tickets:GetChildren()) do if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then realClientTickets = ParseValue(lbl.Text) end end
                 end
-                
-                -- Lấy tổng máy chủ để hiển thị (từ V86)
-                local status = Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "GetStatus")
-                if not status then status = Network.Invoke("EasterHatchEvent", "GetStatus") end
-                if status and status.TotalTickets then realTotalTickets = status.TotalTickets end
             end)
             
-            local percent = 0
-            if realTotalTickets > 0 then percent = (realClientTickets / realTotalTickets) * 100 end
-            UI:SetText("Tickets", string.format("Ticket: %s / %s (%.3f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), percent))
-            -- ==========================================
-
-            local function checkCategory(cat)
-                if not cat then return end
-                for _, item in pairs(cat) do
-                    if type(item.id) == "string" then
-                        local idStr = item.id:lower()
-                        local amount = item._am or 1
-                        if idStr:match("bluebell") then b = b + amount
-                        elseif idStr:match("rose") then r = r + amount
-                        elseif idStr:match("sunflower") then s = s + amount
-                        elseif idStr:match("tulip") then t = t + amount
-                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount end
-                    end
-                end
-            end
-
-            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
-            
-            if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
-            if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
-            if s == 0 then s = type(CurrencyCmds.Get("SunflowerToken")) == "number" and CurrencyCmds.Get("SunflowerToken") or 0 end
-            if t == 0 then t = type(CurrencyCmds.Get("TulipToken")) == "number" and CurrencyCmds.Get("TulipToken") or 0 end
-            if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
-
             local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
-            local speed = currentEggs - lastEggs
-            lastEggs = currentEggs
             
-            -- GỘP EGG VÀ SPEED VÀO 1 DÒNG
-            UI:SetText("EggsHatched", string.format("Total Eggs: %s | ⚡ Speed: %s Eggs/s", FormatValue(hatchedThisSession), tostring(speed)))
-            
+            UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
+            UI:SetText("Tickets", string.format("Ticket: %s / %s", FormatValue(realClientTickets), FormatValue(realTotalTickets)))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
         end)
     end
