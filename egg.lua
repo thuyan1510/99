@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V86 (CHỈ SỬA HIỂN THỊ TICKET) 🌸
--- (Giữ nguyên gốc V86, chỉ update dòng Tickets theo % đóng góp)
+-- 🌸 EASTER EVENT - V89 (THE FLAWLESS UI) 🌸
+-- (Sửa lỗi treo giao diện, quét đúng Ticket từ Inventory)
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -79,7 +79,7 @@ oldTaskWait = hookfunction(task.wait, function(time)
 end)
 
 -- ==========================================
--- 🛡️ ANTI AFK (HỆ THỐNG BẤT TỬ)
+-- 🛡️ ANTI AFK & OPTIMIZE
 -- ==========================================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
@@ -111,9 +111,6 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- 🚀 EXTREME OPTIMIZE (GIẢM LAG)
--- ==========================================
 local function ExtremeOptimize(v)
     pcall(function()
         if v:IsA("BasePart") then v.Material = Enum.Material.Plastic; v.Reflectance = 0; v.CastShadow = false
@@ -127,7 +124,7 @@ for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
 for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
 
 -- ==========================================
--- TỌA ĐỘ TUYỆT ĐỐI 
+-- 📍 TỌA ĐỘ
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
@@ -149,13 +146,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 CUSTOM UI (GIỮ NGUYÊN CODE GỐC V86)
+-- 🎨 GIAO DIỆN UI (SẮP XẾP CHUẨN XÁC)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV86_TicketFix"
+	Self.GuiName = "EasterEventGuiV89"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -200,20 +197,37 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER V86 (TICKET FIX)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER V89 (FLAWLESS UI)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
         ["Speed"]           = {5, "⚡ Speed: 0 Eggs/sec"},
         ["Tokens"]          = {6, "Token B/R/S/T: 0/0/0/0"},
         ["EggTokens"]       = {7, "Spring Egg Token: 0"},
-        ["Tickets"]         = {8, "Tickets: 0/0 (0%)"}, -- Đã cấu hình lại hiển thị mặc định
+        ["Tickets"]         = {8, "Tickets: 0 / 0 (0%)"},
         ["FPS"]             = {9, "FPS: 60"}
     }
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (SỬA CHỈ MỖI TICKET TẠI ĐÂY)
+-- 🚀 BỘ TẢI DỮ LIỆU TICKET MÁY CHỦ (CHẠY NGẦM)
+-- ==========================================
+local GlobalTickets = 0
+task.spawn(function()
+    while task.wait(10) do
+        pcall(function()
+            -- Nhốt lệnh này vào luồng riêng. Nếu nó bị treo, giao diện vẫn chạy bình thường.
+            local status = Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "GetStatus")
+            if not status then status = Network.Invoke("EasterHatchEvent", "GetStatus") end
+            if status and type(status) == "table" and status.TotalTickets then
+                GlobalTickets = status.TotalTickets
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- 🚀 CẬP NHẬT DỮ LIỆU (KHÔNG BAO GIỜ TREO)
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -221,53 +235,42 @@ task.spawn(function()
         pcall(function()
             local save = Save.Get()
             
-            -- Lấy các loại Token như bản V86
-            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
+            -- Lấy Token, EggToken và Ticket THỰC TẾ từ túi đồ
+            local b, r, s, t, eggToken, yourTickets = 0, 0, 0, 0, 0, 0
             
-            -- ==========================================
-            -- TÍNH TICKET (CỦA BẠN & TỔNG MÁY CHỦ)
-            -- ==========================================
-            local yourTickets = 0
-            local globalTickets = 0
-            
-            if save and save.Easter2026ZoneTickets then
-                for _, val in pairs(save.Easter2026ZoneTickets) do 
-                    yourTickets = yourTickets + val 
-                end
-            end
-            
-            -- Thử lấy dữ liệu tổng Ticket của toàn bộ Sự kiện
-            pcall(function()
-                local status = Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "GetStatus")
-                if not status then status = Network.Invoke("EasterHatchEvent", "GetStatus") end
-                if status and status.TotalTickets then globalTickets = status.TotalTickets end
-            end)
-            
-            -- Tính tỉ lệ %
-            local percent = 0
-            if globalTickets > 0 then percent = (yourTickets / globalTickets) * 100 end
-            
-            -- Update UI cho Ticket
-            UI:SetText("Tickets", string.format("Tickets: %s/%s (%.3f%%)", FormatValue(yourTickets), FormatValue(globalTickets), percent))
-            -- ==========================================
-
             local function checkCategory(cat)
                 if not cat then return end
                 for _, item in pairs(cat) do
                     if type(item.id) == "string" then
                         local idStr = item.id:lower()
                         local amount = item._am or 1
+                        
                         if idStr:match("bluebell") then b = b + amount
                         elseif idStr:match("rose") then r = r + amount
                         elseif idStr:match("sunflower") then s = s + amount
                         elseif idStr:match("tulip") then t = t + amount
-                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount end
+                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount
+                        -- QUÉT ĐÚNG VÉ (TICKET) BẠN ĐANG SỞ HỮU TRONG TÚI
+                        elseif idStr:match("ticket") then yourTickets = yourTickets + amount end
                     end
                 end
             end
 
-            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
-            
+            if save and save.Inventory then 
+                checkCategory(save.Inventory.Currency)
+                checkCategory(save.Inventory.Misc) 
+            end
+
+            -- Cập nhật Giao diện Ticket %
+            if GlobalTickets > 0 then
+                local percent = (yourTickets / GlobalTickets) * 100
+                UI:SetText("Tickets", string.format("Tickets: %s / %s (%.4f%%)", FormatValue(yourTickets), FormatValue(GlobalTickets), percent))
+            else
+                -- Nếu máy chủ chưa phản hồi, chỉ hiện số vé của bạn
+                UI:SetText("Tickets", string.format("Tickets: %s (Syncing Global...)", FormatValue(yourTickets)))
+            end
+
+            -- Cập nhật các UI còn lại
             if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
             if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
             if s == 0 then s = type(CurrencyCmds.Get("SunflowerToken")) == "number" and CurrencyCmds.Get("SunflowerToken") or 0 end
@@ -443,7 +446,7 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG (8 EGGS/S TỪ NETWORK.INVOKE)
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG
 -- ==========================================
 task.spawn(function()
     while true do
@@ -461,7 +464,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 INSTANT ZERO-TELEPORT PORTAL LOGIC (LOGIC CỦA BẠN - V86 GỐC)
+-- 🚀 CỔNG THÔNG MINH (PORTAL SCANNER - V86 GỐC)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
