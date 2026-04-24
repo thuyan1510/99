@@ -1,5 +1,5 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V92 + AUTO EQUIP + AUTO FRUIT + DEBUG + FAST HATCH (FIXED PORTAL/UI) 🌸
+-- 🌸 EASTER EVENT - V92 + AUTO EQUIP + FRUIT + FAST HATCH + SMART MAX LUCK 🌸
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -24,6 +24,10 @@ local AutoHatch = UserSettings.AutoHatch ~= false
 
 local AutoEatFruit = UserSettings.EatFruit ~= false
 local IsDebugMode = UserSettings.DEBUG == true
+
+local EventLuckSettings = UserSettings.AutoEventLuck or {
+    Enabled = false, Type = {"Huge", "Titanic", "Gargantuan"}
+}
 
 local EnchantSettings = UserSettings.EquipEnchants or {
     Farm = {"Coins", "Coins", "Coins", "Coins"},
@@ -123,6 +127,77 @@ task.spawn(function()
                     end
                 end
             end
+        end
+    end
+end)
+
+-- ==========================================
+-- 🎰 ĐỘNG CƠ AUTO EVENT LUCK (SMART MAX FILL)
+-- ==========================================
+local function GetTokenBalances()
+    local save = Save.Get()
+    local b, r, s, t = 0, 0, 0, 0
+    if save and save.Inventory then 
+        local function countItem(k1)
+            local total = 0
+            for _, catName in ipairs({"Currency", "Misc"}) do
+                local cat = save.Inventory[catName]
+                if type(cat) == "table" then
+                    for _, item in pairs(cat) do
+                        if type(item.id) == "string" then
+                            local idStr = item.id:lower()
+                            if idStr:match(k1) then
+                                total = total + (item._am or 1)
+                            end
+                        end
+                    end
+                end
+            end
+            return total
+        end
+        b = countItem("bluebell")
+        r = countItem("rose")
+        s = countItem("sunflower")
+        t = countItem("tulip")
+    end
+    return {
+        {name = "Bluebell", amount = b},
+        {name = "Rose", amount = r},
+        {name = "Sunflower", amount = s},
+        {name = "Tulip", amount = t}
+    }
+end
+
+task.spawn(function()
+    while task.wait(5) do
+        if EventLuckSettings.Enabled and type(EventLuckSettings.Type) == "table" then
+            pcall(function()
+                local save = Save.Get()
+                if not save then return end
+
+                for _, typeKey in ipairs(EventLuckSettings.Type) do
+                    local saveKey = "Easter2026" .. typeKey .. "LuckTime"
+                    local expireTime = save[saveKey] or 0
+                    local timeLeft = expireTime - os.time()
+
+                    -- Max là 6 tiếng (21600s), chừa 30 phút an toàn -> nạp khi < 19800s
+                    if timeLeft < 19800 then
+                        local tokens = GetTokenBalances()
+                        -- Xếp hạng từ nhiều nhất xuống ít nhất
+                        table.sort(tokens, function(a, b) return a.amount > b.amount end)
+                        
+                        local bestToken = tokens[1]
+                        local amt = math.min(1000, bestToken.amount)
+                        
+                        if amt > 0 then
+                            print(string.format("🎰 [AUTO LUCK]: Nạp %d %s vào %s (Còn lại %d %s)", amt, bestToken.name, typeKey, bestToken.amount - amt, bestToken.name))
+                            pcall(function() Network.Invoke("EasterHugeChanceMachine", typeKey, bestToken.name, amt) end)
+                            pcall(function() Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "EasterHugeChanceMachine", typeKey, bestToken.name, amt) end)
+                            task.wait(3) -- Delay 3 giây để Server cộng thời gian, chống spam văng game
+                        end
+                    end
+                end
+            end)
         end
     end
 end)
@@ -514,7 +589,6 @@ task.spawn(function()
             local speedColor = (speed > 5) and "#ff3232" or "#ffff00"
             UI:SetText("EggsHatched", string.format("Total Eggs: %s | <font color='%s'>⚡ Speed: %d/s</font>", FormatValue(hatchedThisSession), speedColor, speed))
 
-            -- FIX LỖI CRASH Ở ĐÂY: Đếm siêu an toàn từ Save.Get()
             local b, r, s, t, eggToken = 0, 0, 0, 0, 0
             if save and save.Inventory then 
                 local function countItem(k1, k2)
@@ -781,7 +855,6 @@ _G.CurrentPhase = State.Phase
 local function EnterZoneNetwork()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     
-    -- Thử vào Cổng hiện tại (Dựa theo vòng luân phiên)
     local serverZoneID = State.CurrentPortal + 1 
     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
     
@@ -794,7 +867,6 @@ local function EnterZoneNetwork()
         waitTime = waitTime + 0.25
     end
     
-    -- Nếu cổng bị khóa (chưa mở), lùi về cổng 1 để farm an toàn
     if not success and State.CurrentPortal ~= 1 then
         State.CurrentPortal = 1
         serverZoneID = 2
@@ -840,7 +912,6 @@ task.spawn(function()
                 if State.Phase == "FARMING" then 
                     State.Phase = "HATCHING"
                     State.TimeLeft = HatchTimeMinutes * 60 
-                    -- FIX: Nhảy cổng sau khi hoàn tất phiên Farm
                     State.CurrentPortal = (State.CurrentPortal % 4) + 1 
                 else 
                     State.Phase = "FARMING"
@@ -849,7 +920,6 @@ task.spawn(function()
             elseif Mode == "FarmOnly" then 
                 State.Phase = "FARMING"
                 State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
-                -- FIX: Nhảy cổng ngay cả khi chỉ Farm Mode
                 State.CurrentPortal = (State.CurrentPortal % 4) + 1
             elseif Mode == "HatchOnly" then 
                 State.Phase = "HATCHING"
