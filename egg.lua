@@ -1,5 +1,5 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V92 + AUTO EQUIP + AUTO FRUIT + DEBUG + FAST HATCH (BYPASS) 🌸
+-- 🌸 EASTER EVENT - V92 + AUTO EQUIP + AUTO FRUIT + DEBUG + FAST HATCH (FIXED PORTAL/UI) 🌸
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -351,7 +351,6 @@ local function HandlePlayer(player)
     player.CharacterAdded:Connect(OptimizeCharacter)
 end
 
--- KIỂM TRA ĐIỀU KIỆN DEBUG ĐỂ BẬT/TẮT TỐI ƯU HÓA
 if not IsDebugMode then
     for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
     for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
@@ -458,7 +457,7 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (LOGIC TICKET TỪ V60)
+-- 🚀 DATA UPDATER (FIXED UI ERROR)
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -515,29 +514,32 @@ task.spawn(function()
             local speedColor = (speed > 5) and "#ff3232" or "#ffff00"
             UI:SetText("EggsHatched", string.format("Total Eggs: %s | <font color='%s'>⚡ Speed: %d/s</font>", FormatValue(hatchedThisSession), speedColor, speed))
 
+            -- FIX LỖI CRASH Ở ĐÂY: Đếm siêu an toàn từ Save.Get()
             local b, r, s, t, eggToken = 0, 0, 0, 0, 0
-            local function checkCategory(cat)
-                if not cat then return end
-                for _, item in pairs(cat) do
-                    if type(item.id) == "string" then
-                        local idStr = item.id:lower()
-                        local amount = item._am or 1
-                        if idStr:match("bluebell") then b = b + amount
-                        elseif idStr:match("rose") then r = r + amount
-                        elseif idStr:match("sunflower") then s = s + amount
-                        elseif idStr:match("tulip") then t = t + amount
-                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount end
+            if save and save.Inventory then 
+                local function countItem(k1, k2)
+                    local total = 0
+                    for _, catName in ipairs({"Currency", "Misc"}) do
+                        local cat = save.Inventory[catName]
+                        if type(cat) == "table" then
+                            for _, item in pairs(cat) do
+                                if type(item.id) == "string" then
+                                    local idStr = item.id:lower()
+                                    if idStr:match(k1) and (not k2 or idStr:match(k2)) then
+                                        total = total + (item._am or 1)
+                                    end
+                                end
+                            end
+                        end
                     end
+                    return total
                 end
+                b = countItem("bluebell")
+                r = countItem("rose")
+                s = countItem("sunflower")
+                t = countItem("tulip")
+                eggToken = countItem("spring", "egg")
             end
-
-            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
-            
-            if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
-            if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
-            if s == 0 then s = type(CurrencyCmds.Get("SunflowerToken")) == "number" and CurrencyCmds.Get("SunflowerToken") or 0 end
-            if t == 0 then t = type(CurrencyCmds.Get("TulipToken")) == "number" and CurrencyCmds.Get("TulipToken") or 0 end
-            if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
 
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
@@ -743,14 +745,12 @@ task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = 
 task.spawn(function()
     while true do
         if _G.CurrentPhase == "HATCHING" and AutoHatch then
-            -- Lệnh 1: Bắn thẳng vào Instance của Event (Bỏ qua khoảng cách vật lý)
             task.spawn(function()
                 pcall(function()
                     Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "HatchRequest")
                 end)
             end)
             
-            -- Lệnh 2: Bắn vào luồng Auto Hatch ẩn của Sự kiện
             task.spawn(function()
                 pcall(function()
                     Network.Invoke("EasterHatchEvent", "HatchRequest")
@@ -765,7 +765,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 INSTANT ZERO-TELEPORT PORTAL SCANNER
+-- 🚀 INSTANT ZERO-TELEPORT PORTAL SCANNER (FIXED PORTAL CYCLE)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
@@ -780,29 +780,36 @@ _G.CurrentPhase = State.Phase
 
 local function EnterZoneNetwork()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
-    local max_portals = 4 
-    for portalIndex = 1, max_portals do
-        local serverZoneID = portalIndex + 1 
+    
+    -- Thử vào Cổng hiện tại (Dựa theo vòng luân phiên)
+    local serverZoneID = State.CurrentPortal + 1 
+    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
+    
+    local waitTime = 0
+    local success = false
+    while waitTime < 2 do
+        local currentDist = (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude
+        if currentDist > 50 then success = true; break end
+        task.wait(0.25)
+        waitTime = waitTime + 0.25
+    end
+    
+    -- Nếu cổng bị khóa (chưa mở), lùi về cổng 1 để farm an toàn
+    if not success and State.CurrentPortal ~= 1 then
+        State.CurrentPortal = 1
+        serverZoneID = 2
         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
-        
-        local waitTime = 0
-        local success = false
-        while waitTime < 2 do
-            local currentDist = (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude
-            if currentDist > 50 then success = true; break end
-            task.wait(0.25)
-            waitTime = waitTime + 0.25
-        end
-        
-        if success then
-            task.wait(1) 
-            _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
-            TeleportPlayer(_G.CurrentFarmCF)
-            task.wait(0.5)
-            _G.FarmReady = true
-            State.CurrentPortal = portalIndex
-            return true
-        end
+        task.wait(1.5)
+        if (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 50 then success = true end
+    end
+
+    if success then
+        task.wait(1) 
+        _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
+        TeleportPlayer(_G.CurrentFarmCF)
+        task.wait(0.5)
+        _G.FarmReady = true
+        return true
     end
     return false
 end
@@ -833,6 +840,8 @@ task.spawn(function()
                 if State.Phase == "FARMING" then 
                     State.Phase = "HATCHING"
                     State.TimeLeft = HatchTimeMinutes * 60 
+                    -- FIX: Nhảy cổng sau khi hoàn tất phiên Farm
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1 
                 else 
                     State.Phase = "FARMING"
                     State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
@@ -840,6 +849,8 @@ task.spawn(function()
             elseif Mode == "FarmOnly" then 
                 State.Phase = "FARMING"
                 State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
+                -- FIX: Nhảy cổng ngay cả khi chỉ Farm Mode
+                State.CurrentPortal = (State.CurrentPortal % 4) + 1
             elseif Mode == "HatchOnly" then 
                 State.Phase = "HATCHING"
                 State.TimeLeft = math.huge 
