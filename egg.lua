@@ -1,5 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V91 (V86 CORE + V72 UI & TICKET LOGIC) 🌸
+-- 🌸 EASTER EVENT - V92 (V86 CORE + V60 TICKET LOGIC) 🌸
+-- (Giữ nguyên Động cơ V86, khôi phục Ticket UI từ V60, Gộp dòng Speed)
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -123,7 +124,7 @@ for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
 for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
 
 -- ==========================================
--- 📍 TỌA ĐỘ
+-- 📍 TỌA ĐỘ & HÀM CHUYỂN ĐỔI CHỮ SỐ
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
@@ -136,7 +137,6 @@ local StartTime = os.time()
 local StartEggs = 0
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
 
--- HÀM PARSE VALUE TỪ V72 GỐC ĐỂ ĐỌC TICKET
 local function ParseValue(str)
     if not str then return 0 end
     str = tostring(str):lower():gsub("<[^>]+>", ""):gsub(",", ""):gsub("%s+", "")     
@@ -155,13 +155,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 GIAO DIỆN UI NGUYÊN THỦY CỦA V72
+-- 🎨 GIAO DIỆN UI (GỘP SPEED & EGGS)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV91"
+	Self.GuiName = "EasterEventGuiV92"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -192,7 +192,7 @@ function FarmUI.new(UIConfig)
 	for Index, Item in ipairs(Sorted) do
 		local Label = Instance.new("TextLabel", Self.Container)
 		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
-		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true
+		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.RichText = true
 		Self.Elements[Item.Name] = Label
 		if Index < #Sorted then
 			local Spacer = Instance.new("Frame", Self.Container)
@@ -206,57 +206,111 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT V91 (CLASSIC)", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT V92 (PRO)", {0.8, 0, 0.08, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
-        ["EggsHatched"]     = {4, "Total Eggs Hatched: 0"},
-        ["Tokens"]          = {6, "Token B/R/S/T: 0/0/0/0"},
-        ["EggTokens"]       = {7, "Spring Egg Token: 0"},
-        ["Tickets"]         = {8, "Ticket: 0 / 0"},
-        ["FPS"]             = {9, "FPS: 60"}
+        ["EggsHatched"]     = {4, "Total Eggs: 0 | ⚡ Speed: 0/sec"},
+        ["Tokens"]          = {5, "Token B/R/S/T: 0/0/0/0"},
+        ["EggTokens"]       = {6, "Spring Egg Token: 0"},
+        ["Tickets"]         = {7, "Tickets: 0 / 0 (0%)"},
+        ["FPS"]             = {8, "FPS: 60"}
     }
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (DÙNG CHÍNH XÁC HÀM CỦA V72)
+-- 🚀 DATA UPDATER (LOGIC TICKET TỪ V60)
 -- ==========================================
+local lastEggs = StartEggs
 task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
             local save = Save.Get()
-            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
-            if save and save.Inventory and save.Inventory.Misc then
-                for _, item in pairs(save.Inventory.Misc) do
-                    local id = item.id or ""
-                    if id:find("Bluebell Token") then b = b + (item._am or 1)
-                    elseif id:find("Rose Token") then r = r + (item._am or 1)
-                    elseif id:find("Sunflower Token") then s = s + (item._am or 1)
-                    elseif id:find("Tulip Token") then t = t + (item._am or 1)
-                    elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1) end
-                end
-            end
-            if eggToken == 0 then pcall(function() local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token"); if c and type(c) == "number" and c > 0 then eggToken = c end end) end
             
-            -- LOGIC ĐỌC TICKET TRỰC TIẾP TỪ MÀN HÌNH (V72)
-            local realClientTickets, realTotalTickets, pos = 0, 0, HumanoidRootPart.Position
+            -- ======================================
+            -- HÀM CÀO DỮ LIỆU TICKET GUI CỦA V60
+            -- ======================================
+            local realClientTickets, realTotalTickets, pos = 0, 1, HumanoidRootPart.Position
             pcall(function()
                 local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
                 if easterGui and easterGui:FindFirstChild("SideInfo") and easterGui.SideInfo:FindFirstChild("Tickets") then
-                    for _, lbl in pairs(easterGui.SideInfo.Tickets:GetChildren()) do 
-                        if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then 
-                            realClientTickets = ParseValue(lbl.Text) 
-                        end 
+                    for _, lbl in pairs(easterGui.SideInfo.Tickets:GetChildren()) do
+                        if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then
+                            realClientTickets = ParseValue(lbl.Text)
+                        end
+                    end
+                end
+            end)
+
+            pcall(function()
+                local closestBoard, minDist = nil, math.huge
+                local container = Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER")
+                if container and container:FindFirstChild("Active") then
+                    for _, v in ipairs(container.Active:GetDescendants()) do
+                        if v.Name == "RaffleBoard" and v:IsA("Model") then
+                            local dist = (v:GetPivot().Position - pos).Magnitude
+                            if dist < minDist then minDist = dist; closestBoard = v end
+                        end
+                    end
+                end
+                if closestBoard then
+                    local totalText = closestBoard:FindFirstChild("TotalTickets", true)
+                    if totalText and totalText:FindFirstChild("Amount") then
+                        local parsed = ParseValue(totalText.Amount.Text)
+                        if parsed > 0 and parsed ~= 999000 then realTotalTickets = parsed end
+                    end
+                    if realClientTickets == 0 then
+                        local clientText = closestBoard:FindFirstChild("ClientTickets", true)
+                        if clientText and clientText:FindFirstChild("Amount") then
+                            local parsedClient = ParseValue(clientText.Amount.Text)
+                            if parsedClient > 0 and parsedClient ~= 999000 then realClientTickets = parsedClient end
+                        end
                     end
                 end
             end)
             
+            local chance = realTotalTickets > 0 and (realClientTickets / realTotalTickets) * 100 or 0
+            UI:SetText("Tickets", string.format("Ticket: %s / %s (%.6f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
+            
+            -- ======================================
+            -- CẬP NHẬT TỐC ĐỘ ẤP (GỘP CHUNG VỚI TOTAL EGGS)
+            -- ======================================
             local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
+            local speed = currentEggs - lastEggs
+            lastEggs = currentEggs
             
-            UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
+            local speedColor = (speed > 5) and "#ff3232" or "#ffff00"
+            UI:SetText("EggsHatched", string.format("Total Eggs: %s | <font color='%s'>⚡ Speed: %d/s</font>", FormatValue(hatchedThisSession), speedColor, speed))
+
+            -- ======================================
+            -- CẬP NHẬT TOKEN
+            -- ======================================
+            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
+            local function checkCategory(cat)
+                if not cat then return end
+                for _, item in pairs(cat) do
+                    if type(item.id) == "string" then
+                        local idStr = item.id:lower()
+                        local amount = item._am or 1
+                        if idStr:match("bluebell") then b = b + amount
+                        elseif idStr:match("rose") then r = r + amount
+                        elseif idStr:match("sunflower") then s = s + amount
+                        elseif idStr:match("tulip") then t = t + amount
+                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount end
+                    end
+                end
+            end
+
+            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
+            
+            if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
+            if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
+            if s == 0 then s = type(CurrencyCmds.Get("SunflowerToken")) == "number" and CurrencyCmds.Get("SunflowerToken") or 0 end
+            if t == 0 then t = type(CurrencyCmds.Get("TulipToken")) == "number" and CurrencyCmds.Get("TulipToken") or 0 end
+            if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
+
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
-            UI:SetText("Tickets", string.format("Ticket: %s / %s", FormatValue(realClientTickets), FormatValue(realTotalTickets)))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
         end)
     end
@@ -412,7 +466,7 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG (8 EGGS/S TỪ V86)
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG (8 EGGS/S TỪ NETWORK.INVOKE)
 -- ==========================================
 task.spawn(function()
     while true do
@@ -430,7 +484,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 PORTAL SCANNER (LÕI V86 CHỐNG KẸT CỔNG)
+-- 🚀 INSTANT ZERO-TELEPORT PORTAL SCANNER (LOGIC V86)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
@@ -449,6 +503,7 @@ local function EnterZoneNetwork()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     
     local max_portals = 4 
+    
     for portalIndex = 1, max_portals do
         local serverZoneID = portalIndex + 1 
         
@@ -479,6 +534,7 @@ local function EnterZoneNetwork()
             return true
         end
     end
+    
     return false
 end
 
