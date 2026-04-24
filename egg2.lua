@@ -262,6 +262,11 @@ local PlayerObjectsDestroy = {"Accessory", "Clothing", "Shirt", "Pants", "Charac
 
 local function ExtremeOptimize(descendant)
     pcall(function()
+        -- 🛡️ BẢO VỆ BẢNG TICKET: Bỏ qua hoàn toàn, không tối ưu hóa/xóa RaffleBoard
+        if descendant.Name == "RaffleBoard" or descendant:FindFirstAncestor("RaffleBoard") then 
+            return 
+        end
+
         if not descendant:IsDescendantOf(Player.PlayerGui) then
             if table.find(PartClassNames, descendant.ClassName) then
                 descendant.Material = Enum.Material.Plastic
@@ -286,7 +291,6 @@ local function ExtremeOptimize(descendant)
         end
     end)
 end
-
 local function HandlePlayer(player)
     pcall(function() if player:FindFirstChild("leaderstats") then player.leaderstats:Destroy() end end)
     local function OptimizeCharacter(character)
