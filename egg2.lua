@@ -1,40 +1,10 @@
--- ========== TẢI MODULE TỪ GITHUB (CÓ FALLBACK AN TOÀN) ==========
-local Module = {
-    -- Fallback functions nếu module không tải được
-    Optimize = function(fps) setfpscap(fps or 15) end,
-    SetPetSpeed = function(speed) end,
-    Noclip = function(enable) end,
-    AddSuffix = function(v) return tostring(v) end,
-    RemoveSuffix = function(v) return tonumber(v) or 0 end,
-    ConvertTime = function(s) return s .. "s" end,
-    MoveTo = function(cf, speed) 
-        local hrp = HumanoidRootPart
-        local tween = TweenService:Create(hrp, TweenInfo.new((hrp.Position - cf.Position).Magnitude / (speed or 50), Enum.EasingStyle.Linear), {CFrame = cf})
-        tween:Play()
-        tween.Completed:Wait()
-    end,
-    EnterInstance = function(name) end,
-    FarmBreakables = function() end
-}
+-- ==========================================
+-- 🌸 EASTER EVENT - V92 + SMART AUTO EQUIP + WEBHOOK 🌸
+-- ==========================================
+repeat task.wait() until game:IsLoaded()
+if _G.SpringStarted then return end
+_G.SpringStarted = true
 
-if not _G.PetSimModule then
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/PetSimModule.lua"))()
-    end)
-    if success and type(result) == "table" then
-        _G.PetSimModule = result
-        -- Ghi đè các hàm fallback bằng hàm thật từ module
-        for k, v in pairs(result) do
-            Module[k] = v
-        end
-        print("✅ Module PS99 đã tải thành công!")
-    else
-        warn("❌ Không thể tải module, dùng fallback. Lỗi: " .. tostring(result))
-    end
-else
-    Module = _G.PetSimModule
-end
--- ========== CẤU HÌNH NGƯỜI DÙNG ==========
 local UserSettings = getgenv().Settings or {}
 local function SafeNumber(val, default)
     if val == nil then return default end
@@ -52,19 +22,21 @@ local HatchTimeMinutes = SafeNumber(UserSettings.HatchTimeMinutes, 10)
 local AutoUpgrade = UserSettings.AutoUpgrade ~= false
 local AutoHatch = UserSettings.AutoHatch ~= false
 
-local WebhookCfg = UserSettings.Webhook or {}
-local WEBHOOK_URL = type(WebhookCfg) == "table" and WebhookCfg.url or ""
-local rawDiscordId = type(WebhookCfg) == "table" and WebhookCfg["Discord Id to ping"] or ""
-local DISCORD_USER_ID = type(rawDiscordId) == "table" and (rawDiscordId[1] or "") or tostring(rawDiscordId)
+local EnchantSettings = UserSettings.EquipEnchants or {
+    Farm = {"Coins", "Coins", "Coins", "Coins"},
+    Hatch = {"Lucky Eggs", "Lucky Eggs", "Lucky Eggs", "Lucky Eggs", "Lucky Eggs"}
+}
 
--- ========== DỊCH VỤ ==========
-local TweenService = game:GetService("TweenService")
+-- CẤU HÌNH WEBHOOK TỪ BÊN NGOÀI
+local WebhookConfig = UserSettings.Webhook or { url = "", ["Discord Id to ping"] = {""} }
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -76,53 +48,275 @@ local Save = require(Library.Client.Save)
 local CurrencyCmds = require(Library.Client.CurrencyCmds)
 local PlayerPet = require(Library.Client.PlayerPet)
 local EventUpgradeCmds = require(Library.Client.EventUpgradeCmds)
+local EventUpgradesDir = require(Library.Directory.EventUpgrades)
+local Items = require(Library.Items)
 local InstancingCmds = require(Library.Client.InstancingCmds)
+local UltimateCmds = require(Library.Client.UltimateCmds)
+local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
+local MapCmds = require(Library.Client.MapCmds)
 
--- ========== TỐI ƯU HÓA ==========
-Module.Optimize(60)  -- Giảm FPS và tắt hiệu ứng để giảm lag
+-- ==========================================
+-- 📢 WEBHOOK DISCORD (TÍCH HỢP TỪ LUCKYRAID.LUA)
+-- ==========================================
+task.spawn(function()
+    local httprequest = (request or http_request or syn and syn.request)
+    if not httprequest or not WebhookConfig.url or WebhookConfig.url == "" then return end
 
--- ========== CHỐNG AFK 3 LỚP ==========
-pcall(function()
-    local v3 = require(ReplicatedStorage.Library.Client.Network)
-    local _Fire = v3.Fire
-    setreadonly(v3, false)
-    v3.Fire = function(...)
-        local args = {...}
-        if args[1] == 'Idle Tracking: Update Timer' then return end
-        return _Fire(...)
+    local discovered_Huge_titan = {}
+
+    local function getPetLabel(data)
+        local prefix = ""
+        if data.sh then prefix = "Shiny " end
+        if data.pt == 1 then prefix = prefix .. "Golden " elseif data.pt == 2 then prefix = prefix .. "Rainbow " end
+        return prefix .. data.id
     end
-    setreadonly(v3, true)
+
+    local function sendWebhook(data)
+        local isTitanic = string.find(data.id, "Titanic") or string.find(data.id, "titanic")
+        local isShiny = data.sh
+        local isRainbow = data.pt == 2
+        local isGolden = data.pt == 1
+        local color = isRainbow and 11141375 or isGolden and 16766720 or isShiny and 4031935 or isTitanic and 16711680 or 16776960
+
+        local pingText = ""
+        if WebhookConfig["Discord Id to ping"] then
+            local ids = WebhookConfig["Discord Id to ping"]
+            if type(ids) == "table" then 
+                for _, id in ipairs(ids) do 
+                    if tostring(id) ~= "" and tostring(id) ~= "0" then pingText = pingText .. "<@" .. tostring(id) .. "> " end 
+                end 
+            elseif tostring(ids) ~= "" and tostring(ids) ~= "0" then 
+                pingText = "<@" .. tostring(ids) .. ">" 
+            end
+        end
+
+        -- Lấy số lượng trứng đã ấp để làm footer
+        local save = Save.Get()
+        local currentEggs = save and save.Easter2026EggsHatched or 0
+
+        local body = HttpService:JSONEncode({
+            content = pingText ~= "" and pingText or nil,
+            embeds = {{
+                title = isTitanic and "✨ Titanic Hatched!" or "🎉 Huge Hatched!",
+                description = "**" .. Player.Name .. "** hatched a **" .. getPetLabel(data) .. "**",
+                color = color,
+                footer = { text = "Easter Eggs Hatched: " .. tostring(currentEggs) }
+            }}
+        })
+        pcall(function() httprequest({Url = WebhookConfig.url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body}) end)
+    end
+
+    -- Khởi tạo danh sách thú hiện có để tránh spam khi vừa chạy script
+    local initialSave = Save.Get()
+    if initialSave and initialSave.Inventory and initialSave.Inventory.Pet then
+        for UUID, data in pairs(initialSave.Inventory.Pet) do
+            if string.find(data.id, "Huge") or string.find(data.id, "Titanic") or string.find(data.id, "titanic") then
+                discovered_Huge_titan[UUID] = true
+            end
+        end
+    end
+
+    -- Vòng lặp quét thú mới
+    while task.wait(2) do
+        local save = Save.Get()
+        if save and save.Inventory and save.Inventory.Pet then
+            for UUID, data in pairs(save.Inventory.Pet) do
+                if string.find(data.id, "Huge") or string.find(data.id, "Titanic") or string.find(data.id, "titanic") then
+                    if not discovered_Huge_titan[UUID] then
+                        discovered_Huge_titan[UUID] = true
+                        pcall(sendWebhook, data)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- 🔮 ĐỘNG CƠ SMART AUTO EQUIP ENCHANTS
+-- ==========================================
+local function GetSmartEnchantUIDs(targetEnchantNames)
+    local save = Save.Get()
+    if not save or not save.Inventory or not save.Inventory.Enchant then return {} end
+
+    local freeSlots = save.MaxEnchantsEquipped or 1
+    local paidSlots = save.MaxPaidEnchantsEquipped or 0
+    local maxSlots = freeSlots + paidSlots
+
+    local availablePool = {}
+    for uid, data in pairs(save.Inventory.Enchant) do
+        table.insert(availablePool, {
+            uid = uid,
+            id = data.id or "Unknown",
+            tn = data.tn or 1,
+            amount = data._am or 1
+        })
+    end
+
+    local matchedUIDs = {}
+    for slotIndex, enchantName in ipairs(targetEnchantNames) do
+        if slotIndex > maxSlots then break end
+
+        local validMatches = {}
+        for _, item in ipairs(availablePool) do
+            if item.id == enchantName and item.amount > 0 then
+                table.insert(validMatches, item)
+            end
+        end
+        
+        table.sort(validMatches, function(a, b) return a.tn > b.tn end)
+        
+        if #validMatches > 0 then
+            local bestMatch = validMatches[1]
+            matchedUIDs[slotIndex] = bestMatch.uid
+            bestMatch.amount = bestMatch.amount - 1 
+        end
+    end
+    return matchedUIDs
+end
+
+local function EquipEnchantLoadout(modeName, enchantList)
+    task.spawn(function()
+        local uidsToEquip = GetSmartEnchantUIDs(enchantList)
+        if not next(uidsToEquip) then return end
+        
+        for slotIndex, uid in pairs(uidsToEquip) do
+            pcall(function()
+                Network.Fire("Enchants_ClearSlot", slotIndex)
+            end)
+            task.wait(0.2)
+            pcall(function()
+                Network.Fire("Enchants_SetSlot", slotIndex, uid)
+                Network.Fire("Enchants_Equip", uid, slotIndex)
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ==========================================
+-- 🧲 MÁY QUÉT RAM AN TOÀN
+-- ==========================================
+local foundCooldowns, bypassedMods = 0, 0
+for _, v in pairs(getgc(true)) do
+    if type(v) == "table" then
+        local isHatchMod = false
+        pcall(function()
+            if rawget(v, "HatchDelay") and type(rawget(v, "HatchDelay")) == "number" then rawset(v, "HatchDelay", 0); isHatchMod = true end
+            if rawget(v, "Cooldown") and type(rawget(v, "Cooldown")) == "number" then rawset(v, "Cooldown", 0); isHatchMod = true end
+            if rawget(v, "AnimationDelay") and type(rawget(v, "AnimationDelay")) == "number" then rawset(v, "AnimationDelay", 0); isHatchMod = true end
+            if rawget(v, "OpenSpeed") and type(rawget(v, "OpenSpeed")) == "number" then rawset(v, "OpenSpeed", 0); isHatchMod = true end
+            if rawget(v, "WaitTime") and type(rawget(v, "WaitTime")) == "number" then rawset(v, "WaitTime", 0); isHatchMod = true end
+        end)
+    end
+end
+
+local oldTaskWait
+oldTaskWait = hookfunction(task.wait, function(time)
+    if time and type(time) == "number" and time > 0 and time < 3 then
+        local callStack = debug.traceback()
+        if callStack:lower():match("egg") or callStack:lower():match("hatch") then
+            return oldTaskWait(0.01) 
+        end
+    end
+    return oldTaskWait(time)
+end)
+
+-- ==========================================
+-- 🛡️ ANTI AFK & EXTREME OPTIMIZE
+-- ==========================================
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "InvokeServer" then
+        local args = {...}
+        local cmd = tostring(args[1] or "")
+        if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then return end
+    end
+    return oldNamecall(self, ...)
 end)
 
 pcall(function()
     local UserInputService = game:GetService("UserInputService")
     if getconnections then
-        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do if v.Disable then v:Disable() end end
-        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do if v.Disable then v:Disable() end end
-        for _, v in pairs(getconnections(Player.Idled)) do if v.Disable then v:Disable() end end
+        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do pcall(function() v:Disable() end) end
+        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do pcall(function() v:Disable() end) end
+        for _, v in pairs(getconnections(Player.Idled)) do pcall(function() v:Disable() end) end
     end
 end)
 
-pcall(function()
-    local vu = game:GetService("VirtualUser")
-    task.spawn(function()
-        while task.wait(300) do
-            pcall(function()
-                vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
-                local hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
-                if hum then hum.Jump = true end
-            end)
-        end
-    end)
+task.spawn(function()
+    while task.wait(60) do
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+        end)
+    end
 end)
 
--- ========== TỌA ĐỘ & THEO DÕI FPS ==========
+local PartClassNames = {"Part", "MeshPart", "WedgePart", "TrussPart", "CornerWedgePart", "BasePart"}
+local DestroyClass = {"Decal", "Texture", "SurfaceGui", "BillboardGui", "ParticleEmitter", "Trail", "Beam", "Fire", "Sparkles", "Smoke"}
+local DisableClass = {"PostEffect", "SunRaysEffect", "ColorCorrectionEffect", "BloomEffect", "DepthOfFieldEffect", "BlurEffect"}
+local PlayerObjectsDestroy = {"Accessory", "Clothing", "Shirt", "Pants", "CharacterMesh", "ShirtGraphic", "Hat"}
+
+local function ExtremeOptimize(descendant)
+    pcall(function()
+        if not descendant:IsDescendantOf(Player.PlayerGui) then
+            if table.find(PartClassNames, descendant.ClassName) then
+                descendant.Material = Enum.Material.Plastic
+                descendant.Reflectance = 0
+                descendant.Massless = true
+                descendant.Transparency = 1
+                if descendant:IsA("MeshPart") or descendant:IsA("SpecialMesh") then 
+                    descendant.TextureID = ""
+                    descendant.MeshId = "" 
+                end
+            elseif table.find(DestroyClass, descendant.ClassName) then
+                descendant:Destroy()
+            elseif descendant:IsA("Explosion") then
+                descendant.BlastPressure = 1
+                descendant.BlastRadius = 1
+                descendant.Visible = false
+            elseif table.find(DisableClass, descendant.ClassName) then
+                descendant.Enabled = false
+            elseif descendant:IsDescendantOf(game:GetService("CoreGui")) then
+                descendant.Transparency = 1
+            end
+        end
+    end)
+end
+
+local function HandlePlayer(player)
+    pcall(function() if player:FindFirstChild("leaderstats") then player.leaderstats:Destroy() end end)
+    local function OptimizeCharacter(character)
+        for _, v in pairs(character:GetDescendants()) do
+            pcall(function()
+                if table.find(PlayerObjectsDestroy, v.ClassName) then
+                    v:Destroy()
+                elseif v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                    v.Transparency = 1
+                end
+            end)
+        end
+    end
+    if player.Character then OptimizeCharacter(player.Character) end
+    player.CharacterAdded:Connect(OptimizeCharacter)
+end
+
+for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
+for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
+Workspace.DescendantAdded:Connect(ExtremeOptimize)
+Lighting.DescendantAdded:Connect(ExtremeOptimize)
+for _, p in ipairs(Players:GetPlayers()) do HandlePlayer(p) end
+Players.PlayerAdded:Connect(HandlePlayer)
+
+-- ==========================================
+-- 📍 TỌA ĐỘ & HÀM CHUYỂN ĐỔI CHỮ SỐ
+-- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
-_G.DynamicPortals = {}
-local ZoneNames = { "Dewdrop Falls", "Tulip Hollow", "Blossom Vale", "Sunstone Heights" }
-local PortalOffsets = { Vector3.new(187.92, 12.48, -73.25), Vector3.new(200.18, 10.73, -24.80), Vector3.new(198.20, 12.98, 44.73), Vector3.new(170.03, 12.48, 86.75) }
-for i = 1, 4 do _G.DynamicPortals[i] = CFrame.new(_G.DynamicHubCF.Position + PortalOffsets[i]) end
+local FarmOffset = Vector3.new(53.53, 0, 0.62)
+local HatchZoneCF = CFrame.new(-18514.40, 16.24, -29111.44)
 
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
@@ -130,102 +324,95 @@ RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / de
 local StartTime = os.time()
 local StartEggs = 0
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
-local SessionHuges, SessionTitanics = 0, 0
 
--- Sử dụng module cho các hàm tiện ích số học
-local ParseValue = Module.RemoveSuffix
-local FormatValue = Module.AddSuffix
+local function ParseValue(str)
+    if not str then return 0 end
+    str = tostring(str):lower():gsub("<[^>]+>", ""):gsub(",", ""):gsub("%s+", "")    
+    local numStr, suffix = str:match("[%d%.]+"), str:match("[%a]+")
+    local num = tonumber(numStr) or 0
+    if suffix == "k" then return num * 1000 elseif suffix == "m" then return num * 1000000 elseif suffix == "b" then return num * 1000000000 elseif suffix == "t" then return num * 1000000000000 end
+    return num
+end
 
--- ========== CUSTOM UI ==========
+local function FormatValue(Value)
+    local n = tonumber(Value)
+    if not n then return tostring(Value) end
+    local suffixes, index, absNumber = {"", "k", "m", "b", "t"}, 1, math.abs(n)
+    while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
+    return (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
+end
+
+-- ==========================================
+-- 🎨 GIAO DIỆN UI (GỘP SPEED & EGGS)
+-- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
-    local Self = setmetatable({}, FarmUI)
-    Self.GuiName = "EasterEventGuiV60"
-    Self.Elements = {}
-    Self.Parent = game:GetService("CoreGui")
+	local Self = setmetatable({}, FarmUI)
+	Self.GuiName = "EasterEventGuiV92"
+	Self.Elements = {}
+	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
 
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
-    Self.ScreenGui = ScreenGui
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
+	Self.ScreenGui = ScreenGui
 
-    local Background = Instance.new("Frame", ScreenGui)
-    Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150)
-    Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
+	local Background = Instance.new("Frame", ScreenGui)
+	Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150)
+	Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
 
-    local Container = Instance.new("Frame", Background)
-    Container.Size = UDim2.new(1, 0, 1, 0); Container.BackgroundTransparency = 1; Self.Container = Container
+	local Container = Instance.new("Frame", Background)
+	Container.Size = UDim2.new(1, 0, 1, 0); Container.BackgroundTransparency = 1; Self.Container = Container
 
-    local Layout = Instance.new("UIListLayout", Container)
-    Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center; Layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local Layout = Instance.new("UIListLayout", Container)
+	Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center; Layout.SortOrder = Enum.SortOrder.LayoutOrder
 
     local ToggleBtn = Instance.new("TextButton", ScreenGui)
     ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1)
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 22; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
     ToggleBtn.MouseButton1Click:Connect(function() Background.Visible = not Background.Visible; ToggleBtn.Text = Background.Visible and "👁" or "🙈" end)
 
-    local Sorted = {}
-    for Name, Data in pairs(UIConfig.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
-    table.sort(Sorted, function(A, B) return A.Order < B.Order end)
+	local Sorted = {}
+	for Name, Data in pairs(UIConfig.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
+	table.sort(Sorted, function(A, B) return A.Order < B.Order end)
 
-    for Index, Item in ipairs(Sorted) do
-        local Label = Instance.new("TextLabel", Self.Container)
-        Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
-        Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true
-        Self.Elements[Item.Name] = Label
-        if Index < #Sorted then
-            local Spacer = Instance.new("Frame", Self.Container)
-            Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
-        end
-    end
-    return Self
+	for Index, Item in ipairs(Sorted) do
+		local Label = Instance.new("TextLabel", Self.Container)
+		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
+		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.RichText = true
+		Self.Elements[Item.Name] = Label
+		if Index < #Sorted then
+			local Spacer = Instance.new("Frame", Self.Container)
+			Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
+		end
+	end
+	return Self
 end
 
-function FarmUI:SetText(Name, Text)
-    if self.Elements[Name] then
-        task.defer(function() self.Elements[Name].Text = Text end)
-    end
-end
+function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(function() self.Elements[Name].Text = Text end) end end
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]       = {1, "🐰 EASTER EVENT V60", {0.8, 0, 0.08, 0}},
-        ["ModeInfo"]    = {2, "Mode: " .. ModeDisplay},
-        ["Time"]        = {3, "Time: 00:00:00 | Time Left: 00:00"},
-        ["EggsHatched"] = {4, "Total Eggs Hatched: 0"},
-        ["Rares"]       = {5, "Huge: 0 | Titanic: 0"},
-        ["Tokens"]      = {6, "Token B/R/S/T: 0/0/0/0"},
-        ["EggTokens"]   = {7, "Spring Egg Token: 0"},
-        ["Tickets"]     = {8, "Ticket: 0 / 0 (Chance: 0%)"},
-        ["FPS"]         = {9, "FPS: 60"}
+        ["Title"]           = {1, "🐰 EASTER EVENT V92 (WEBHOOK)", {0.8, 0, 0.08, 0}},
+        ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
+        ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
+        ["EggsHatched"]     = {4, "Total Eggs: 0 | ⚡ Speed: 0/sec"},
+        ["Tokens"]          = {5, "Token B/R/S/T: 0/0/0/0"},
+        ["EggTokens"]       = {6, "Spring Egg Token: 0"},
+        ["Tickets"]         = {7, "Tickets: 0 / 0 (0%)"},
+        ["FPS"]             = {8, "FPS: 60"}
     }
 })
 
--- ========== CẬP NHẬT DỮ LIỆU UI ==========
+-- ==========================================
+-- 🚀 DATA UPDATER (LOGIC TICKET TỪ V60)
+-- ==========================================
+local lastEggs = StartEggs
 task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
             local save = Save.Get()
-            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
-            if save and save.Inventory and save.Inventory.Misc then
-                for _, item in pairs(save.Inventory.Misc) do
-                    local id = item.id or ""
-                    if id:find("Bluebell Token") then b = b + (item._am or 1)
-                    elseif id:find("Rose Token") then r = r + (item._am or 1)
-                    elseif id:find("Sunflower Token") then s = s + (item._am or 1)
-                    elseif id:find("Tulip Token") then t = t + (item._am or 1)
-                    elseif id:find("Spring Egg Token") then eggToken = eggToken + (item._am or 1) end
-                end
-            end
-
-            if eggToken == 0 then
-                pcall(function()
-                    local c = CurrencyCmds.Get("SpringEggTokens") or CurrencyCmds.Get("Spring Egg Token")
-                    if c and type(c) == "number" and c > 0 then eggToken = c end
-                end)
-            end
-
             local realClientTickets, realTotalTickets, pos = 0, 1, HumanoidRootPart.Position
             pcall(function()
                 local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
@@ -264,201 +451,375 @@ task.spawn(function()
                     end
                 end
             end)
-
+            
+            local chance = realTotalTickets > 0 and (realClientTickets / realTotalTickets) * 100 or 0
+            UI:SetText("Tickets", string.format("Ticket: %s / %s (%.6f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
+            
             local currentEggs = save.Easter2026EggsHatched or StartEggs
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
-            local chance = realTotalTickets > 0 and (realClientTickets / realTotalTickets) * 100 or 0
+            local speed = currentEggs - lastEggs
+            lastEggs = currentEggs
+            
+            local speedColor = (speed > 5) and "#ff3232" or "#ffff00"
+            UI:SetText("EggsHatched", string.format("Total Eggs: %s | <font color='%s'>⚡ Speed: %d/s</font>", FormatValue(hatchedThisSession), speedColor, speed))
 
-            UI:SetText("EggsHatched", "Total Eggs Hatched: " .. FormatValue(hatchedThisSession))
-            UI:SetText("Rares", string.format("Huge: %d | Titanic: %d", SessionHuges, SessionTitanics))
+            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
+            local function checkCategory(cat)
+                if not cat then return end
+                for _, item in pairs(cat) do
+                    if type(item.id) == "string" then
+                        local idStr = item.id:lower()
+                        local amount = item._am or 1
+                        if idStr:match("bluebell") then b = b + amount
+                        elseif idStr:match("rose") then r = r + amount
+                        elseif idStr:match("sunflower") then s = s + amount
+                        elseif idStr:match("tulip") then t = t + amount
+                        elseif idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + amount end
+                    end
+                end
+            end
+
+            if save and save.Inventory then checkCategory(save.Inventory.Currency); checkCategory(save.Inventory.Misc) end
+            
+            if b == 0 then b = type(CurrencyCmds.Get("BluebellToken")) == "number" and CurrencyCmds.Get("BluebellToken") or 0 end
+            if r == 0 then r = type(CurrencyCmds.Get("RoseToken")) == "number" and CurrencyCmds.Get("RoseToken") or 0 end
+            if s == 0 then s = type(CurrencyCmds.Get("SunflowerToken")) == "number" and CurrencyCmds.Get("SunflowerToken") or 0 end
+            if t == 0 then t = type(CurrencyCmds.Get("TulipToken")) == "number" and CurrencyCmds.Get("TulipToken") or 0 end
+            if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
+
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
-            UI:SetText("Tickets", string.format("Ticket: %s / %s (Chance: %.6f%%)", FormatValue(realClientTickets), FormatValue(realTotalTickets), chance))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
         end)
     end
 end)
 
--- ========== WEBHOOK TRACKER ==========
-local foundHuges, firstWebhookCheck = {}, true
-task.spawn(function()
-    while task.wait(10) do
-        pcall(function()
-            local save = Save.Get()
-            if not save or not save.Inventory or not save.Inventory.Pet then return end
-            local currentHuges = {}
-            for uid, pet in pairs(save.Inventory.Pet) do
-                if pet.id:match("Huge") or pet.id:match("Titanic") then
-                    currentHuges[uid] = pet
-                    if not firstWebhookCheck and not foundHuges[uid] then
-                        if pet.id:match("Titanic") then SessionTitanics = SessionTitanics + 1 else SessionHuges = SessionHuges + 1 end
-                        if WEBHOOK_URL ~= "" then
-                            local httprequest = (syn and syn.request) or request or http_request
-                            if httprequest then
-                                local data = {
-                                    ["content"] = "<@" .. DISCORD_USER_ID .. "> 🎉 HATCHED A RARE PET!",
-                                    ["embeds"] = {{
-                                        ["title"] = "Hatched: " .. pet.id,
-                                        ["color"] = 16737996,
-                                        ["fields"] = { {["name"] = "Account", ["value"] = "||" .. Player.Name .. "||"} },
-                                        ["footer"] = { ["text"] = "Eggs hatched: " .. tostring((save.Easter2026EggsHatched or StartEggs) - StartEggs) }
-                                    }}
-                                }
-                                pcall(function()
-                                    httprequest({ Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = game.HttpService:JSONEncode(data) })
-                                end)
-                            end
-                        end
-                    end
-                end
-            end
-            foundHuges = currentHuges
-            firstWebhookCheck = false
-        end)
+-- ==========================================
+-- 🚀 ĐỘNG CƠ SMART FARM
+-- ==========================================
+do
+    local originalCalc = PlayerPet.CalculateSpeedMultiplier
+    PlayerPet.CalculateSpeedMultiplier = function()
+        return math.huge
     end
-end)
-
--- ========== ĐỘNG CƠ SMART FARM V2 (GIỮ NGUYÊN LOGIC GỐC) ==========
-pcall(function() PlayerPet.CalculateSpeedMultiplier = function() return 200 end end)
-
-local FARM_RADIUS = 50
-
-local function GetMyPets()
-    local pets = {}
-    pcall(function()
-        for _, pet in ipairs(PlayerPet.GetAll()) do
-            if pet.owner == Player then table.insert(pets, pet) end
-        end
-    end)
-    return pets
 end
 
-local function GetBreakables()
-    local breakables = {}
-    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return breakables end
-    local pos = root.Position
+local function getCurrentZone() return MapCmds.GetCurrentZone() end
+local function getCurrentInstanceID()
+    local inst = InstancingCmds.Get()
+    return inst and inst.instanceID or nil
+end
 
-    local function ScanFolder(folder)
-        if not folder then return end
-        for _, b in ipairs(folder:GetChildren()) do
-            if b:IsA("Model") and b.PrimaryPart then
-                local dist = (b.PrimaryPart.Position - pos).Magnitude
-                if dist <= FARM_RADIUS then
-                    table.insert(breakables, { name = b.Name, dist = dist, obj = b })
+local function getClosestBreakables(range)
+    range = range or 85
+    local breakables = {}
+    local character = Player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return breakables end
+
+    local rootPos = character.HumanoidRootPart.Position
+    local allBreakables = Workspace.__THINGS:WaitForChild("Breakables"):GetChildren()
+    local currentZone = getCurrentZone()
+    local instanceID = getCurrentInstanceID()
+
+    for _, breakable in ipairs(allBreakables) do
+        if breakable:IsA("Model") then
+            local parentID = breakable:GetAttribute("ParentID")
+            if parentID == currentZone or parentID == instanceID then
+                if (breakable.WorldPivot.Position - rootPos).Magnitude < range then
+                    table.insert(breakables, breakable.Name)
                 end
             end
         end
     end
-
-    pcall(function() ScanFolder(Workspace.__THINGS:FindFirstChild("Breakables")) end)
-    pcall(function()
-        local container = Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER")
-        if container and container:FindFirstChild("Active") then
-            for _, inst in ipairs(container.Active:GetChildren()) do
-                ScanFolder(inst:FindFirstChild("Breakables"))
-            end
-        end
-    end)
     return breakables
 end
 
-local function AttackBreakable(breakable)
+local function getPlayerPets()
+    local pets = {}
+    local allPets = PlayerPet.GetAll()
+    for _, pet in pairs(allPets) do
+        if pet.owner == Player then table.insert(pets, pet) end
+    end
+    return pets
+end
+
+local function fastFarm()
+    local breakables = getClosestBreakables(85)
+    local pets = getPlayerPets()
+
+    if #breakables == 0 or #pets == 0 then return end
+
+    local petToBreakable = {}
+    local breakableCount = #breakables
+    local petCount = #pets
+    local basePetsPerBreakable = math.floor(petCount / breakableCount)
+    local extraPets = petCount % breakableCount
+
+    local petIndex = 1
+    for i, breakableName in ipairs(breakables) do
+        local petsForThis = basePetsPerBreakable + (i <= extraPets and 1 or 0)
+        for _ = 1, petsForThis do
+            local pet = pets[petIndex]
+            if pet then
+                petToBreakable[pet.euid] = breakableName
+                petIndex = petIndex + 1
+            end
+        end
+    end
+    Network.Fire("Breakables_JoinPetBulk", petToBreakable)
+end
+
+local function clickAura(range)
+    range = range or 75
+    local character = Player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+
+    local root = character.HumanoidRootPart
+    local breakables = Workspace.__THINGS:WaitForChild("Breakables"):GetChildren()
+    for _, breakable in ipairs(breakables) do
+        if breakable:IsA("Model") and (root.Position - breakable.WorldPivot.Position).Magnitude < range then
+            Network.UnreliableFire("Breakables_PlayerDealDamage", breakable.Name)
+            break
+        end
+    end
+end
+
+local function collectOrbsAndLootbags()
     pcall(function()
-        Network.Fire("Breakables_PlayerDealDamage", breakable.obj)
+        local orbsFolder = Workspace.__THINGS:FindFirstChild("Orbs")
+        if orbsFolder then 
+            for _, orb in ipairs(orbsFolder:GetChildren()) do
+                local number = tonumber(orb.Name)
+                if number then
+                    Network.Fire("Orbs: Collect", number)
+                    orb:Destroy()
+                end
+            end
+        end
+        local bags = Workspace.__THINGS:FindFirstChild("Lootbags")
+        if bags then
+            local bagIds = {}
+            for _, bag in ipairs(bags:GetChildren()) do
+                if bag:IsA("Model") or bag:IsA("Part") then
+                    table.insert(bagIds, bag.Name); bag:Destroy()
+                end 
+            end
+            if #bagIds > 0 then Network.Fire("Lootbags_Claim", bagIds) end
+        end
     end)
 end
 
--- Logic farm chính (có thể tùy chỉnh thêm)
-local farmingActive = true
-local currentZone = 1
-
-local function moveToCFrame(cf)
-    local hrp = HumanoidRootPart
-    local distance = (hrp.Position - cf.Position).Magnitude
-    if distance > 100 then
-        Module.Noclip(true)
-        hrp.CFrame = cf
-        task.wait(0.2)
-        Module.Noclip(false)
-    else
-        local tween = TweenService:Create(hrp, TweenInfo.new(distance/50, Enum.EasingStyle.Linear), {CFrame = cf})
-        tween:Play()
-        tween.Completed:Wait()
+task.spawn(function()
+    while true do
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then pcall(fastFarm) end
+        task.wait(0.15)
     end
-end
+end)
 
-local function farmLoop()
-    while farmingActive do
-        if Mode == "FarmOnly" or Mode == "Combine" then
-            local breakables = GetBreakables()
-            if #breakables > 0 then
-                -- Sắp xếp theo khoảng cách gần nhất
-                table.sort(breakables, function(a, b) return a.dist < b.dist end)
-                AttackBreakable(breakables[1])
-            end
-            task.wait(0.2)
-        else
-            task.wait(1)
-        end
+task.spawn(function()
+    while true do
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then pcall(function() clickAura(75) end) end
+        task.wait(0.01)
     end
-end
+end)
 
-local function hatchLoop()
-    while farmingActive do
-        if Mode == "HatchOnly" or Mode == "Combine" then
+task.spawn(function()
+    while true do
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then collectOrbsAndLootbags() end
+        task.wait(0.01)
+    end
+end)
+
+-- ==========================================
+-- 🚀 NETWORK AUTO UPGRADE
+-- ==========================================
+local SpringEggUnlocks = { { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 } }
+
+task.spawn(function()
+    while task.wait(5) do
+        if AutoUpgrade then
             pcall(function()
-                local hatchGui = Player.PlayerGui:FindFirstChild("HatchScreen")
-                if hatchGui and hatchGui.Enabled then
-                    local button = hatchGui:FindFirstChild("HatchButton", true)
-                    if button and button:IsA("TextButton") then
-                        firesignal(button.MouseButton1Click)
+                for upgradeId, upgradeData in pairs(EventUpgradesDir) do
+                    if upgradeId:find("Easter") or upgradeId:find("Spring") then
+                        local currentTier = EventUpgradeCmds.GetTier(upgradeId)
+                        local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
+                        if nextTierCost and nextTierCost._data then
+                            local cId, costAmount = nextTierCost._data.id, nextTierCost._data._am or 1
+                            local currentAmount = Items.Misc(cId) and Items.Misc(cId):CountExact() or (CurrencyCmds.Get(cId) or 0)
+                            if currentAmount >= costAmount then EventUpgradeCmds.Purchase(upgradeId) end
+                        end
+                    end
+                end
+
+                local save = Save.Get()
+                if save then
+                    local eggToken = 0
+                    if save.Inventory and save.Inventory.Misc then 
+                        for _, item in pairs(save.Inventory.Misc) do 
+                            local idStr = (item.id or ""):lower()
+                            if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
+                        end 
+                    end
+                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
+                    
+                    local currentUnlocked = save.Easter2026UnlockedEggs or 1
+                    local activeEgg = save.Easter2026ActiveEgg or 1
+                    
+                    for _, egg in ipairs(SpringEggUnlocks) do
+                        if egg.number > currentUnlocked and eggToken >= egg.cost then 
+                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
+                            task.wait(0.5)
+                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
+                            break 
+                        elseif egg.number == currentUnlocked and activeEgg ~= currentUnlocked then
+                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", currentUnlocked) end)
+                        end
                     end
                 end
             end)
-            task.wait(0.2)
-        else
-            task.wait(1)
         end
     end
-end
+end)
 
-local function zoneSwitcher()
-    while farmingActive do
-        local cycleTime = (Mode == "FarmOnly" and FarmTimeMinutes or HatchTimeMinutes) * 60
-        task.wait(cycleTime)
-        if not farmingActive then break end
-        currentZone = currentZone % 4 + 1
-        local targetCF = _G.DynamicPortals[currentZone]
-        moveToCFrame(targetCF)
-        task.wait(1)
-        local zoneName = ZoneNames[currentZone]
-        pcall(function()
-            if InstancingCmds.GetInstanceID() ~= zoneName then
-                InstancingCmds.Enter(zoneName)
-            end
-        end)
+task.spawn(function() while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end end)
+task.spawn(function() while task.wait(5) do pcall(function() local save = Save.Get(); if not save then return end; local redeemed = save.FreeGiftsRedeemed or {}; local currentTime = save.FreeGiftsTime or 0; for _, gift in pairs(FreeGiftsDirectory) do if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id); break end end end) end end)
+task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
+
+-- ==========================================
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG
+-- ==========================================
+task.spawn(function()
+    while true do
+        if _G.CurrentPhase == "HATCHING" and AutoHatch then
+            task.spawn(function() pcall(function() Network.Invoke("EasterHatchEvent", "HatchRequest") end) end)
+            task.wait(0.05) 
+        else
+            task.wait(0.5)
+        end
     end
+end)
+
+-- ==========================================
+-- 🚀 INSTANT ZERO-TELEPORT PORTAL SCANNER
+-- ==========================================
+local SafePart = Instance.new("Part", Workspace)
+SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
+local function TeleportPlayer(cf)
+    if not cf then return end
+    HumanoidRootPart.Anchored = false; HumanoidRootPart.CFrame = cf + Vector3.new(0, 1.5, 0); 
+    SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); HumanoidRootPart.Velocity = Vector3.new(0,0,0)
 end
 
--- ========== KHỞI ĐỘNG ==========
-task.spawn(farmLoop)
-task.spawn(hatchLoop)
-task.spawn(zoneSwitcher)
+local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
+_G.CurrentPhase = State.Phase
 
--- Di chuyển đến zone đầu tiên
-moveToCFrame(_G.DynamicPortals[1])
-task.wait(1)  -- Chờ 1 giây sau khi đến portal
-
--- Kiểm tra xem đã vào đúng instance chưa, nếu chưa thì đợi load rồi vào
-if InstancingCmds.GetInstanceID() ~= "Dewdrop Falls" then
-    print("⏳ Đang chờ vào instance Dewdrop Falls...")
-    Module.EnterInstance("Dewdrop Falls")
-    -- Đợi thêm để map load hoàn tất
-    repeat task.wait(0.5) until InstancingCmds.GetInstanceID() == "Dewdrop Falls" or not _G.SpringStarted
-    task.wait(3)  -- Chờ thêm 3 giây để map load hoàn chỉnh
-    print("✅ Đã vào map Dewdrop Falls")
+local function EnterZoneNetwork()
+    _G.FarmReady = false; _G.CurrentFarmCF = nil
+    local max_portals = 4 
+    for portalIndex = 1, max_portals do
+        local serverZoneID = portalIndex + 1 
+        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
+        
+        local waitTime = 0
+        local success = false
+        while waitTime < 2 do
+            local currentDist = (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude
+            if currentDist > 50 then success = true; break end
+            task.wait(0.25)
+            waitTime = waitTime + 0.25
+        end
+        
+        if success then
+            task.wait(1) 
+            _G.CurrentFarmCF = CFrame.new(HumanoidRootPart.Position + FarmOffset)
+            TeleportPlayer(_G.CurrentFarmCF)
+            task.wait(0.5)
+            _G.FarmReady = true
+            State.CurrentPortal = portalIndex
+            return true
+        end
+    end
+    return false
 end
 
--- Giữ script sống
-while _G.SpringStarted do task.wait(10) end
+local function ReturnToHubNetwork()
+    _G.FarmReady = false
+    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
+    local waitTime = 0
+    while (HumanoidRootPart.Position - _G.DynamicHubCF.Position).Magnitude > 400 and waitTime < 3 do task.wait(0.5); waitTime = waitTime + 0.5 end
+    task.wait(1)
+    TeleportPlayer(HatchZoneCF)
+end
+
+-- VÒNG LẶP STATE MACHINE
+task.spawn(function()
+    HumanoidRootPart.Anchored = true
+    local retries = 0
+    while InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" and retries < 5 do pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end); task.wait(1.5); retries = retries + 1 end
+    HumanoidRootPart.Anchored = false
+    
+    local currentEnchantPhase = ""
+
+    while task.wait(1) do
+        State.TimeLeft = State.TimeLeft - 1
+        if State.TimeLeft <= 0 then
+            State.IsReady = false; _G.FarmReady = false
+            if Mode == "Combine" then 
+                if State.Phase == "FARMING" then 
+                    State.Phase = "HATCHING"
+                    State.TimeLeft = HatchTimeMinutes * 60 
+                else 
+                    State.Phase = "FARMING"
+                    State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
+                end
+            elseif Mode == "FarmOnly" then 
+                State.Phase = "FARMING"
+                State.TimeLeft = math.max(20, FarmTimeMinutes) * 60
+            elseif Mode == "HatchOnly" then 
+                State.Phase = "HATCHING"
+                State.TimeLeft = math.huge 
+            end
+            _G.CurrentPhase = State.Phase
+        end
+
+        if currentEnchantPhase ~= State.Phase then
+            currentEnchantPhase = State.Phase
+            if State.Phase == "FARMING" and EnchantSettings.Farm then
+                EquipEnchantLoadout("FARM", EnchantSettings.Farm)
+            elseif State.Phase == "HATCHING" and EnchantSettings.Hatch then
+                EquipEnchantLoadout("HATCH", EnchantSettings.Hatch)
+            end
+        end
+
+        if not State.IsReady then
+            if State.Phase == "FARMING" then 
+                local entered = EnterZoneNetwork()
+                if entered then 
+                    State.IsReady = true 
+                else
+                    UI:SetText("ModeInfo", "All Portals Locked! Force Hatching...")
+                    State.Phase = "HATCHING"
+                    _G.CurrentPhase = State.Phase
+                    State.TimeLeft = 60
+                    ReturnToHubNetwork()
+                    State.IsReady = true
+                end
+            else 
+                ReturnToHubNetwork()
+                State.IsReady = true; _G.FarmReady = false 
+            end
+        end
+
+        if State.IsReady then
+            if State.Phase == "FARMING" and _G.FarmReady then 
+                if _G.CurrentFarmCF and (HumanoidRootPart.Position - _G.CurrentFarmCF.Position).Magnitude > 30 then TeleportPlayer(_G.CurrentFarmCF) end
+            elseif State.Phase == "HATCHING" then 
+                if (HumanoidRootPart.Position - HatchZoneCF.Position).Magnitude > 30 then TeleportPlayer(HatchZoneCF) end 
+            end
+        end
+        
+        local elapsed = os.time() - StartTime
+        local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(State.TimeLeft/60), State.TimeLeft%60)
+        UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
+    end
+end)
