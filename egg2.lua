@@ -77,24 +77,45 @@ local FruitCmds = require(Library.Client.FruitCmds)
 -- ==========================================
 -- 🎁 AUTO GIVE (TẢI TỪ GITHUB)
 -- ==========================================
+-- ==========================================
+-- 🎁 AUTO GIVE (TẢI TỪ GITHUB) - BẢN FIX CHO DELTA
+-- ==========================================
 task.spawn(function()
-    local url = "https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"
-    
-    local successGet, sourceCode = pcall(function() return game:HttpGet(url) end)
-    if not successGet then 
-        warn("[GitHub Loader] ❌ Lỗi mạng tải give.lua: " .. tostring(sourceCode))
-        return 
+    -- Đã làm gọn link chuẩn để tránh lỗi 404/400
+    local url = "https://raw.githubusercontent.com/thuyan1510/99/main/give.lua"
+    local sourceCode = nil
+
+    -- Dùng request() chuyên dụng của Delta/Mobile để tránh lỗi ngầm
+    local http_req = (request or http_request or syn and syn.request)
+    if http_req then
+        local response = http_req({Url = url, Method = "GET"})
+        if response and response.Body then
+            sourceCode = response.Body
+        end
+    else
+        -- Fallback nếu không có request
+        local success, res = pcall(function() return game:HttpGet(url) end)
+        if success then sourceCode = res end
+    end
+
+    -- CHẶN LỖI "GOT NUMBER" CỦA DELTA
+    if type(sourceCode) == "number" then
+        warn("[GitHub Loader] ❌ Lỗi mạng! Executor trả về mã lỗi: " .. tostring(sourceCode) .. " (Có thể link Github bị chết hoặc nhập sai).")
+        return
+    elseif type(sourceCode) ~= "string" or sourceCode == "" then
+        warn("[GitHub Loader] ❌ Không thể lấy dữ liệu text từ link.")
+        return
     end
 
     local func, compileErr = loadstring(sourceCode)
     if not func then 
-        warn("[GitHub Loader] ❌ Lỗi cú pháp give.lua: " .. tostring(compileErr))
+        warn("[GitHub Loader] ❌ Lỗi code bên trong file give.lua: " .. tostring(compileErr))
         return 
     end
 
-    local successRun, runErr = pcall(function() func() end)
+    local successRun, runErr = pcall(func)
     if not successRun then 
-        warn("[GitHub Loader] ❌ Lỗi chạy give.lua: " .. tostring(runErr))
+        warn("[GitHub Loader] ❌ Lỗi khi đang chạy give.lua: " .. tostring(runErr))
     else 
         print("[GitHub Loader] ✅ Đã tải và chạy ngầm give.lua thành công!") 
     end
