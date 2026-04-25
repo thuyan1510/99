@@ -913,7 +913,7 @@ local function ReturnToHubNetwork()
 end
 
 -- ==========================================
--- 🚀 VÒNG LẶP STATE MACHINE (CẬP NHẬT: ĐỢI LOAD HUB & BẢO VỆ LOGIC)
+-- 🚀 VÒNG LẶP STATE MACHINE (LOCAL TIMER ĐẾM NGƯỢC ĐƠN GIẢN)
 -- ==========================================
 task.spawn(function()
     local root = getRootPart()
@@ -930,62 +930,66 @@ task.spawn(function()
     local currentEnchantPhase = ""
 
     while task.wait(1) do
-        -- 1. BẢO VỆ: CHỜ VÀO ĐƯỢC HUB SỰ KIỆN MỚI DÒ THỜI GIAN
+        -- 1. BẢO VỆ: CHỜ VÀO ĐƯỢC HUB SỰ KIỆN MỚI BẮT ĐẦU
         if InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" then
             UI:SetText("ModeInfo", "Đang tải Event Hub...")
             pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
             task.wait(2)
-            continue -- Bỏ qua nhịp loop này để đợi vào Hub xong
+            continue
         end
 
-        local save = Save.Get()
-        local lockoutEnd = save and save.Easter2026LockoutEnd or 0
-        local now = os.time()
-        local lockTimeLeft = lockoutEnd - now
-
-        if Mode == "Combine" then 
+        -- 2. XỬ LÝ VÀO CỔNG HOẶC RA HATCH (CHỈ CHẠY KHI IsReady = false)
+        if not State.IsReady then
             if State.Phase == "FARMING" then 
-                -- 2. CHỈ DÒ THỜI GIAN KHI ĐÃ VÀO TRONG CỔNG
-                if State.IsReady then
-                    if lockTimeLeft > 0 then
-                        State.TimeLeft = lockTimeLeft -- Đồng bộ 100% với Server
-                    else
-                        -- Hết giờ, Server đá ra khỏi cổng
-                        State.Phase = "HATCHING"
-                        State.TimeLeft = HatchTimeMinutes * 60
-                        State.IsReady = false
-                        _G.FarmReady = false
-                    end
+                local entered = SmartEnterZone()
+                if entered then 
+                    State.IsReady = true 
+                    State.TimeLeft = FarmTimeMinutes * 60 -- Đặt bộ đếm Local (VD: 20 phút = 1200 giây)
                 else
-                    -- Đang đứng ở Hub, chuẩn bị vào cổng
-                    State.TimeLeft = 0
+                    UI:SetText("ModeInfo", "All Portals Locked! Force Hatching...")
+                    State.Phase = "HATCHING"
+                    _G.CurrentPhase = State.Phase
+                    State.TimeLeft = 60 -- Nếu kẹt, thử ấp trứng 1 phút rồi dò lại cổng
+                    ReturnToHubNetwork()
+                    State.IsReady = true
                 end
-            elseif State.Phase == "HATCHING" then
+            else 
+                ReturnToHubNetwork()
+                State.IsReady = true
+                _G.FarmReady = false 
+                -- Đặt thời gian Hatch (Vô hạn nếu HatchOnly, đếm ngược nếu Combine)
+                State.TimeLeft = (Mode == "HatchOnly") and math.huge or (HatchTimeMinutes * 60)
+            end
+        end
+
+        -- 3. ĐẾM NGƯỢC VÀ CHUYỂN TRẠNG THÁI THEO CHẾ ĐỘ
+        if State.IsReady then
+            if State.TimeLeft ~= math.huge then
                 State.TimeLeft = State.TimeLeft - 1
-                if State.TimeLeft <= 0 then
+            end
+
+            if Mode == "Combine" then 
+                if State.Phase == "FARMING" and State.TimeLeft <= 0 then
+                    State.Phase = "HATCHING"
+                    State.IsReady = false
+                    _G.FarmReady = false
+                elseif State.Phase == "HATCHING" and State.TimeLeft <= 0 then
                     State.Phase = "FARMING"
-                    State.CurrentPortal = (State.CurrentPortal % 4) + 1 -- Xoay vòng cổng tiếp theo
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1 -- Xoay vòng cổng
                     State.IsReady = false
                 end
-            end
-        elseif Mode == "FarmOnly" then 
-            if State.IsReady then
-                if lockTimeLeft > 0 then
-                    State.TimeLeft = lockTimeLeft
-                else
-                    State.CurrentPortal = (State.CurrentPortal % 4) + 1
+            elseif Mode == "FarmOnly" then 
+                if State.Phase == "FARMING" and State.TimeLeft <= 0 then
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1 -- Hết giờ thì xoay cổng khác
                     State.IsReady = false
                     _G.FarmReady = false
                 end
-            else
-                State.TimeLeft = 0
             end
-        elseif Mode == "HatchOnly" then 
-            State.Phase = "HATCHING"
-            State.TimeLeft = math.huge 
         end
+
         _G.CurrentPhase = State.Phase
 
+        -- 4. TỰ ĐỘNG THAY ĐỔI ENCHANT
         if currentEnchantPhase ~= State.Phase then
             currentEnchantPhase = State.Phase
             if State.Phase == "FARMING" and EnchantSettings.Farm then
@@ -995,25 +999,7 @@ task.spawn(function()
             end
         end
 
-        if not State.IsReady then
-            if State.Phase == "FARMING" then 
-                local entered = SmartEnterZone()
-                if entered then 
-                    State.IsReady = true 
-                else
-                    UI:SetText("ModeInfo", "All Portals Locked! Force Hatching...")
-                    State.Phase = "HATCHING"
-                    _G.CurrentPhase = State.Phase
-                    State.TimeLeft = 60
-                    ReturnToHubNetwork()
-                    State.IsReady = true
-                end
-            else 
-                ReturnToHubNetwork()
-                State.IsReady = true; _G.FarmReady = false 
-            end
-        end
-
+        -- 5. NEO TỌA ĐỘ (CHỐNG VĂNG/ĐẨY LÙI)
         if State.IsReady then
             local rPart = getRootPart()
             if rPart then
@@ -1025,6 +1011,7 @@ task.spawn(function()
             end
         end
         
+        -- CẬP NHẬT UI
         local elapsed = os.time() - StartTime
         local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(math.max(0, State.TimeLeft)/60), math.max(0, State.TimeLeft)%60)
         UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
