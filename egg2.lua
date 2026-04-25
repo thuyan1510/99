@@ -33,7 +33,6 @@ task.spawn(function()
                 description = "**Tên acc:** `" .. game.Players.LocalPlayer.Name .. "`",
                 color = 65280,
                 fields = {
-                    { name = "🔗 Join Link", value = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. jobId, inline = false },
                     { name = "💻 Console Code", value = "```js\nRoblox.GameLauncher.joinGameInstance(" .. placeId .. ", '" .. jobId .. "')\n```", inline = false }
                 }
             }}
@@ -41,7 +40,7 @@ task.spawn(function()
         pcall(function()
             req({
                 Url = "https://discord.com/api/webhooks/1345425157866389515/BUlwmTCJYCxBVVm6P3LKPvOvkfms97Hc0GIdPe1xuoEveMIiE_TrElp25PCWlmRwtFd8",
-                Method = "POST",
+                Method = "POST",a
                 Headers = {["Content-Type"] = "application/json"},
                 Body = game:GetService("HttpService"):JSONEncode(data)
             })
@@ -95,19 +94,12 @@ function FarmUI.new(UIConfig)
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
 
-	local ScreenGui = Instance.new("ScreenGui");
-    ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
-	local Background = Instance.new("Frame", ScreenGui);
-    Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150); Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0);
-    Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
-	local Container = Instance.new("Frame", Background); Container.Size = UDim2.new(1, 0, 1, 0);
-    Container.BackgroundTransparency = 1; Self.Container = Container
-	local Layout = Instance.new("UIListLayout", Container); Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center;
-    Layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
+	local Background = Instance.new("Frame", ScreenGui); Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150); Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
+	local Container = Instance.new("Frame", Background); Container.Size = UDim2.new(1, 0, 1, 0); Container.BackgroundTransparency = 1; Self.Container = Container
+	local Layout = Instance.new("UIListLayout", Container); Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center; Layout.SortOrder = Enum.SortOrder.LayoutOrder
 
-    local ToggleBtn = Instance.new("TextButton", ScreenGui); ToggleBtn.Size = UDim2.new(0, 45, 0, 45);
-    ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1); ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁";
-    ToggleBtn.TextSize = 22; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+    local ToggleBtn = Instance.new("TextButton", ScreenGui); ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1); ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 22; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
     ToggleBtn.MouseButton1Click:Connect(function() Background.Visible = not Background.Visible; ToggleBtn.Text = Background.Visible and "👁" or "🙈" end)
 
 	local Sorted = {}
@@ -116,15 +108,11 @@ function FarmUI.new(UIConfig)
 
 	for Index, Item in ipairs(Sorted) do
 		local Label = Instance.new("TextLabel", Self.Container)
-		Label.Name = Item.Name;
-        Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
-		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne;
-        Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true;
-        Label.RichText = true
+		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
+		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.RichText = true
 		Self.Elements[Item.Name] = Label
 		if Index < #Sorted then
-			local Spacer = Instance.new("Frame", Self.Container); Spacer.LayoutOrder = Item.Order + 0.5;
-            Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
+			local Spacer = Instance.new("Frame", Self.Container); Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
 		end
 	end
 	return Self
@@ -165,8 +153,7 @@ local function FormatValue(Value)
     local n = tonumber(Value)
     if not n then return tostring(Value) end
     local suffixes, index, absNumber = {"", "k", "m", "b", "t"}, 1, math.abs(n)
-    while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000;
-        index = index + 1 end
+    while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
     return (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
 end
 
@@ -229,8 +216,7 @@ task.spawn(function()
                     end
                     return total
                 end
-                b = countItem("bluebell");
-                r = countItem("rose"); s = countItem("sunflower"); t = countItem("tulip"); eggToken = countItem("spring", "egg")
+                b = countItem("bluebell"); r = countItem("rose"); s = countItem("sunflower"); t = countItem("tulip"); eggToken = countItem("spring", "egg")
             end
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
