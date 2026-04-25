@@ -927,17 +927,32 @@ local function ReturnToHubNetwork()
 end
 
 -- VÒNG LẶP STATE MACHINE (ĐỒNG BỘ 100% VỚI SERVER LOCKOUT)
+-- ==========================================
+-- 🚀 VÒNG LẶP STATE MACHINE (CẬP NHẬT: ĐỢI LOAD HUB & BẢO VỆ LOGIC)
+-- ==========================================
 task.spawn(function()
     local root = getRootPart()
     if root then root.Anchored = true end
     local retries = 0
-    while InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" and retries < 5 do pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end); task.wait(1.5); retries = retries + 1 end
+    while InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" and retries < 5 do 
+        pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
+        task.wait(1.5)
+        retries = retries + 1 
+    end
     root = getRootPart()
     if root then root.Anchored = false end
     
     local currentEnchantPhase = ""
 
     while task.wait(1) do
+        -- 1. BẢO VỆ: CHỜ VÀO ĐƯỢC HUB SỰ KIỆN MỚI DÒ THỜI GIAN
+        if InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" then
+            UI:SetText("ModeInfo", "Đang tải Event Hub...")
+            pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
+            task.wait(2)
+            continue -- Bỏ qua nhịp loop này để đợi vào Hub xong
+        end
+
         local save = Save.Get()
         local lockoutEnd = save and save.Easter2026LockoutEnd or 0
         local now = os.time()
@@ -945,13 +960,20 @@ task.spawn(function()
 
         if Mode == "Combine" then 
             if State.Phase == "FARMING" then 
-                if lockTimeLeft > 0 then
-                    State.TimeLeft = lockTimeLeft -- Đồng bộ 100% với Server
+                -- 2. CHỈ DÒ THỜI GIAN KHI ĐÃ VÀO TRONG CỔNG
+                if State.IsReady then
+                    if lockTimeLeft > 0 then
+                        State.TimeLeft = lockTimeLeft -- Đồng bộ 100% với Server
+                    else
+                        -- Hết giờ, Server đá ra khỏi cổng
+                        State.Phase = "HATCHING"
+                        State.TimeLeft = HatchTimeMinutes * 60
+                        State.IsReady = false
+                        _G.FarmReady = false
+                    end
                 else
-                    State.Phase = "HATCHING"
-                    State.TimeLeft = HatchTimeMinutes * 60
-                    State.IsReady = false
-                    _G.FarmReady = false
+                    -- Đang đứng ở Hub, chuẩn bị vào cổng
+                    State.TimeLeft = 0
                 end
             elseif State.Phase == "HATCHING" then
                 State.TimeLeft = State.TimeLeft - 1
@@ -962,12 +984,16 @@ task.spawn(function()
                 end
             end
         elseif Mode == "FarmOnly" then 
-            if lockTimeLeft > 0 then
-                State.TimeLeft = lockTimeLeft
+            if State.IsReady then
+                if lockTimeLeft > 0 then
+                    State.TimeLeft = lockTimeLeft
+                else
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1
+                    State.IsReady = false
+                    _G.FarmReady = false
+                end
             else
-                State.CurrentPortal = (State.CurrentPortal % 4) + 1
-                State.IsReady = false
-                _G.FarmReady = false
+                State.TimeLeft = 0
             end
         elseif Mode == "HatchOnly" then 
             State.Phase = "HATCHING"
