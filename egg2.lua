@@ -1,5 +1,5 @@
 -- ===================================================================
--- 🌸 TẦNG 2: SPRING EVENT V92 LOGIC (SỬ DỤNG FRAMEWORK) - CẬP NHẬT CỔNG
+-- 🌸 TẦNG 2: SPRING EVENT V92 LOGIC (SMART ROUND-ROBIN PORTALS)
 -- ===================================================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -11,7 +11,6 @@ local function SafeNumber(val, default) local n = tonumber(val); return n or def
 local Mode = "Combine"
 if UserSettings.Mode == 1 then Mode = "HatchOnly" elseif UserSettings.Mode == 2 then Mode = "FarmOnly" end
 
-local FarmTimeMinutes = SafeNumber(UserSettings.FarmTimeMinutes, 20)
 local HatchTimeMinutes = SafeNumber(UserSettings.HatchTimeMinutes, 10)
 local AutoHatch = UserSettings.AutoHatch ~= false
 
@@ -43,7 +42,7 @@ local InstancingCmds = require(Library.Client.InstancingCmds)
 local CurrencyCmds = require(Library.Client.CurrencyCmds)
 
 -- ==========================================
--- 3. GIAO DIỆN UI (Không đổi)
+-- 3. GIAO DIỆN UI TÙY CHỈNH
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
@@ -94,12 +93,10 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 4. LUỒNG CẬP NHẬT UI & AUTO LUCK (Không đổi)
+-- 4. LUỒNG CẬP NHẬT UI & DỮ LIỆU
 -- ==========================================
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
-
-local StartTime = os.time()
 local StartEggs = 0
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
 
@@ -111,7 +108,6 @@ local function ParseValue(str)
     if suffix == "k" then return num * 1000 elseif suffix == "m" then return num * 1000000 elseif suffix == "b" then return num * 1000000000 elseif suffix == "t" then return num * 1000000000000 end
     return num
 end
-
 local function FormatValue(Value)
     local n = tonumber(Value)
     if not n then return tostring(Value) end
@@ -126,7 +122,6 @@ task.spawn(function()
         pcall(function()
             local save = Save.Get()
             local realClientTickets, realTotalTickets = 0, 1
-            
             pcall(function()
                 local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
                 if easterGui and easterGui:FindFirstChild("SideInfo") and easterGui.SideInfo:FindFirstChild("Tickets") then
@@ -135,7 +130,6 @@ task.spawn(function()
                     end
                 end
             end)
-
             pcall(function()
                 local container = Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER")
                 local closestBoard = container and container:FindFirstChild("Active") and container.Active:FindFirstChild("RaffleBoard", true)
@@ -183,7 +177,6 @@ task.spawn(function()
                 end
                 b = countItem("bluebell"); r = countItem("rose"); s = countItem("sunflower"); t = countItem("tulip"); eggToken = countItem("spring", "egg")
             end
-
             UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
             UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
@@ -191,7 +184,7 @@ task.spawn(function()
     end
 end)
 
--- 🎰 SMART EVENT LUCK
+-- 🎰 SMART EVENT LUCK & EGG UNLOCKS
 if UserSettings.AutoEventLuck and UserSettings.AutoEventLuck.Enabled then
     task.spawn(function()
         while task.wait(5) do
@@ -199,32 +192,25 @@ if UserSettings.AutoEventLuck and UserSettings.AutoEventLuck.Enabled then
                 local save = Save.Get()
                 if not save then return end
                 local tracks = save.Easter2026ChanceMachineTracks or {}
-                
                 for _, typeKey in ipairs(UserSettings.AutoEventLuck.Type) do
-                    local expireTime = tracks[typeKey] or 0
-                    if (expireTime - os.time()) < 19800 then
+                    if ((tracks[typeKey] or 0) - os.time()) < 19800 then
                         local b, r, s, t = 0, 0, 0, 0
                         if save.Inventory then
-                            for _, catName in ipairs({"Currency", "Misc"}) do
-                                if type(save.Inventory[catName]) == "table" then
-                                    for _, item in pairs(save.Inventory[catName]) do
-                                        local idStr = (item.id or ""):lower()
-                                        if idStr:match("bluebell") then b = b + (item._am or 1)
-                                        elseif idStr:match("rose") then r = r + (item._am or 1)
-                                        elseif idStr:match("sunflower") then s = s + (item._am or 1)
-                                        elseif idStr:match("tulip") then t = t + (item._am or 1) end
+                            for _, cName in ipairs({"Currency", "Misc"}) do
+                                if type(save.Inventory[cName]) == "table" then
+                                    for _, i in pairs(save.Inventory[cName]) do
+                                        local idStr = (i.id or ""):lower()
+                                        if idStr:match("bluebell") then b = b + (i._am or 1) elseif idStr:match("rose") then r = r + (i._am or 1) elseif idStr:match("sunflower") then s = s + (i._am or 1) elseif idStr:match("tulip") then t = t + (i._am or 1) end
                                     end
                                 end
                             end
                         end
-                        local tokens = { {name="Bluebell", amt=b}, {name="Rose", amt=r}, {name="Sunflower", amt=s}, {name="Tulip", amt=t} }
-                        table.sort(tokens, function(x, y) return x.amt > y.amt end)
-                        
-                        local bestToken = tokens[1]
-                        local amt = math.min(1000, bestToken.amt)
+                        local tkns = { {name="Bluebell", amt=b}, {name="Rose", amt=r}, {name="Sunflower", amt=s}, {name="Tulip", amt=t} }
+                        table.sort(tkns, function(x, y) return x.amt > y.amt end)
+                        local amt = math.min(1000, tkns[1].amt)
                         if amt > 0 then
-                            Network.Invoke("Easter2026ChanceMachine_AddTime", typeKey, bestToken.name, amt)
-                            Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "Easter2026ChanceMachine_AddTime", typeKey, bestToken.name, amt)
+                            Network.Invoke("Easter2026ChanceMachine_AddTime", typeKey, tkns[1].name, amt)
+                            Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "Easter2026ChanceMachine_AddTime", typeKey, tkns[1].name, amt)
                             task.wait(3) 
                         end
                     end
@@ -234,12 +220,8 @@ if UserSettings.AutoEventLuck and UserSettings.AutoEventLuck.Enabled then
     end)
 end
 
--- ==========================================
--- 5. MỞ KHÓA TRỨNG BẰNG SPRING EGG TOKEN
--- ==========================================
-local SpringEggUnlocks = { { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 } }
-
 if UserSettings.AutoUpgrade ~= false then
+    local SpringEggUnlocks = { { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 } }
     task.spawn(function()
         while task.wait(5) do
             pcall(function()
@@ -253,14 +235,12 @@ if UserSettings.AutoUpgrade ~= false then
                         end 
                     end
                     if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
-                    
                     local currentUnlocked = save.Easter2026UnlockedEggs or 1
                     local activeEgg = save.Easter2026ActiveEgg or 1
                     
                     for _, egg in ipairs(SpringEggUnlocks) do
                         if egg.number > currentUnlocked and eggToken >= egg.cost then 
-                            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number)
-                            task.wait(0.5)
+                            Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number); task.wait(0.5)
                             Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number)
                             break 
                         elseif egg.number == currentUnlocked and activeEgg ~= currentUnlocked then
@@ -274,8 +254,33 @@ if UserSettings.AutoUpgrade ~= false then
 end
 
 -- ==========================================
--- 6. BẺ KHÓA COOLDOWN TRỨNG (Chỉ dùng cho Hatch Event)
+-- 5. VÒNG LẶP SỰ KIỆN CHÍNH (SMART ROUND-ROBIN PORTALS)
 -- ==========================================
+local _G_DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
+local FarmOffset = Vector3.new(53.53, 0, 0.62)
+local HatchZoneCF = CFrame.new(-18514.40, 16.24, -29111.44)
+local StartTime = os.time()
+
+local SafePart = Instance.new("Part", Workspace)
+SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
+local function TeleportPlayer(cf)
+    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if root and cf then
+        root.Anchored = false; root.CFrame = cf + Vector3.new(0, 1.5, 0)
+        SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); root.Velocity = Vector3.new(0,0,0)
+    end
+end
+
+local State = { 
+    Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", 
+    TimeLeft = 0, 
+    CurrentPortal = 1, 
+    IsReady = false 
+}
+_G.CurrentPhase = State.Phase
+_G.FarmReady = false
+
+-- Bẻ khóa Cooldown RAM
 task.spawn(function()
     for _, v in pairs(getgc(true)) do
         if type(v) == "table" then
@@ -295,28 +300,7 @@ oldTaskWait = hookfunction(task.wait, function(time)
     return oldTaskWait(time)
 end)
 
--- ==========================================
--- 7. VÒNG LẶP SỰ KIỆN CHÍNH (FARM & HATCH LOGIC + WATERFALL PORTAL FIX)
--- ==========================================
-local _G_DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
-local FarmOffset = Vector3.new(53.53, 0, 0.62)
-local HatchZoneCF = CFrame.new(-18514.40, 16.24, -29111.44)
-
-local SafePart = Instance.new("Part", Workspace)
-SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
-local function TeleportPlayer(cf)
-    local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-    if root and cf then
-        root.Anchored = false; root.CFrame = cf + Vector3.new(0, 1.5, 0)
-        SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); root.Velocity = Vector3.new(0,0,0)
-    end
-end
-
-local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = (Mode == "HatchOnly") and math.huge or (math.max(20, FarmTimeMinutes) * 60), CurrentPortal = 1, IsReady = false }
-_G.CurrentPhase = State.Phase
-_G.FarmReady = false
-
--- Luồng Hatch
+-- Luồng Hatch & Farm
 task.spawn(function()
     while true do
         if _G.CurrentPhase == "HATCHING" and AutoHatch then
@@ -327,7 +311,6 @@ task.spawn(function()
     end
 end)
 
--- Luồng Farm (Gọi Tầng 3 - Framework)
 task.spawn(function()
     while task.wait(0.05) do
         if _G.CurrentPhase == "FARMING" and _G.FarmReady then
@@ -338,34 +321,45 @@ task.spawn(function()
     end
 end)
 
--- HÀM TÌM CỔNG THÁC NƯỚC (WATERFALL PORTAL CHECK)
-local function EnterZoneNetwork()
+-- HÀM DÒ TÌM CỔNG THÔNG MINH (QUÉT TỪ 1 ĐẾN 4)
+local function SmartEnterZone()
     _G.FarmReady = false
     _G.CurrentFarmCF = nil
     local success = false
-    local targetPortal = State.CurrentPortal
     
-    -- Thử từ cổng mục tiêu, nếu mạng lag hoặc cổng chưa mở thì lùi dần về 1
-    for tryPortal = targetPortal, 1, -1 do
+    -- Thử lần lượt 4 cổng, bắt đầu từ cổng tiếp theo trong chu kỳ
+    for i = 0, 3 do
+        local tryPortal = ((State.CurrentPortal - 1 + i) % 4) + 1
         local serverZoneID = tryPortal + 1 
+        
         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
         
         local waitTime = 0
-        while waitTime < 2.5 do -- Chờ tối đa 2.5s để bù lag mạng
+        while waitTime < 2 do
             local r = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
             if r and (r.Position - _G_DynamicHubCF.Position).Magnitude > 50 then
                 success = true
-                State.CurrentPortal = tryPortal -- Cập nhật UI cổng đang đứng
+                State.CurrentPortal = tryPortal
                 break
             end
-            task.wait(0.25)
-            waitTime = waitTime + 0.25
+            task.wait(0.2)
+            waitTime = waitTime + 0.2
         end
+        
         if success then break end
+        
+        -- Xóa thông báo lỗi UI (nếu chui trúng cổng khóa)
+        pcall(function()
+            for _, gui in pairs(Player.PlayerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and (gui.Name:find("Error") or gui.Name:find("Message") or gui.Name:find("Warning")) then
+                    gui.Enabled = false
+                end
+            end
+        end)
     end
     
     if success then
-        task.wait(1) -- Chờ render map
+        task.wait(1)
         local r = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
         if r then
             _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset)
@@ -378,7 +372,7 @@ local function EnterZoneNetwork()
     return false
 end
 
--- Vòng lặp State Machine & Điều phối
+-- VÒNG LẶP STATE MACHINE (ĐỒNG BỘ 100% VỚI SERVER LOCKOUT)
 task.spawn(function()
     local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
     if root then root.Anchored = true end
@@ -390,16 +384,42 @@ task.spawn(function()
     local currentEnchantPhase = ""
 
     while task.wait(1) do
-        State.TimeLeft = State.TimeLeft - 1
-        if State.TimeLeft <= 0 then
-            State.IsReady = false; _G.FarmReady = false
-            if Mode == "Combine" then 
-                if State.Phase == "FARMING" then State.Phase = "HATCHING"; State.TimeLeft = HatchTimeMinutes * 60; State.CurrentPortal = (State.CurrentPortal % 4) + 1 
-                else State.Phase = "FARMING"; State.TimeLeft = math.max(20, FarmTimeMinutes) * 60 end
-            elseif Mode == "FarmOnly" then State.Phase = "FARMING"; State.TimeLeft = math.max(20, FarmTimeMinutes) * 60; State.CurrentPortal = (State.CurrentPortal % 4) + 1
-            elseif Mode == "HatchOnly" then State.Phase = "HATCHING"; State.TimeLeft = math.huge end
-            _G.CurrentPhase = State.Phase
+        local save = Save.Get()
+        local lockoutEnd = save and save.Easter2026LockoutEnd or 0
+        local now = os.time()
+        local lockTimeLeft = lockoutEnd - now
+
+        if Mode == "Combine" then 
+            if State.Phase == "FARMING" then 
+                if lockTimeLeft > 0 then
+                    State.TimeLeft = lockTimeLeft -- Đồng bộ 100% với Server
+                else
+                    State.Phase = "HATCHING"
+                    State.TimeLeft = HatchTimeMinutes * 60
+                    State.IsReady = false
+                    _G.FarmReady = false
+                end
+            elseif State.Phase == "HATCHING" then
+                State.TimeLeft = State.TimeLeft - 1
+                if State.TimeLeft <= 0 then
+                    State.Phase = "FARMING"
+                    State.CurrentPortal = (State.CurrentPortal % 4) + 1 -- Xoay vòng cổng tiếp theo
+                    State.IsReady = false
+                end
+            end
+        elseif Mode == "FarmOnly" then 
+            if lockTimeLeft > 0 then
+                State.TimeLeft = lockTimeLeft
+            else
+                State.CurrentPortal = (State.CurrentPortal % 4) + 1
+                State.IsReady = false
+                _G.FarmReady = false
+            end
+        elseif Mode == "HatchOnly" then 
+            State.Phase = "HATCHING"
+            State.TimeLeft = math.huge 
         end
+        _G.CurrentPhase = State.Phase
 
         if currentEnchantPhase ~= State.Phase then
             currentEnchantPhase = State.Phase
@@ -407,14 +427,13 @@ task.spawn(function()
             elseif State.Phase == "HATCHING" and UserSettings.EquipEnchants and UserSettings.EquipEnchants.Hatch then PS99.EquipEnchants(UserSettings.EquipEnchants.Hatch) end
         end
 
-        -- KÍCH HOẠT LOGIC CỔNG MỚI
         if not State.IsReady then
             if State.Phase == "FARMING" then 
-                local entered = EnterZoneNetwork()
+                local entered = SmartEnterZone()
                 if entered then 
                     State.IsReady = true 
                 else
-                    UI:SetText("ModeInfo", "Portals Locked! Force Hatching...")
+                    UI:SetText("ModeInfo", "All Portals Locked! Force Hatching...")
                     State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60
                     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
                     task.wait(1.5); TeleportPlayer(HatchZoneCF); State.IsReady = true
