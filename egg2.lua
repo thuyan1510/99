@@ -1,5 +1,5 @@
 -- ===================================================================
--- 🌸 TẦNG 2: SPRING EVENT V92 LOGIC (SỬ DỤNG FRAMEWORK) - FINAL 100%
+-- 🌸 TẦNG 2: SPRING EVENT V92 LOGIC (SỬ DỤNG FRAMEWORK) - CẬP NHẬT CỔNG
 -- ===================================================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -15,21 +15,21 @@ local FarmTimeMinutes = SafeNumber(UserSettings.FarmTimeMinutes, 20)
 local HatchTimeMinutes = SafeNumber(UserSettings.HatchTimeMinutes, 10)
 local AutoHatch = UserSettings.AutoHatch ~= false
 
--- 1. LOAD FRAMEWORK (TẦNG 3) TỪ GITHUB
+-- 1. LOAD FRAMEWORK TỪ GITHUB
 local FrameworkURL = "https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/PS99_Framework.lua"
 local PS99 = loadstring(game:HttpGet(FrameworkURL))()
 
--- KHỞI ĐỘNG CÁC TÍNH NĂNG CHUNG TỪ FRAMEWORK
+-- KHỞI ĐỘNG TIỆN ÍCH CHUNG
 PS99.EnableInfPet()
 PS99.EnableAntiAFK(UserSettings.DEBUG == true)
 PS99.StartWebhook(UserSettings.Webhook and UserSettings.Webhook.url, UserSettings.Webhook and UserSettings.Webhook["Discord Id to ping"])
 PS99.StartBackgroundTasks({
     AutoFruit = UserSettings.EatFruit ~= false,
     AutoUpgrade = UserSettings.AutoUpgrade ~= false,
-    EventKeyword = "Easter" -- Tự động tìm nâng cấp có chữ Easter (Bằng Token B/R/S/T)
+    EventKeyword = "Easter"
 })
 
--- 2. KHAI BÁO CÁC BIẾN & THƯ VIỆN RIÊNG CỦA SỰ KIỆN SPRING
+-- 2. KHAI BÁO BIẾN SỰ KIỆN SPRING
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
@@ -43,7 +43,7 @@ local InstancingCmds = require(Library.Client.InstancingCmds)
 local CurrencyCmds = require(Library.Client.CurrencyCmds)
 
 -- ==========================================
--- 3. GIAO DIỆN UI TÙY CHỈNH CHO SPRING (Có Ticket & Token)
+-- 3. GIAO DIỆN UI (Không đổi)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
@@ -94,7 +94,7 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 4. LUỒNG XỬ LÝ DỮ LIỆU SỰ KIỆN (DATA UPDATER & AUTO LUCK)
+-- 4. LUỒNG CẬP NHẬT UI & AUTO LUCK (Không đổi)
 -- ==========================================
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
@@ -191,7 +191,7 @@ task.spawn(function()
     end
 end)
 
--- 🎰 SMART EVENT LUCK (DRIP-FEED)
+-- 🎰 SMART EVENT LUCK
 if UserSettings.AutoEventLuck and UserSettings.AutoEventLuck.Enabled then
     task.spawn(function()
         while task.wait(5) do
@@ -235,7 +235,7 @@ if UserSettings.AutoEventLuck and UserSettings.AutoEventLuck.Enabled then
 end
 
 -- ==========================================
--- 5. BỔ SUNG: MỞ KHÓA TRỨNG BẰNG SPRING EGG TOKEN (SPRING CUSTOM LOGIC)
+-- 5. MỞ KHÓA TRỨNG BẰNG SPRING EGG TOKEN
 -- ==========================================
 local SpringEggUnlocks = { { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 } }
 
@@ -296,7 +296,7 @@ oldTaskWait = hookfunction(task.wait, function(time)
 end)
 
 -- ==========================================
--- 7. VÒNG LẶP SỰ KIỆN CHÍNH (FARM & HATCH LOGIC)
+-- 7. VÒNG LẶP SỰ KIỆN CHÍNH (FARM & HATCH LOGIC + WATERFALL PORTAL FIX)
 -- ==========================================
 local _G_DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
@@ -338,7 +338,47 @@ task.spawn(function()
     end
 end)
 
--- Vòng lặp State Machine & Portal
+-- HÀM TÌM CỔNG THÁC NƯỚC (WATERFALL PORTAL CHECK)
+local function EnterZoneNetwork()
+    _G.FarmReady = false
+    _G.CurrentFarmCF = nil
+    local success = false
+    local targetPortal = State.CurrentPortal
+    
+    -- Thử từ cổng mục tiêu, nếu mạng lag hoặc cổng chưa mở thì lùi dần về 1
+    for tryPortal = targetPortal, 1, -1 do
+        local serverZoneID = tryPortal + 1 
+        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
+        
+        local waitTime = 0
+        while waitTime < 2.5 do -- Chờ tối đa 2.5s để bù lag mạng
+            local r = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+            if r and (r.Position - _G_DynamicHubCF.Position).Magnitude > 50 then
+                success = true
+                State.CurrentPortal = tryPortal -- Cập nhật UI cổng đang đứng
+                break
+            end
+            task.wait(0.25)
+            waitTime = waitTime + 0.25
+        end
+        if success then break end
+    end
+    
+    if success then
+        task.wait(1) -- Chờ render map
+        local r = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+        if r then
+            _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset)
+            TeleportPlayer(_G.CurrentFarmCF)
+            task.wait(0.5)
+            _G.FarmReady = true
+            return true
+        end
+    end
+    return false
+end
+
+-- Vòng lặp State Machine & Điều phối
 task.spawn(function()
     local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
     if root then root.Anchored = true end
@@ -367,26 +407,17 @@ task.spawn(function()
             elseif State.Phase == "HATCHING" and UserSettings.EquipEnchants and UserSettings.EquipEnchants.Hatch then PS99.EquipEnchants(UserSettings.EquipEnchants.Hatch) end
         end
 
+        -- KÍCH HOẠT LOGIC CỔNG MỚI
         if not State.IsReady then
             if State.Phase == "FARMING" then 
-                _G.FarmReady = false; _G.CurrentFarmCF = nil
-                local serverZoneID = State.CurrentPortal + 1 
-                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", serverZoneID) end)
-                task.wait(1.5)
-                local r = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-                if r and (r.Position - _G_DynamicHubCF.Position).Magnitude > 50 then
-                    _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset)
-                    TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true; State.IsReady = true
+                local entered = EnterZoneNetwork()
+                if entered then 
+                    State.IsReady = true 
                 else
-                    State.CurrentPortal = 1; pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", 2) end); task.wait(1.5)
-                    local r2 = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-                    if r2 and (r2.Position - _G_DynamicHubCF.Position).Magnitude > 50 then
-                        _G.CurrentFarmCF = CFrame.new(r2.Position + FarmOffset)
-                        TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true; State.IsReady = true
-                    else
-                        UI:SetText("ModeInfo", "Portals Locked! Force Hatching..."); State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60
-                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end); task.wait(1.5); TeleportPlayer(HatchZoneCF); State.IsReady = true
-                    end
+                    UI:SetText("ModeInfo", "Portals Locked! Force Hatching...")
+                    State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60
+                    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
+                    task.wait(1.5); TeleportPlayer(HatchZoneCF); State.IsReady = true
                 end
             else 
                 _G.FarmReady = false
@@ -406,5 +437,6 @@ task.spawn(function()
         local elapsed = os.time() - StartTime
         local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(State.TimeLeft/60), State.TimeLeft%60)
         UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
+        UI:SetText("ModeInfo", "Mode: " .. Mode .. " | Target Portal: " .. State.CurrentPortal)
     end
 end)
