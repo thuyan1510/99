@@ -1,5 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V92 + AUTO EQUIP + FRUIT + FAST HATCH + SMART MAX LUCK 🌸
+-- 🌸 EASTER EVENT - V92 (ULTIMATE EDITION) 🌸
+-- Auto Equip + Auto Fruit + Bypass Hatch + Smart Event Luck
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -175,25 +176,29 @@ task.spawn(function()
                 local save = Save.Get()
                 if not save then return end
 
+                -- Đường dẫn lấy thời gian chuẩn xác
+                local tracks = save.Easter2026ChanceMachineTracks or {}
+
                 for _, typeKey in ipairs(EventLuckSettings.Type) do
-                    local saveKey = "Easter2026" .. typeKey .. "LuckTime"
-                    local expireTime = save[saveKey] or 0
+                    local expireTime = tracks[typeKey] or 0
                     local timeLeft = expireTime - os.time()
 
                     -- Max là 6 tiếng (21600s), chừa 30 phút an toàn -> nạp khi < 19800s
                     if timeLeft < 19800 then
                         local tokens = GetTokenBalances()
-                        -- Xếp hạng từ nhiều nhất xuống ít nhất
                         table.sort(tokens, function(a, b) return a.amount > b.amount end)
                         
                         local bestToken = tokens[1]
                         local amt = math.min(1000, bestToken.amount)
                         
                         if amt > 0 then
-                            print(string.format("🎰 [AUTO LUCK]: Nạp %d %s vào %s (Còn lại %d %s)", amt, bestToken.name, typeKey, bestToken.amount - amt, bestToken.name))
-                            pcall(function() Network.Invoke("EasterHugeChanceMachine", typeKey, bestToken.name, amt) end)
-                            pcall(function() Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "EasterHugeChanceMachine", typeKey, bestToken.name, amt) end)
-                            task.wait(3) -- Delay 3 giây để Server cộng thời gian, chống spam văng game
+                            print(string.format("🎰 [AUTO LUCK]: Nạp %d %s vào %s...", amt, bestToken.name, typeKey))
+                            
+                            -- Bắn lệnh chuẩn xác lấy từ Spy
+                            pcall(function() Network.Invoke("Easter2026ChanceMachine_AddTime", typeKey, bestToken.name, amt) end)
+                            pcall(function() Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "Easter2026ChanceMachine_AddTime", typeKey, bestToken.name, amt) end)
+                            
+                            task.wait(3) 
                         end
                     end
                 end
@@ -469,7 +474,7 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 GIAO DIỆN UI (GỘP SPEED & EGGS)
+-- 🎨 GIAO DIỆN UI 
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
@@ -524,15 +529,13 @@ local UI = FarmUI.new({
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs: 0 | ⚡ Speed: 0/sec"},
-        ["Tokens"]          = {5, "Token B/R/S/T: 0/0/0/0"},
-        ["EggTokens"]       = {6, "Spring Egg Token: 0"},
-        ["Tickets"]         = {7, "Tickets: 0 / 0 (0%)"},
-        ["FPS"]             = {8, "FPS: 60"}
+        ["Tickets"]         = {5, "Tickets: 0 / 0 (0%)"},
+        ["FPS"]             = {6, "FPS: 60"}
     }
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (FIXED UI ERROR)
+-- 🚀 DATA UPDATER 
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -588,35 +591,6 @@ task.spawn(function()
             
             local speedColor = (speed > 5) and "#ff3232" or "#ffff00"
             UI:SetText("EggsHatched", string.format("Total Eggs: %s | <font color='%s'>⚡ Speed: %d/s</font>", FormatValue(hatchedThisSession), speedColor, speed))
-
-            local b, r, s, t, eggToken = 0, 0, 0, 0, 0
-            if save and save.Inventory then 
-                local function countItem(k1, k2)
-                    local total = 0
-                    for _, catName in ipairs({"Currency", "Misc"}) do
-                        local cat = save.Inventory[catName]
-                        if type(cat) == "table" then
-                            for _, item in pairs(cat) do
-                                if type(item.id) == "string" then
-                                    local idStr = item.id:lower()
-                                    if idStr:match(k1) and (not k2 or idStr:match(k2)) then
-                                        total = total + (item._am or 1)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    return total
-                end
-                b = countItem("bluebell")
-                r = countItem("rose")
-                s = countItem("sunflower")
-                t = countItem("tulip")
-                eggToken = countItem("spring", "egg")
-            end
-
-            UI:SetText("Tokens", string.format("Token B/R/S/T: %s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t)))
-            UI:SetText("EggTokens", "Spring Egg Token: " .. FormatValue(eggToken))
             UI:SetText("FPS", "FPS: " .. tostring(TrueFPS))
         end)
     end
