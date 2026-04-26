@@ -720,7 +720,7 @@ _G.ChangeScriptMode = function(newMode, newDisplay)
     -- Đưa về Hub ngay lập tức để làm mới tọa độ, tránh offset bug
     task.spawn(function()
         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
-        task.wait(1)
+        task.wait(0.5)
         TeleportPlayer(HatchZoneCF)
     end)
     
@@ -736,7 +736,7 @@ _G.ChangeScriptMode = function(newMode, newDisplay)
     UI:SetText("ModeInfo", "Mode: " .. ModeDisplay)
 end
 
--- HÀM DÒ TÌM CỔNG 1-4 (BẢN FIX KHOẢNG CÁCH)
+-- HÀM DÒ TÌM CỔNG 1-4 (BẢN FIX XUNG ĐỘT DỊCH CHUYỂN)
 local function SmartEnterZone()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     local success = false
@@ -753,8 +753,18 @@ local function SmartEnterZone()
         local waitTime = 0
         while waitTime < 2 do
             local r = getRootPart()
-            -- So sánh với vị trí bắt đầu, bỏ qua cái lỗi HatchZone
-            if r and (r.Position - startPos).Magnitude > 50 then success = true; State.CurrentPortal = tryPortal; break end
+            if r then
+                local distMoved = (r.Position - startPos).Magnitude
+                local distFromHub = (r.Position - _G.DynamicHubCF.Position).Magnitude
+                local distFromHatch = (r.Position - HatchZoneCF.Position).Magnitude
+                
+                -- CHỈ CÔNG NHẬN LÀ VÀO CỔNG NẾU:
+                -- 1. Bị dịch chuyển > 50 studs
+                -- 2. Vị trí mới KHÔNG PHẢI là sảnh Hub hoặc khu ấp trứng (> 300 studs)
+                if distMoved > 50 and distFromHub > 300 and distFromHatch > 300 then 
+                    success = true; State.CurrentPortal = tryPortal; break 
+                end
+            end
             task.wait(0.2); waitTime = waitTime + 0.2
         end
         if success then break end
@@ -774,7 +784,7 @@ local function SmartEnterZone()
     return false
 end
 
--- HÀM DÒ TÌM CỔNG 5 THE NEST (BẢN FIX KHOẢNG CÁCH)
+-- HÀM DÒ TÌM CỔNG 5 THE NEST (BẢN FIX XUNG ĐỘT DỊCH CHUYỂN)
 local function EnterNestZone()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     local success = false
@@ -786,7 +796,16 @@ local function EnterNestZone()
     local waitTime = 0
     while waitTime < 2 do
         local r = getRootPart()
-        if r and (r.Position - startPos).Magnitude > 50 then success = true; State.CurrentPortal = 5; break end
+        if r then
+            local distMoved = (r.Position - startPos).Magnitude
+            local distFromHub = (r.Position - _G.DynamicHubCF.Position).Magnitude
+            local distFromHatch = (r.Position - HatchZoneCF.Position).Magnitude
+            
+            -- Xác nhận vào cổng cực kỳ chặt chẽ
+            if distMoved > 50 and distFromHub > 300 and distFromHatch > 300 then 
+                success = true; State.CurrentPortal = 5; break 
+            end
+        end
         task.wait(0.2); waitTime = waitTime + 0.2
     end
     pcall(function()
