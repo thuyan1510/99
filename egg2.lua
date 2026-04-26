@@ -1,6 +1,6 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V92 (ULTIMATE OPTIMIZED - PART 2 & THE NEST) 🌸
--- Auto Equip + Auto Fruit + Bypass Hatch + Smart Event Luck + Full UI + Smart Portals + Mode 4 (The Nest)
+-- 🌸 EASTER EVENT - V92 (ULTIMATE OPTIMIZED - DYNAMIC UI & THE NEST) 🌸
+-- Thêm tính năng: Live UI Mode Switcher (Đổi chế độ trực tiếp trong game)
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -24,7 +24,6 @@ local FarmTimeMinutes = SafeNumber(UserSettings.FarmTimeMinutes, 20)
 local HatchTimeMinutes = SafeNumber(UserSettings.HatchTimeMinutes, 10)
 local AutoUpgrade = UserSettings.AutoUpgrade ~= false
 local AutoHatch = UserSettings.AutoHatch ~= false
-
 local AutoEatFruit = UserSettings.EatFruit ~= false
 local IsDebugMode = UserSettings.DEBUG == true
 
@@ -55,7 +54,7 @@ local function getRootPart()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Core Folders Cache (Tối ưu hóa RAM/CPU)
+-- Core Folders Cache
 local ThingsFolder = Workspace:WaitForChild("__THINGS")
 local OrbsFolder = ThingsFolder:WaitForChild("Orbs")
 local LootbagsFolder = ThingsFolder:WaitForChild("Lootbags")
@@ -147,7 +146,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🎰 ĐỘNG CƠ AUTO EVENT LUCK (SMART MAX FILL)
+-- 🎰 ĐỘNG CƠ AUTO EVENT LUCK
 -- ==========================================
 local function GetTokenBalances()
     local save = Save.Get()
@@ -191,20 +190,15 @@ task.spawn(function()
             pcall(function()
                 local save = Save.Get()
                 if not save then return end
-
                 local tracks = save.Easter2026ChanceMachineTracks or {}
-
                 for _, typeKey in ipairs(EventLuckSettings.Type) do
                     local expireTime = tracks[typeKey] or 0
                     local timeLeft = expireTime - os.time()
-
                     if timeLeft < 19800 then
                         local tokens = GetTokenBalances()
                         table.sort(tokens, function(a, b) return a.amount > b.amount end)
-                        
                         local bestToken = tokens[1]
                         local amt = math.min(1000, bestToken.amount)
-                        
                         if amt > 0 then
                             pcall(function() Network.Invoke("Easter2026ChanceMachine_AddTime", typeKey, bestToken.name, amt) end)
                             pcall(function() Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "Easter2026ChanceMachine_AddTime", typeKey, bestToken.name, amt) end)
@@ -236,26 +230,22 @@ local function ManageFruits()
     local save = Save.Get()
     if not save or not save.Inventory or not save.Inventory.Fruit then return end
     local fruitInv = save.Inventory.Fruit
-    
     local targetStack = 20
     pcall(function() 
         local maxLimit = FruitCmds.ComputeFruitQueueLimit()
         if type(maxLimit) == "number" and maxLimit > 0 then targetStack = maxLimit end
     end)
-    
     local bestFruits = {}
     for uid, data in pairs(fruitInv) do
         if data.id and data.id ~= "Candycane" then
             local baseId = data.id
             local currentBestUid = bestFruits[baseId]
-            if not currentBestUid then
-                bestFruits[baseId] = uid
+            if not currentBestUid then bestFruits[baseId] = uid
             else
                 local currentBestData = fruitInv[currentBestUid]
                 local isNewShiny = data.sh == true
                 local isOldShiny = currentBestData.sh == true
-                if isNewShiny and not isOldShiny then
-                    bestFruits[baseId] = uid
+                if isNewShiny and not isOldShiny then bestFruits[baseId] = uid
                 elseif isNewShiny == isOldShiny then
                     local newAmt = data._am or 1
                     local oldAmt = currentBestData._am or 1
@@ -264,7 +254,6 @@ local function ManageFruits()
             end
         end
     end
-    
     for fruitName, uid in pairs(bestFruits) do
         local currentStack = GetCurrentFruitStack(fruitName)
         if currentStack < targetStack then
@@ -279,7 +268,6 @@ local function ManageFruits()
         end
     end
 end
-
 if AutoEatFruit then
     task.spawn(function() ManageFruits() end)
     Network.Fired("Fruits: Update"):Connect(function() task.wait(1); ManageFruits() end)
@@ -292,16 +280,13 @@ end
 local function GetSmartEnchantUIDs(targetEnchantNames)
     local save = Save.Get()
     if not save or not save.Inventory or not save.Inventory.Enchant then return {} end
-
     local freeSlots = save.MaxEnchantsEquipped or 1
     local paidSlots = save.MaxPaidEnchantsEquipped or 0
     local maxSlots = freeSlots + paidSlots
-
     local availablePool = {}
     for uid, data in pairs(save.Inventory.Enchant) do
         table.insert(availablePool, {uid = uid, id = data.id or "Unknown", tn = data.tn or 1, amount = data._am or 1})
     end
-
     local matchedUIDs = {}
     for slotIndex, enchantName in ipairs(targetEnchantNames) do
         if slotIndex > maxSlots then break end
@@ -336,7 +321,7 @@ local function EquipEnchantLoadout(modeName, enchantList)
 end
 
 -- ==========================================
--- 🧲 MÁY QUÉT RAM AN TOÀN
+-- 🧲 MÁY QUÉT RAM AN TOÀN & CHỐNG LAG ĐỒ HỌA
 -- ==========================================
 for _, v in pairs(getgc(true)) do
     if type(v) == "table" then
@@ -359,9 +344,6 @@ oldTaskWait = hookfunction(task.wait, function(time)
     return oldTaskWait(time)
 end)
 
--- ==========================================
--- 🛡️ ANTI AFK & EXTREME OPTIMIZE
--- ==========================================
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
@@ -386,8 +368,7 @@ task.spawn(function()
     while task.wait(60) do
         pcall(function()
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-            task.wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            task.wait(0.1); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
         end)
     end
 end)
@@ -402,23 +383,12 @@ local function ExtremeOptimize(descendant)
         if descendant.Name == "RaffleBoard" or descendant:FindFirstAncestor("RaffleBoard") then return end
         if not descendant:IsDescendantOf(Player.PlayerGui) then
             if table.find(PartClassNames, descendant.ClassName) then
-                descendant.Material = Enum.Material.Plastic
-                descendant.Reflectance = 0
-                descendant.Massless = true
-                descendant.Transparency = 1
-                if descendant:IsA("MeshPart") or descendant:IsA("SpecialMesh") then 
-                    descendant.TextureID = ""
-                    descendant.MeshId = "" 
-                end
-            elseif table.find(DestroyClass, descendant.ClassName) then
-                descendant:Destroy()
-            elseif descendant:IsA("Explosion") then
-                descendant.BlastPressure = 1; descendant.BlastRadius = 1; descendant.Visible = false
-            elseif table.find(DisableClass, descendant.ClassName) then
-                descendant.Enabled = false
-            elseif descendant:IsDescendantOf(game:GetService("CoreGui")) then
-                descendant.Transparency = 1
-            end
+                descendant.Material = Enum.Material.Plastic; descendant.Reflectance = 0; descendant.Massless = true; descendant.Transparency = 1
+                if descendant:IsA("MeshPart") or descendant:IsA("SpecialMesh") then descendant.TextureID = ""; descendant.MeshId = "" end
+            elseif table.find(DestroyClass, descendant.ClassName) then descendant:Destroy()
+            elseif descendant:IsA("Explosion") then descendant.BlastPressure = 1; descendant.BlastRadius = 1; descendant.Visible = false
+            elseif table.find(DisableClass, descendant.ClassName) then descendant.Enabled = false
+            elseif descendant:IsDescendantOf(game:GetService("CoreGui")) then descendant.Transparency = 1 end
         end
     end)
 end
@@ -428,11 +398,7 @@ local function HandlePlayer(player)
     local function OptimizeCharacter(character)
         for _, v in pairs(character:GetDescendants()) do
             pcall(function()
-                if table.find(PlayerObjectsDestroy, v.ClassName) then
-                    v:Destroy()
-                elseif v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-                    v.Transparency = 1
-                end
+                if table.find(PlayerObjectsDestroy, v.ClassName) then v:Destroy() elseif v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then v.Transparency = 1 end
             end)
         end
     end
@@ -447,8 +413,6 @@ if not IsDebugMode then
     Lighting.DescendantAdded:Connect(ExtremeOptimize)
     for _, p in ipairs(Players:GetPlayers()) do HandlePlayer(p) end
     Players.PlayerAdded:Connect(HandlePlayer)
-else
-    print("🛠️ DEBUG MODE ĐANG BẬT: Đã vô hiệu hóa tính năng giảm lag đồ họa!")
 end
 
 -- ==========================================
@@ -460,7 +424,6 @@ local HatchZoneCF = CFrame.new(-18514.40, 16.24, -29111.44)
 
 local TrueFPS = 60
 RunService.RenderStepped:Connect(function(deltaTime) TrueFPS = math.floor(1 / deltaTime) end)
-
 local StartTime = os.time()
 local StartEggs = 0
 pcall(function() StartEggs = Save.Get().Easter2026EggsHatched or 0 end)
@@ -483,7 +446,7 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 GIAO DIỆN UI (ĐÃ KHÔI PHỤC TOKEN VÀ EGG TOKEN)
+-- 🎨 DYNAMIC UI (HỖ TRỢ ĐỔI MODE TRỰC TIẾP)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
@@ -502,31 +465,82 @@ function FarmUI.new(UIConfig)
 	Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150)
 	Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
 
-	local Container = Instance.new("Frame", Background)
-	Container.Size = UDim2.new(1, 0, 1, 0); Container.BackgroundTransparency = 1; Self.Container = Container
+    -- PAGE 1 (Status)
+	local Page1 = Instance.new("Frame", Background)
+	Page1.Size = UDim2.new(1, 0, 1, 0); Page1.BackgroundTransparency = 1; Self.Container = Page1
+	local Layout1 = Instance.new("UIListLayout", Page1)
+	Layout1.Padding = UDim.new(0.015, 0); Layout1.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout1.VerticalAlignment = Enum.VerticalAlignment.Center; Layout1.SortOrder = Enum.SortOrder.LayoutOrder
 
-	local Layout = Instance.new("UIListLayout", Container)
-	Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center; Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    -- PAGE 2 (Settings / Modes)
+    local Page2 = Instance.new("Frame", Background)
+	Page2.Size = UDim2.new(1, 0, 1, 0); Page2.BackgroundTransparency = 1; Page2.Visible = false
+	local Layout2 = Instance.new("UIListLayout", Page2)
+	Layout2.Padding = UDim.new(0.035, 0); Layout2.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout2.VerticalAlignment = Enum.VerticalAlignment.Center
 
+    -- TOGGLE BUTTON (3 States: Page1 -> Page2 -> Hidden)
+    local ToggleState = 1
     local ToggleBtn = Instance.new("TextButton", ScreenGui)
     ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1)
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 22; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
-    ToggleBtn.MouseButton1Click:Connect(function() Background.Visible = not Background.Visible; ToggleBtn.Text = Background.Visible and "👁" or "🙈" end)
+    
+    ToggleBtn.MouseButton1Click:Connect(function()
+        ToggleState = ToggleState + 1
+        if ToggleState > 3 then ToggleState = 1 end
+        
+        if ToggleState == 1 then
+            Background.Visible = true; Page1.Visible = true; Page2.Visible = false; ToggleBtn.Text = "👁"
+        elseif ToggleState == 2 then
+            Background.Visible = true; Page1.Visible = false; Page2.Visible = true; ToggleBtn.Text = "⚙️"
+        else
+            Background.Visible = false; ToggleBtn.Text = "🙈"
+        end
+    end)
 
+    -- SETUP PAGE 1 ITEMS
 	local Sorted = {}
 	for Name, Data in pairs(UIConfig.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
 	table.sort(Sorted, function(A, B) return A.Order < B.Order end)
 
 	for Index, Item in ipairs(Sorted) do
-		local Label = Instance.new("TextLabel", Self.Container)
+		local Label = Instance.new("TextLabel", Page1)
 		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
 		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.RichText = true
 		Self.Elements[Item.Name] = Label
 		if Index < #Sorted then
-			local Spacer = Instance.new("Frame", Self.Container)
+			local Spacer = Instance.new("Frame", Page1)
 			Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
 		end
 	end
+
+    -- SETUP PAGE 2 (MODES)
+    local Title2 = Instance.new("TextLabel", Page2)
+    Title2.Size = UDim2.new(0.8, 0, 0.12, 0); Title2.BackgroundTransparency = 1; Title2.Font = Enum.Font.FredokaOne; Title2.Text = "⚙️ CHỌN CHẾ ĐỘ ⚙️"; Title2.TextColor3 = Color3.fromRGB(0, 255, 150); Title2.TextScaled = true
+    local SpacerTop = Instance.new("Frame", Page2); SpacerTop.BackgroundColor3 = Color3.fromRGB(0, 255, 150); SpacerTop.Size = UDim2.new(0.6, 0, 0, 2)
+
+    local ModesData = {
+        {id = "HatchOnly", name = "Hatch Only (1)"},
+        {id = "FarmOnly", name = "Farm Only (2)"},
+        {id = "Combine", name = "Combine (3)"},
+        {id = "Nest", name = "The Nest (4)"}
+    }
+    
+    for _, m in ipairs(ModesData) do
+        local Btn = Instance.new("TextButton", Page2)
+        Btn.Size = UDim2.new(0.65, 0, 0.12, 0); Btn.BackgroundColor3 = (m.id == Mode) and Color3.fromRGB(0, 150, 50) or Color3.fromRGB(30, 30, 30)
+        Btn.BorderColor3 = Color3.fromRGB(0, 255, 150); Btn.Font = Enum.Font.FredokaOne; Btn.Text = m.name; Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.TextScaled = true
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0.3, 0)
+        
+        Btn.MouseButton1Click:Connect(function()
+            if _G.ChangeScriptMode then
+                _G.ChangeScriptMode(m.id, m.name)
+                for _, sib in ipairs(Page2:GetChildren()) do
+                    if sib:IsA("TextButton") then sib.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end
+                end
+                Btn.BackgroundColor3 = Color3.fromRGB(0, 150, 50)
+            end
+        end)
+    end
+
 	return Self
 end
 
@@ -546,7 +560,7 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER (OPTIMIZED CPU)
+-- 🚀 DATA UPDATER 
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -554,24 +568,17 @@ task.spawn(function()
         pcall(function()
             local save = Save.Get()
             local realClientTickets, realTotalTickets = 0, 1
-            
             pcall(function()
                 local easterGui = Player.PlayerGui:FindFirstChild("EasterEggZoneMain")
                 if easterGui and easterGui:FindFirstChild("SideInfo") and easterGui.SideInfo:FindFirstChild("Tickets") then
                     for _, lbl in pairs(easterGui.SideInfo.Tickets:GetChildren()) do
-                        if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then
-                            realClientTickets = ParseValue(lbl.Text)
-                        end
+                        if lbl:IsA("TextLabel") and not lbl.Text:lower():find("earned") then realClientTickets = ParseValue(lbl.Text) end
                     end
                 end
             end)
-
             pcall(function()
                 local closestBoard = nil
-                if InstanceContainer and InstanceContainer:FindFirstChild("Active") then
-                    closestBoard = InstanceContainer.Active:FindFirstChild("RaffleBoard", true)
-                end
-                
+                if InstanceContainer and InstanceContainer:FindFirstChild("Active") then closestBoard = InstanceContainer.Active:FindFirstChild("RaffleBoard", true) end
                 if closestBoard then
                     local totalText = closestBoard:FindFirstChild("TotalTickets", true)
                     if totalText and totalText:FindFirstChild("Amount") then
@@ -595,7 +602,6 @@ task.spawn(function()
             local hatchedThisSession = math.max(0, currentEggs - StartEggs)
             local speed = currentEggs - lastEggs + 1
             lastEggs = currentEggs
-            
             local speedColor = (speed > 5) and "#ff3232" or "#ffff00"
             UI:SetText("EggsHatched", string.format("Total Eggs: %s | <font color='%s'>⚡ Speed: %d/s</font>", FormatValue(hatchedThisSession), speedColor, speed))
 
@@ -609,21 +615,14 @@ task.spawn(function()
                             for _, item in pairs(cat) do
                                 if type(item.id) == "string" then
                                     local idStr = item.id:lower()
-                                    if idStr:match(k1) and (not k2 or idStr:match(k2)) then
-                                        total = total + (item._am or 1)
-                                    end
+                                    if idStr:match(k1) and (not k2 or idStr:match(k2)) then total = total + (item._am or 1) end
                                 end
                             end
                         end
                     end
                     return total
                 end
-                b = countItem("bluebell")
-                r = countItem("rose")
-                s = countItem("sunflower")
-                t = countItem("tulip")
-                bc = countItem("boss", "chest")
-                eggToken = countItem("spring", "egg")
+                b = countItem("bluebell"); r = countItem("rose"); s = countItem("sunflower"); t = countItem("tulip"); bc = countItem("boss", "chest"); eggToken = countItem("spring", "egg")
             end
 
             UI:SetText("Tokens", string.format("Token B/R/S/T/Boss: %s/%s/%s/%s/%s", FormatValue(b), FormatValue(r), FormatValue(s), FormatValue(t), FormatValue(bc)))
@@ -634,7 +633,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ SMART FARM V3 (GỘP LUỒNG, TỐI ƯU CPU)
+-- 🚀 ĐỘNG CƠ SMART FARM V3
 -- ==========================================
 do
     local originalCalc = PlayerPet.CalculateSpeedMultiplier
@@ -648,22 +647,18 @@ local function getCurrentInstanceID()
 end
 
 local function getClosestBreakables(range)
-    range = range or 150 -- Tăng range để bao quát The Nest
+    range = range or 150
     local breakables = {}
     local root = getRootPart()
     if not root then return breakables end
-
     local rootPos = root.Position
     local currentZone = getCurrentZone()
     local instanceID = getCurrentInstanceID()
-
     for _, breakable in ipairs(BreakablesFolder:GetChildren()) do
         if breakable:IsA("Model") then
             local parentID = breakable:GetAttribute("ParentID")
             if parentID == currentZone or parentID == instanceID then
-                if (breakable.WorldPivot.Position - rootPos).Magnitude < range then
-                    table.insert(breakables, breakable.Name)
-                end
+                if (breakable.WorldPivot.Position - rootPos).Magnitude < range then table.insert(breakables, breakable.Name) end
             end
         end
     end
@@ -673,33 +668,25 @@ end
 local function getPlayerPets()
     local pets = {}
     local allPets = PlayerPet.GetAll()
-    for _, pet in pairs(allPets) do
-        if pet.owner == Player then table.insert(pets, pet) end
-    end
+    for _, pet in pairs(allPets) do if pet.owner == Player then table.insert(pets, pet) end end
     return pets
 end
 
 local function fastFarm()
     local breakables = getClosestBreakables(150)
     local pets = getPlayerPets()
-
     if #breakables == 0 or #pets == 0 then return end
-
     local petToBreakable = {}
     local breakableCount = #breakables
     local petCount = #pets
     local basePetsPerBreakable = math.floor(petCount / breakableCount)
     local extraPets = petCount % breakableCount
-
     local petIndex = 1
     for i, breakableName in ipairs(breakables) do
         local petsForThis = basePetsPerBreakable + (i <= extraPets and 1 or 0)
         for _ = 1, petsForThis do
             local pet = pets[petIndex]
-            if pet then
-                petToBreakable[pet.euid] = breakableName
-                petIndex = petIndex + 1
-            end
+            if pet then petToBreakable[pet.euid] = breakableName; petIndex = petIndex + 1 end
         end
     end
     Network.Fire("Breakables_JoinPetBulk", petToBreakable)
@@ -709,7 +696,6 @@ local function clickAura(range)
     range = range or 100
     local root = getRootPart()
     if not root then return end
-
     local rootPos = root.Position
     for _, breakable in ipairs(BreakablesFolder:GetChildren()) do
         if breakable:IsA("Model") and (rootPos - breakable.WorldPivot.Position).Magnitude < range then
@@ -724,18 +710,13 @@ local function collectOrbsAndLootbags()
         if OrbsFolder then 
             for _, orb in ipairs(OrbsFolder:GetChildren()) do
                 local number = tonumber(orb.Name)
-                if number then
-                    Network.Fire("Orbs: Collect", number)
-                    orb:Destroy()
-                end
+                if number then Network.Fire("Orbs: Collect", number); orb:Destroy() end
             end
         end
         if LootbagsFolder then
             local bagIds = {}
             for _, bag in ipairs(LootbagsFolder:GetChildren()) do
-                if bag:IsA("Model") or bag:IsA("Part") then
-                    table.insert(bagIds, bag.Name); bag:Destroy()
-                end 
+                if bag:IsA("Model") or bag:IsA("Part") then table.insert(bagIds, bag.Name); bag:Destroy() end 
             end
             if #bagIds > 0 then Network.Fire("Lootbags_Claim", bagIds) end
         end
@@ -744,11 +725,7 @@ end
 
 task.spawn(function()
     while task.wait(0.05) do
-        if _G.CurrentPhase == "FARMING" and _G.FarmReady then
-            pcall(fastFarm)
-            pcall(function() clickAura(100) end)
-            pcall(collectOrbsAndLootbags)
-        end
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then pcall(fastFarm); pcall(function() clickAura(100) end); pcall(collectOrbsAndLootbags) end
     end
 end)
 
@@ -756,13 +733,8 @@ end)
 -- 🚀 NETWORK AUTO UPGRADE
 -- ==========================================
 local SpringEggUnlocks = { 
-    { number = 2, cost = 300 }, 
-    { number = 3, cost = 1500 }, 
-    { number = 4, cost = 6000 }, 
-    { number = 5, cost = 20000 },
-    { number = 6, cost = 3000000 },
-    { number = 7, cost = 100000000 },
-    { number = 8, cost = 280000000 }
+    { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 },
+    { number = 6, cost = 3000000 }, { number = 7, cost = 100000000 }, { number = 8, cost = 280000000 }
 }
 
 task.spawn(function()
@@ -816,7 +788,7 @@ task.spawn(function() while task.wait(5) do pcall(function() local save = Save.G
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC (BYPASS)
+-- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC
 -- ==========================================
 task.spawn(function()
     while true do
@@ -824,9 +796,7 @@ task.spawn(function()
             task.spawn(function() pcall(function() Network.Invoke("Instancing_InvokeCustomFromClient", "EasterHatchEvent", "HatchRequest") end) end)
             task.spawn(function() pcall(function() Network.Invoke("EasterHatchEvent", "HatchRequest") end) end)
             task.wait(0.1) 
-        else
-            task.wait(0.5)
-        end
+        else task.wait(0.5) end
     end
 end)
 
@@ -848,6 +818,24 @@ end
 
 local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = 0, CurrentPortal = 1, IsReady = false }
 _G.CurrentPhase = State.Phase
+
+-- HÀM API CHUYỂN MODE TỪ UI
+_G.ChangeScriptMode = function(newMode, newDisplay)
+    Mode = newMode
+    ModeDisplay = newDisplay
+    State.IsReady = false
+    _G.FarmReady = false
+    if Mode == "HatchOnly" then 
+        State.Phase = "HATCHING"
+        State.TimeLeft = math.huge
+    else 
+        State.Phase = "FARMING"
+        State.TimeLeft = 0
+        if Mode == "Nest" then State.CurrentPortal = 5 end
+    end
+    _G.CurrentPhase = State.Phase
+    UI:SetText("ModeInfo", "Mode: " .. ModeDisplay)
+end
 
 -- HÀM DÒ TÌM CỔNG 1-4
 local function SmartEnterZone()
@@ -876,49 +864,31 @@ local function SmartEnterZone()
     if success then
         task.wait(1)
         local r = getRootPart()
-        if r then
-            _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset)
-            TeleportPlayer(_G.CurrentFarmCF)
-            task.wait(0.5)
-            _G.FarmReady = true
-            return true
-        end
+        if r then _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset); TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true; return true end
     end
     return false
 end
 
--- HÀM DÒ TÌM ĐỘC LẬP CHO CỔNG SỐ 5 (THE NEST)
+-- HÀM DÒ TÌM CỔNG 5 (THE NEST)
 local function EnterNestZone()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     local success = false
-    
     pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ZonePortal", 6) end)
-    
     local waitTime = 0
     while waitTime < 2 do
         local r = getRootPart()
-        if r and (r.Position - _G.DynamicHubCF.Position).Magnitude > 50 then
-            success = true; State.CurrentPortal = 5; break
-        end
+        if r and (r.Position - _G.DynamicHubCF.Position).Magnitude > 50 then success = true; State.CurrentPortal = 5; break end
         task.wait(0.2); waitTime = waitTime + 0.2
     end
-    
     pcall(function()
         for _, gui in pairs(Player.PlayerGui:GetChildren()) do
             if gui:IsA("ScreenGui") and (gui.Name:find("Error") or gui.Name:find("Message") or gui.Name:find("Warning")) then gui.Enabled = false end
         end
     end)
-    
     if success then
         task.wait(1)
         local r = getRootPart()
-        if r then
-            _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset)
-            TeleportPlayer(_G.CurrentFarmCF)
-            task.wait(0.5)
-            _G.FarmReady = true
-            return true
-        end
+        if r then _G.CurrentFarmCF = CFrame.new(r.Position + FarmOffset); TeleportPlayer(_G.CurrentFarmCF); task.wait(0.5); _G.FarmReady = true; return true end
     end
     return false
 end
@@ -932,13 +902,9 @@ local function ReturnToHubNetwork()
         if root and (root.Position - _G.DynamicHubCF.Position).Magnitude <= 400 then break end
         task.wait(0.5); waitTime = waitTime + 0.5
     end
-    task.wait(1)
-    TeleportPlayer(HatchZoneCF)
+    task.wait(1); TeleportPlayer(HatchZoneCF)
 end
 
--- ==========================================
--- 🚀 VÒNG LẶP STATE MACHINE (ĐÃ TÍCH HỢP MODE 4)
--- ==========================================
 task.spawn(function()
     local root = getRootPart()
     if root then root.Anchored = true end
@@ -954,70 +920,50 @@ task.spawn(function()
     local NestEntryTime = 0
 
     while task.wait(1) do
-        -- 1. BẢO VỆ: CHỜ VÀO ĐƯỢC HUB SỰ KIỆN MỚI BẮT ĐẦU
         if InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" then
             UI:SetText("ModeInfo", "Đang tải Event Hub...")
             pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
-            task.wait(2)
-            continue
+            task.wait(2); continue
         end
 
-        -- 2. XỬ LÝ VÀO CỔNG HOẶC RA HATCH (CHỈ CHẠY KHI IsReady = false)
         if not State.IsReady then
             if State.Phase == "FARMING" then 
                 if Mode == "Nest" then
-                    -- XỬ LÝ CHUYÊN BIỆT CHO MODE 4 (THE NEST)
                     local entered = EnterNestZone()
                     if entered then
-                        State.IsReady = true
-                        State.TimeLeft = 120 -- Thời gian tối đa (Failsafe) trong Nest nếu có lỗi không rớt rương
-                        NestEntryTime = os.time()
+                        State.IsReady = true; State.TimeLeft = 120; NestEntryTime = os.time()
                     else
-                        -- Vào cổng 5 thất bại -> Ra ấp trứng 60s để chờ
-                        State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase
-                        State.TimeLeft = 60 
+                        State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60 
                         ReturnToHubNetwork(); State.IsReady = true
                     end
                 else
-                    -- CÁC MODE CÒN LẠI (1,2,3)
                     local entered = SmartEnterZone()
                     if entered then 
                         State.IsReady = true; State.TimeLeft = FarmTimeMinutes * 60
                     else
-                        State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase
-                        State.TimeLeft = 60 
+                        State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60 
                         ReturnToHubNetwork(); State.IsReady = true
                     end
                 end
             else 
-                ReturnToHubNetwork()
-                State.IsReady = true; _G.FarmReady = false 
-                if Mode ~= "Nest" then
-                    State.TimeLeft = (Mode == "HatchOnly") and math.huge or (HatchTimeMinutes * 60)
-                end
+                ReturnToHubNetwork(); State.IsReady = true; _G.FarmReady = false 
+                if Mode ~= "Nest" then State.TimeLeft = (Mode == "HatchOnly") and math.huge or (HatchTimeMinutes * 60) end
             end
         end
 
-        -- 3. ĐẾM NGƯỢC VÀ CHUYỂN TRẠNG THÁI THEO CHẾ ĐỘ
         if State.IsReady then
             if State.TimeLeft ~= math.huge then State.TimeLeft = State.TimeLeft - 1 end
 
             if Mode == "Nest" then
                 if State.Phase == "FARMING" then
-                    -- Quét khu vực để tìm rương Boss (Delay 3s đầu cho rương spawn)
                     local breakables = getClosestBreakables(150)
                     if (os.time() - NestEntryTime > 3) then
-                        -- Nếu rương bị vỡ (không tìm thấy Breakable) HOẶC hết giờ Failsafe
                         if #breakables == 0 or State.TimeLeft <= 0 then
-                            State.Phase = "HATCHING"
-                            State.IsReady = false
-                            _G.FarmReady = false
-                            State.TimeLeft = 30 -- Thời gian Hatch trứng và đợi Boss Chest hồi sinh (30s)
+                            State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30
                         end
                     end
                 elseif State.Phase == "HATCHING" and State.TimeLeft <= 0 then
-                    State.Phase = "FARMING"
-                    State.IsReady = false
+                    State.Phase = "FARMING"; State.IsReady = false
                 end
             elseif Mode == "Combine" then 
                 if State.Phase == "FARMING" and State.TimeLeft <= 0 then
@@ -1034,17 +980,12 @@ task.spawn(function()
 
         _G.CurrentPhase = State.Phase
 
-        -- 4. TỰ ĐỘNG THAY ĐỔI ENCHANT
         if currentEnchantPhase ~= State.Phase then
             currentEnchantPhase = State.Phase
-            if State.Phase == "FARMING" and EnchantSettings.Farm then
-                EquipEnchantLoadout("FARM", EnchantSettings.Farm)
-            elseif State.Phase == "HATCHING" and EnchantSettings.Hatch then
-                EquipEnchantLoadout("HATCH", EnchantSettings.Hatch)
-            end
+            if State.Phase == "FARMING" and EnchantSettings.Farm then EquipEnchantLoadout("FARM", EnchantSettings.Farm)
+            elseif State.Phase == "HATCHING" and EnchantSettings.Hatch then EquipEnchantLoadout("HATCH", EnchantSettings.Hatch) end
         end
 
-        -- 5. NEO TỌA ĐỘ (CHỐNG VĂNG/ĐẨY LÙI)
         if State.IsReady then
             local rPart = getRootPart()
             if rPart then
@@ -1056,12 +997,10 @@ task.spawn(function()
             end
         end
         
-        -- CẬP NHẬT UI
         local elapsed = os.time() - StartTime
         local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(math.max(0, State.TimeLeft)/60), math.max(0, State.TimeLeft)%60)
         UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
         
-        -- Cập nhật Status riêng cho Mode 4
         if Mode == "Nest" then
             local statusStr = State.Phase == "FARMING" and "Đang Farm Boss Chest..." or string.format("Đang đợi Boss: %ds", math.max(0, State.TimeLeft))
             UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | " .. statusStr)
