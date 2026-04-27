@@ -728,29 +728,27 @@ task.spawn(function()
                             if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
                         end 
                     end
-                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
+                    if eggToken == 0 then pcall(function() eggToken = CurrencyCmds.Get("SpringEggTokens") or 0 end) end
                     
                     local currentUnlocked = save.Easter2026UnlockedEggs or 1
                     local activeEgg = save.Easter2026ActiveEgg or 1
                     local target = _G.CurrentTargetEgg
                     
-                    -- Mua dần đến khi đạt trứng mục tiêu (nếu đủ tiền)
-                    if currentUnlocked < target then
-                        for _, egg in ipairs(SpringEggUnlocks) do
-                            if egg.number > currentUnlocked and egg.number <= target and eggToken >= egg.cost then 
-                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
-                                task.wait(0.5)
-                            end
+                    -- PHẦN 1: MUA TRỨNG (Luôn mua trứng cao hơn nếu đủ tiền, KHÔNG bị giới hạn bởi Target)
+                    for _, egg in ipairs(SpringEggUnlocks) do
+                        if egg.number > currentUnlocked and eggToken >= egg.cost then 
+                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
+                            task.wait(0.5)
+                            
+                            -- Cập nhật lại số trứng đã mở khóa ngầm để phần Chọn Trứng bên dưới nhận diện đúng
+                            currentUnlocked = egg.number 
+                            break -- Chỉ mua 1 quả mỗi nhịp để Server không báo spam
                         end
                     end
                     
-                    -- Chọn trứng (Trứng mục tiêu, hoặc trứng cao nhất đang có nếu chưa unlock tới mục tiêu)
-                    local newSave = Save.Get()
-                    local newUnlocked = newSave.Easter2026UnlockedEggs or currentUnlocked
-                    local newActive = newSave.Easter2026ActiveEgg or activeEgg
-                    local eggToSelect = math.min(target, newUnlocked)
-                    
-                    if newActive ~= eggToSelect then
+                    -- PHẦN 2: CHỌN TRỨNG (Chọn theo Target, nếu chưa có thì chọn quả cao nhất đang có)
+                    local eggToSelect = math.min(target, currentUnlocked)
+                    if activeEgg ~= eggToSelect then
                         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", eggToSelect) end)
                     end
                 end
