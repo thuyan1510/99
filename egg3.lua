@@ -721,6 +721,7 @@ task.spawn(function()
                 
                 local save = Save.Get()
                 if save then
+                    -- Lấy số lượng Token (Giữ nguyên cấu trúc gốc an toàn nhất)
                     local eggToken = 0
                     if save.Inventory and save.Inventory.Misc then 
                         for _, item in pairs(save.Inventory.Misc) do 
@@ -728,28 +729,37 @@ task.spawn(function()
                             if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
                         end 
                     end
-                    if eggToken == 0 then pcall(function() eggToken = CurrencyCmds.Get("SpringEggTokens") or 0 end) end
+                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
+                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("Easter2026EggTokens")) == "number" and CurrencyCmds.Get("Easter2026EggTokens") or 0 end
                     
                     local currentUnlocked = save.Easter2026UnlockedEggs or 1
                     local activeEgg = save.Easter2026ActiveEgg or 1
                     local target = _G.CurrentTargetEgg
                     
-                    -- PHẦN 1: MUA TRỨNG (Luôn mua trứng cao hơn nếu đủ tiền, KHÔNG bị giới hạn bởi Target)
+                    -- VÒNG LẶP MUA & CHỌN TRỨNG (LOGIC GỐC CỦA BẠN)
                     for _, egg in ipairs(SpringEggUnlocks) do
+                        -- 1. Nếu có trứng cấp cao hơn chưa mở và ĐỦ TIỀN -> Mua luôn!
                         if egg.number > currentUnlocked and eggToken >= egg.cost then 
                             pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
-                            task.wait(0.5)
+                            task.wait(0.5) -- Trễ nhịp cực kỳ quan trọng để Server xử lý
                             
-                            -- Cập nhật lại số trứng đã mở khóa ngầm để phần Chọn Trứng bên dưới nhận diện đúng
-                            currentUnlocked = egg.number 
-                            break -- Chỉ mua 1 quả mỗi nhịp để Server không báo spam
+                            -- Sau khi mua, nếu quả vừa mua vẫn nằm trong ngưỡng Target -> Chọn nó
+                            if egg.number <= target then
+                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
+                            else
+                                -- Nếu đã mua vượt qua mốc Target -> Ép nó cầm lại quả Target
+                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", target) end)
+                            end
+                            break -- Dừng lại chờ vòng lặp sau để không bị Server báo Spam
+                            
+                        -- 2. Nếu không mua gì ở vòng này, kiểm tra xem trứng đang cầm có đúng không
+                        elseif egg.number == currentUnlocked then
+                            -- Số trứng mong muốn là giá trị nhỏ hơn giữa (Trứng cao nhất đang có) và (Target)
+                            local desiredEgg = math.min(currentUnlocked, target)
+                            if activeEgg ~= desiredEgg then
+                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", desiredEgg) end)
+                            end
                         end
-                    end
-                    
-                    -- PHẦN 2: CHỌN TRỨNG (Chọn theo Target, nếu chưa có thì chọn quả cao nhất đang có)
-                    local eggToSelect = math.min(target, currentUnlocked)
-                    if activeEgg ~= eggToSelect then
-                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", eggToSelect) end)
                     end
                 end
             end)
