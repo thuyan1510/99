@@ -442,7 +442,7 @@ function FarmUI.new(UIConfig)
     
     -- 1. TITLE MODE
     local TitleMode = Instance.new("TextLabel", Page2)
-    TitleMode.Size = UDim2.new(0.8, 0, 0, 25); TitleMode.BackgroundTransparency = 1; TitleMode.Font = Enum.Font.FredokaOne; TitleMode.Text = "⚙️ CHỌN CHẾ ĐỘ"
+    TitleMode.Size = UDim2.new(0.8, 0, 0, 25); TitleMode.BackgroundTransparency = 1; TitleMode.Font = Enum.Font.FredokaOne; TitleMode.Text = "⚙️ SELECT MODE"
     TitleMode.TextColor3 = Color3.fromRGB(0, 255, 150); TitleMode.TextScaled = true
     Instance.new("UIStroke", TitleMode).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleMode).Thickness = 2
     local Sp1 = Instance.new("Frame", Page2); Sp1.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp1.Size = UDim2.new(0.6, 0, 0, 2); Sp1.BorderSizePixel = 0
@@ -481,7 +481,7 @@ function FarmUI.new(UIConfig)
 
     -- 3. TITLE EGG
     local TitleEgg = Instance.new("TextLabel", Page2)
-    TitleEgg.Size = UDim2.new(0.8, 0, 0, 25); TitleEgg.BackgroundTransparency = 1; TitleEgg.Font = Enum.Font.FredokaOne; TitleEgg.Text = "🥚 CHỌN TRỨNG ĐỂ ẤP"
+    TitleEgg.Size = UDim2.new(0.8, 0, 0, 25); TitleEgg.BackgroundTransparency = 1; TitleEgg.Font = Enum.Font.FredokaOne; TitleEgg.Text = "🥚 SELECT EGGS FOR INCUBATION"
     TitleEgg.TextColor3 = Color3.fromRGB(0, 255, 150); TitleEgg.TextScaled = true
     Instance.new("UIStroke", TitleEgg).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleEgg).Thickness = 2
     local Sp2 = Instance.new("Frame", Page2); Sp2.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp2.Size = UDim2.new(0.6, 0, 0, 2); Sp2.BorderSizePixel = 0
