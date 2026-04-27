@@ -608,94 +608,134 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ SMART FARM V3
+-- 🚀 ĐỘNG CƠ SMART FARM V3 (NEW.TXT STYLE + MẮT THẦN VẬT LÝ)
 -- ==========================================
-do
-    local originalCalc = PlayerPet.CalculateSpeedMultiplier
+pcall(function()
+    local orig = PlayerPet.CalculateSpeedMultiplier
     PlayerPet.CalculateSpeedMultiplier = function() return math.huge end
+end)
+
+local function getRootPart()
+    local char = Player.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
 end
 
-local function getCurrentZone() return MapCmds.GetCurrentZone() end
-local function getCurrentInstanceID() return InstancingCmds.Get() and InstancingCmds.Get().instanceID or nil end
+-- ===================== MÁY QUÉT VẬT LÝ =====================
 local function getClosestBreakables(range)
     range = range or 150
-    local breakables = {}
     local root = getRootPart()
-    if not root then return breakables end
+    if not root then return {} end
     local rootPos = root.Position
-    local currentZone = getCurrentZone()
-    local instanceID = getCurrentInstanceID()
-    for _, breakable in ipairs(BreakablesFolder:GetChildren()) do
-        if breakable:IsA("Model") then
-            local parentID = breakable:GetAttribute("ParentID")
-            if parentID == currentZone or parentID == instanceID then
-                if (breakable.WorldPivot.Position - rootPos).Magnitude < range then table.insert(breakables, breakable.Name) end
+    local list = {}
+    
+    local breakablesFolder = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+    if breakablesFolder then
+        for _, b in ipairs(breakablesFolder:GetChildren()) do
+            if b:IsA("Model") and b.PrimaryPart then
+                -- 👁️ BỎ QUA KIỂM TRA PARENT ID, CHỈ ĐO KHOẢNG CÁCH
+                if (b:GetPivot().Position - rootPos).Magnitude < range then
+                    table.insert(list, b.Name)
+                end
             end
         end
     end
-    return breakables
+    return list
 end
+
 local function getPlayerPets()
     local pets = {}
-    local allPets = PlayerPet.GetAll()
-    for _, pet in pairs(allPets) do if pet.owner == Player then table.insert(pets, pet) end end
+    for _, pet in pairs(PlayerPet.GetAll()) do
+        if pet.owner == Player then table.insert(pets, pet) end
+    end
     return pets
 end
+
+-- ===================== FAST FARM GỌN NHẸ =====================
 local function fastFarm()
-    local breakables = getClosestBreakables(150)
+    local breaks = getClosestBreakables(150)
     local pets = getPlayerPets()
-    if #breakables == 0 or #pets == 0 then return end
-    local petToBreakable = {}
-    local breakableCount = #breakables
-    local petCount = #pets
-    local basePetsPerBreakable = math.floor(petCount / breakableCount)
-    local extraPets = petCount % breakableCount
-    local petIndex = 1
-    for i, breakableName in ipairs(breakables) do
-        local petsForThis = basePetsPerBreakable + (i <= extraPets and 1 or 0)
-        for _ = 1, petsForThis do
-            local pet = pets[petIndex]
-            if pet then petToBreakable[pet.euid] = breakableName; petIndex = petIndex + 1 end
+    if #breaks == 0 or #pets == 0 then return end
+    
+    local assign = {}
+    local bc = #breaks
+    local pc = #pets
+    local base = math.floor(pc / bc)
+    local extra = pc % bc
+    local idx = 1
+    
+    for i, bname in ipairs(breaks) do
+        local n = base + (i <= extra and 1 or 0)
+        for _ = 1, n do
+            local pet = pets[idx]
+            if pet then assign[pet.euid] = bname; idx = idx + 1 end
         end
     end
-    Network.Fire("Breakables_JoinPetBulk", petToBreakable)
+    Network.Fire("Breakables_JoinPetBulk", assign)
 end
+
+-- ===================== CLICK AURA VẬT LÝ =====================
 local function clickAura(range)
     range = range or 100
     local root = getRootPart()
     if not root then return end
-    local rootPos = root.Position
-    for _, breakable in ipairs(BreakablesFolder:GetChildren()) do
-        if breakable:IsA("Model") and (rootPos - breakable.WorldPivot.Position).Magnitude < range then
-            Network.UnreliableFire("Breakables_PlayerDealDamage", breakable.Name)
-            break
+    local rp = root.Position
+    
+    local breakablesFolder = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+    if breakablesFolder then
+        for _, b in ipairs(breakablesFolder:GetChildren()) do
+            if b:IsA("Model") and b.PrimaryPart then
+                -- 👁️ BỎ QUA KIỂM TRA PARENT ID
+                if (rp - b:GetPivot().Position).Magnitude < range then
+                    Network.UnreliableFire("Breakables_PlayerDealDamage", b.Name)
+                    break
+                end
+            end
         end
     end
 end
+
+-- ===================== THU THẬP VẬT PHẨM =====================
 local function collectOrbsAndLootbags()
     pcall(function()
-        if OrbsFolder then 
-            for _, orb in ipairs(OrbsFolder:GetChildren()) do
-                local number = tonumber(orb.Name)
-                if number then Network.Fire("Orbs: Collect", number); orb:Destroy() end
+        local orbs = Workspace.__THINGS:FindFirstChild("Orbs")
+        if orbs then
+            for _, orb in ipairs(orbs:GetChildren()) do
+                local n = tonumber(orb.Name)
+                if n then Network.Fire("Orbs: Collect", n); orb:Destroy() end
             end
         end
-        if LootbagsFolder then
-            local bagIds = {}
-            for _, bag in ipairs(LootbagsFolder:GetChildren()) do
-                if bag:IsA("Model") or bag:IsA("Part") then table.insert(bagIds, bag.Name); bag:Destroy() end 
+        local loot = Workspace.__THINGS:FindFirstChild("Lootbags")
+        if loot then
+            local ids = {}
+            for _, bag in ipairs(loot:GetChildren()) do
+                if bag:IsA("Model") or bag:IsA("Part") then table.insert(ids, bag.Name); bag:Destroy() end
             end
-            if #bagIds > 0 then Network.Fire("Lootbags_Claim", bagIds) end
+            if #ids > 0 then Network.Fire("Lootbags_Claim", ids) end
         end
     end)
 end
 
-task.spawn(function()
-    while task.wait(0.05) do
-        if _G.CurrentPhase == "FARMING" and _G.FarmReady then pcall(fastFarm); pcall(function() clickAura(100) end); pcall(collectOrbsAndLootbags) end
-    end
+-- ===================== LUỒNG FARM TÁCH RỜI SIÊU TỐC =====================
+-- Luồng 1: Điều phối Pet (0.15s)
+task.spawn(function() 
+    while true do 
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then 
+            pcall(fastFarm) 
+        end
+        task.wait(0.15) 
+    end 
 end)
 
+-- Luồng 2: Spam Click & Hút đồ (0.05s)
+task.spawn(function() 
+    while true do 
+        if _G.CurrentPhase == "FARMING" and _G.FarmReady then 
+            pcall(clickAura, 100)
+            pcall(collectOrbsAndLootbags) 
+        end
+        task.wait(0.05) 
+    end 
+end)
 -- ==========================================
 -- 🚀 NETWORK AUTO UPGRADE & TARGET EGG (V97 - HOÀN TOÀN ĐỘC LẬP)
 -- ==========================================
@@ -1058,4 +1098,4 @@ task.spawn(function()
             UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " (Egg " .. _G.CurrentTargetEgg .. ") | Target Portal: " .. State.CurrentPortal)
         end
     end
-end)
+end)s
