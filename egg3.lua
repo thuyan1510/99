@@ -777,7 +777,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 SMART ROUND-ROBIN PORTALS & STATE MACHINE
+-- 🚀 SMART ROUND-ROBIN PORTALS & STATE MACHINE (V94 - SMART SYNC)
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
@@ -796,25 +796,23 @@ _G.ChangeScriptMode = function(newMode, newDisplay)
     ModeDisplay = newDisplay
     State.IsReady = false
     _G.FarmReady = false
+    _G.ModeChanging = true
     
     task.spawn(function()
         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
-        task.wait(0.5)
-        TeleportPlayer(HatchZoneCF)
+        TeleportPlayer(CFrame.new(0, 10, 0))
+        task.wait(3)
+        if Mode == "HatchOnly" then 
+            State.Phase = "HATCHING"; State.TimeLeft = math.huge
+        else 
+            State.Phase = "FARMING"; State.TimeLeft = 0
+            if Mode == "Nest" then State.CurrentPortal = 5 else State.CurrentPortal = 1 end
+        end
+        _G.CurrentPhase = State.Phase
+        _G.ModeChanging = false
     end)
-    
-    if Mode == "HatchOnly" then 
-        State.Phase = "HATCHING"
-        State.TimeLeft = math.huge
-    else 
-        State.Phase = "FARMING"
-        State.TimeLeft = 0
-        if Mode == "Nest" then State.CurrentPortal = 5 else State.CurrentPortal = 1 end
-    end
-    _G.CurrentPhase = State.Phase
 end
 
--- HÀM API ĐỔI TRỨNG TỪ UI
 _G.ChangeTargetEgg = function(eggNum)
     _G.CurrentTargetEgg = eggNum
 end
@@ -825,7 +823,6 @@ local function SmartEnterZone()
     for i = 0, 3 do
         local tryPortal = ((State.CurrentPortal - 1 + i) % 4) + 1
         local serverZoneID = tryPortal + 1 
-        
         local root = getRootPart()
         local startPos = root and root.Position or Vector3.new(0,0,0)
         
@@ -864,7 +861,6 @@ end
 local function EnterNestZone()
     _G.FarmReady = false; _G.CurrentFarmCF = nil
     local success = false
-    
     local root = getRootPart()
     local startPos = root and root.Position or Vector3.new(0,0,0)
     
@@ -908,6 +904,26 @@ local function ReturnToHubNetwork()
     task.wait(1); TeleportPlayer(HatchZoneCF)
 end
 
+-- Hàm nội bộ quét bảng thời gian trong Game
+local function GetGameTimerText()
+    local textToReturn = nil
+    pcall(function()
+        if InstanceContainer and InstanceContainer:FindFirstChild("Active") then
+            for _, desc in ipairs(InstanceContainer.Active:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Visible then
+                    local txt = desc.Text
+                    -- Tìm các chuỗi thời gian dạng 00:00 hoặc XXs
+                    if txt:match("%d+:%d+") or txt:match("^%d+s$") then
+                        textToReturn = txt
+                        break
+                    end
+                end
+            end
+        end
+    end)
+    return textToReturn
+end
+
 task.spawn(function()
     local root = getRootPart()
     if root then root.Anchored = true end
@@ -921,10 +937,16 @@ task.spawn(function()
     
     local currentEnchantPhase = ""
     local NestEntryTime = 0
+    local HasKilledBoss = false
 
     while task.wait(1) do
+        if _G.ModeChanging then
+            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | Conversion in progress (Wait 3 seconds)...")
+            continue
+        end
+
         if InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" then
-            UI:SetText("ModeInfo", "Đang tải Event Hub...")
+            UI:SetText("ModeInfo", "Loading Event Hub...")
             pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
             task.wait(2); continue
         end
@@ -934,7 +956,7 @@ task.spawn(function()
                 if Mode == "Nest" then
                     local entered = EnterNestZone()
                     if entered then
-                        State.IsReady = true; State.TimeLeft = 120; NestEntryTime = os.time()
+                        State.IsReady = true; HasKilledBoss = false; NestEntryTime = os.time()
                     else
                         State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60 
                         ReturnToHubNetwork(); State.IsReady = true
@@ -960,14 +982,31 @@ task.spawn(function()
             if Mode == "Nest" then
                 if State.Phase == "FARMING" then
                     local breakables = getClosestBreakables(150)
-                    if (os.time() - NestEntryTime > 3) then
-                        if #breakables == 0 or State.TimeLeft <= 0 then
-                            State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30
+                    local gameTimer = GetGameTimerText()
+                    
+                    if #breakables > 0 then
+                        HasKilledBoss = true
+                        UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | ⚔️ Farming Boss Chest!")
+                        NestEntryTime = os.time()
+                    else
+                        if not HasKilledBoss then
+                            -- CHƯA CÓ RƯƠNG: Đứng yên đợi rương xuất hiện, tuyệt đối không ra ngoài
+                            local waitMsg = gameTimer and ("⏳ Wait for the chest: " .. gameTimer) or "⏳ Wait for the chest to appear...."
+                            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | " .. waitMsg)
+                            
+                            -- Failsafe: Nếu kẹt trong phòng quá 3 phút (game lỗi không sinh rương) thì mới reset
+                            if os.time() - NestEntryTime > 300 then
+                                State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30; HasKilledBoss = false
+                            end
+                        else
+                            -- ĐÃ ĐẬP XONG: Rút ra ngoài sảnh ấp trứng
+                            State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30; HasKilledBoss = false
                         end
                     end
                 elseif State.Phase == "HATCHING" and State.TimeLeft <= 0 then
                     State.Phase = "FARMING"; State.IsReady = false
                 end
+                
             elseif Mode == "Combine" then 
                 if State.Phase == "FARMING" and State.TimeLeft <= 0 then
                     State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false
@@ -1004,17 +1043,8 @@ task.spawn(function()
         local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(math.max(0, State.TimeLeft)/60), math.max(0, State.TimeLeft)%60)
         UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
         
-        local modeTitle = "Mode: " .. ModeDisplay .. " (Egg " .. _G.CurrentTargetEgg .. ")"
-        if Mode == "Nest" then
-            local statusStr = ""
-            if State.Phase == "FARMING" then statusStr = "Đang Farm Boss Chest..."
-            else
-                if State.TimeLeft > 30 then statusStr = string.format("Cổng 5 khóa! Đợi: %ds", math.max(0, State.TimeLeft))
-                else statusStr = string.format("Đợi rương hồi: %ds", math.max(0, State.TimeLeft)) end
-            end
-            UI:SetText("ModeInfo", modeTitle .. " | " .. statusStr)
-        else
-            UI:SetText("ModeInfo", modeTitle .. " | Target Portal: " .. State.CurrentPortal)
+        if Mode ~= "Nest" then
+            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " (Egg " .. _G.CurrentTargetEgg .. ") | Target Portal: " .. State.CurrentPortal)
         end
     end
 end)
