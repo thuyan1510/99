@@ -1143,14 +1143,25 @@ task.spawn(function()
                             local inv = Save.Get().Inventory[invType] or {}
                             
                             local bestUid, bestCraftAmt, bestTier, bestName = nil, 0, 999, ""
-                            local IgnoreEnchants = { "Magnet 3","Happy Pets","Speed 5","Tap Teamwork","Tap Blast",Fruity,Lightning }   
+                            
+                            -- DANH SÁCH CHO PHÉP (WHITELIST)
+                            local AllowedEnchants = { "Treasure Hunter", "Tap Power", "Strong Pets", "Lucky Eggs", "Diamonds", "Criticals", "Coins" }
+                            local AllowedPotions = { "Coins", "Damage", "Diamonds", "Lucky Eggs", "Treasure Hunter" }
 
                             for uid, dat in pairs(inv) do
                                 local tier = dat.tn or 1
-                                local nameTier = (dat.id or "") .. " " .. tier
+                                local baseName = dat.id or ""
                                 local maxTierAllowed = isPotion and 4 or 3
 
-                                if tier >= 1 and tier <= maxTierAllowed and (isPotion or not table.find(IgnoreEnchants, nameTier)) then
+                                -- Kiểm tra danh sách trắng
+                                local isAllowed = false
+                                if isPotion then
+                                    isAllowed = table.find(AllowedPotions, baseName) ~= nil
+                                else
+                                    isAllowed = table.find(AllowedEnchants, baseName) ~= nil
+                                end
+
+                                if tier >= 1 and tier <= maxTierAllowed and isAllowed then
                                     setthreadidentity(4)
                                     local reqPerUpgrade = isPotion and CalcPotion(tier) or CalcEnchant(tier)
                                     local amt = dat._am or 1
@@ -1161,11 +1172,11 @@ task.spawn(function()
                                             bestTier = tier
                                             bestCraftAmt = possibleCraft
                                             bestUid = uid
-                                            bestName = dat.id or "Unknown"
+                                            bestName = baseName
                                         elseif tier == bestTier and possibleCraft > bestCraftAmt then
                                             bestCraftAmt = possibleCraft
                                             bestUid = uid
-                                            bestName = dat.id or "Unknown"
+                                            bestName = baseName
                                         end
                                     end
                                 end
@@ -1190,18 +1201,17 @@ task.spawn(function()
                             else
                                 _G.StuckCooldown[quest.name] = os.time()
                                 SendMaterialShortageWebhook(QuestNames[quest.name] or quest.name)
-                                UpdateStatus("Out of ingredients for juicing. " .. (isPotion and "Medicine" or "Enchant") .. "!Skip 5 minutes.", "COOLDOWN_UPGRADE")
+                                UpdateStatus("Out of ingredients for juicing " .. (isPotion and "Medicine" or "Enchant") .. "! Skip 5 minutes.", "COOLDOWN_UPGRADE")
                             end
                         else
                             if not waitingQuestLogText then
-                                waitingQuestLogText = string.format("Waiting for the pressing process to complete. %s (%s/%s)...", isPotion and "Medicine" or "Enchant", FormatValue(quest.progress), FormatValue(quest.target))
+                                waitingQuestLogText = string.format("Waiting for the pressing process to complete %s (%s/%s)...", isPotion and "Medicine" or "Enchant", FormatValue(quest.progress), FormatValue(quest.target))
                                 waitingQuestLogId = "LOG_UPGRADE_" .. quest.goalId
                                 if not currentActiveQuestName then currentActiveQuestName = quest.name end
                             end
                         end
                     end
                 end
-
                 -- 5. Ấp Trứng
                 if quest.name == "BEST_EGG" or quest.name == "HATCH_RARE_PET" or quest.name == "EGG" then
                     if not actionTakenThisLoop then
