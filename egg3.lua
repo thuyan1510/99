@@ -697,14 +697,16 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 NETWORK AUTO UPGRADE & TARGET EGG
+-- 🚀 NETWORK AUTO UPGRADE & TARGET EGG (V97 - HOÀN TOÀN ĐỘC LẬP)
 -- ==========================================
 local SpringEggUnlocks = { 
     { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 },
     { number = 6, cost = 3000000 }, { number = 7, cost = 100000000 }, { number = 8, cost = 280000000 }
 }
 task.spawn(function()
-    while task.wait(5) do
+    while task.wait(3) do
+        
+        -- [PHA 1]: MUA NÂNG CẤP SỨC MẠNH (Chỉ chạy khi bật AutoUpgrade trong Config)
         if AutoUpgrade then
             pcall(function()
                 for upgradeId, upgradeData in pairs(EventUpgradesDir) do
@@ -713,60 +715,61 @@ task.spawn(function()
                         local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
                         if nextTierCost and nextTierCost._data then
                             local cId, costAmount = nextTierCost._data.id, nextTierCost._data._am or 1
-                            local currentAmount = Items.Misc(cId) and Items.Misc(cId):CountExact() or (CurrencyCmds.Get(cId) or 0)
+                            local currentAmount = 0
+                            pcall(function() currentAmount = Items.Misc(cId) and Items.Misc(cId):CountExact() or 0 end)
+                            if currentAmount == 0 then pcall(function() currentAmount = CurrencyCmds.Get(cId) or 0 end) end
+                            
                             if currentAmount >= costAmount then EventUpgradeCmds.Purchase(upgradeId) end
-                        end
-                    end
-                end
-                
-                local save = Save.Get()
-                if save then
-                    -- Lấy số lượng Token (Giữ nguyên cấu trúc gốc an toàn nhất)
-                    local eggToken = 0
-                    if save.Inventory and save.Inventory.Misc then 
-                        for _, item in pairs(save.Inventory.Misc) do 
-                            local idStr = (item.id or ""):lower()
-                            if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
-                        end 
-                    end
-                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
-                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("Easter2026EggTokens")) == "number" and CurrencyCmds.Get("Easter2026EggTokens") or 0 end
-                    
-                    local currentUnlocked = save.Easter2026UnlockedEggs or 1
-                    local activeEgg = save.Easter2026ActiveEgg or 1
-                    local target = _G.CurrentTargetEgg
-                    
-                    -- VÒNG LẶP MUA & CHỌN TRỨNG (LOGIC GỐC CỦA BẠN)
-                    for _, egg in ipairs(SpringEggUnlocks) do
-                        -- 1. Nếu có trứng cấp cao hơn chưa mở và ĐỦ TIỀN -> Mua luôn!
-                        if egg.number > currentUnlocked and eggToken >= egg.cost then 
-                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
-                            task.wait(0.5) -- Trễ nhịp cực kỳ quan trọng để Server xử lý
-                            
-                            -- Sau khi mua, nếu quả vừa mua vẫn nằm trong ngưỡng Target -> Chọn nó
-                            if egg.number <= target then
-                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
-                            else
-                                -- Nếu đã mua vượt qua mốc Target -> Ép nó cầm lại quả Target
-                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", target) end)
-                            end
-                            break -- Dừng lại chờ vòng lặp sau để không bị Server báo Spam
-                            
-                        -- 2. Nếu không mua gì ở vòng này, kiểm tra xem trứng đang cầm có đúng không
-                        elseif egg.number == currentUnlocked then
-                            -- Số trứng mong muốn là giá trị nhỏ hơn giữa (Trứng cao nhất đang có) và (Target)
-                            local desiredEgg = math.min(currentUnlocked, target)
-                            if activeEgg ~= desiredEgg then
-                                pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", desiredEgg) end)
-                            end
                         end
                     end
                 end
             end)
         end
+        
+        -- [PHA 2]: MUA VÀ CHỌN TRỨNG (LUÔN LUÔN CHẠY BẤT CHẤP CONFIG)
+        pcall(function()
+            local save = Save.Get()
+            if not save then return end
+            
+            local eggToken = 0
+            if save.Inventory and save.Inventory.Misc then 
+                for _, item in pairs(save.Inventory.Misc) do 
+                    local idStr = (item.id or ""):lower()
+                    if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
+                end 
+            end
+            if eggToken == 0 then pcall(function() eggToken = CurrencyCmds.Get("SpringEggTokens") or 0 end) end
+            if eggToken == 0 then pcall(function() eggToken = CurrencyCmds.Get("Easter2026EggTokens") or 0 end) end
+            
+            local currentUnlocked = save.Easter2026UnlockedEggs or 1
+            local activeEgg = save.Easter2026ActiveEgg or 1
+            local target = _G.CurrentTargetEgg or 8
+            
+            for _, egg in ipairs(SpringEggUnlocks) do
+                -- Mua nếu đủ điều kiện
+                if egg.number > currentUnlocked and eggToken >= egg.cost then 
+                    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
+                    task.wait(0.5) 
+                    
+                    if egg.number <= target then
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
+                    else
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", target) end)
+                    end
+                    break 
+                    
+                -- Kiểm tra lại việc chọn trứng nếu không mua
+                elseif egg.number == currentUnlocked then
+                    local desiredEgg = math.min(currentUnlocked, target)
+                    if activeEgg ~= desiredEgg then
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", desiredEgg) end)
+                    end
+                end
+            end
+        end)
+        
     end
 end)
-
 task.spawn(function() while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end end)
 task.spawn(function() while task.wait(5) do pcall(function() local save = Save.Get(); if not save then return end; local redeemed = save.FreeGiftsRedeemed or {}; local currentTime = save.FreeGiftsTime or 0; for _, gift in pairs(FreeGiftsDirectory) do if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id); break end end end) end end)
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
