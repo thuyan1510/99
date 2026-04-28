@@ -1,3 +1,6 @@
+-- ============================================
+-- 🚀 AUTO RANK UP – TỐI ƯU HIỆU NĂNG (Poodle)
+-- ============================================
 if _G.AutoRankStarted then return end
 _G.AutoRankStarted = true
 
@@ -35,7 +38,7 @@ local CalcPotion = require(ReplicatedStorage.Library.Balancing.CalcPotionsPerTie
 local CalcEnchant = require(ReplicatedStorage.Library.Balancing.CalcEnchantsPerTierRequired)
 local FlexibleFlagCmds = require(Library.Client.FlexibleFlagCmds)
 local DirectoryEggs = require(Library.Directory.Eggs)
-local ZoneFlagsDir = require(Library.Directory.ZoneFlags) 
+local ZoneFlagsDir = require(Library.Directory.ZoneFlags)
 local DaycareCmds = require(Library.Client.DaycareCmds)
 local DaycareLoot = require(Library.Modules.DaycareLoot)
 local PetItem = require(Library.Items.PetItem)
@@ -48,21 +51,20 @@ local NOTIFY_SHORTAGE = config.NotifyOnMaterialShortage or false
 local lastRank = 1
 pcall(function() lastRank = Save.Get().Rank or 1 end)
 
+-- ====================== [ WEBHOOK ] ======================
 local function SendRankUpWebhook(newRank, newTitle)
     local httprequest = (request or http_request or syn and syn.request)
     if not httprequest or WEBHOOK_URL == "" then return end
     local data = {
         ["content"] = "<@" .. PING_ID .. "> Level up notification!",
-        ["embeds"] = {
-            {
-                ["title"] = "🎉 LEVEL UP NOTIFICATION 🎉",
-                ["description"] = "**Account:** ||" .. LocalPlayer.Name .. "||\n**Ranked Up To:** Rank " .. tostring(newRank) .. " - " .. tostring(newTitle),
-                ["type"] = "rich",
-                ["color"] = tonumber(0x00FF00),
-                ["footer"] = { ["text"] = "Poodle Auto Rank System" },
-                ["timestamp"] = DateTime.now():ToIsoDate()
-            }
-        }
+        ["embeds"] = {{
+            ["title"] = "🎉 LEVEL UP NOTIFICATION 🎉",
+            ["description"] = "**Account:** ||" .. LocalPlayer.Name .. "||\n**Ranked Up To:** Rank " .. tostring(newRank) .. " - " .. tostring(newTitle),
+            ["type"] = "rich",
+            ["color"] = tonumber(0x00FF00),
+            ["footer"] = { ["text"] = "Poodle Auto Rank System" },
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
     }
     pcall(function()
         httprequest({ Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) })
@@ -75,22 +77,21 @@ local function SendMaterialShortageWebhook(questName)
     if not httprequest then return end
     local data = {
         ["content"] = "⚠️ Alert: More ingredients are needed!",
-        ["embeds"] = {
-            {
-                ["title"] = "Out of Quest Materials!",
-                ["description"] = "**Account:** ||" .. LocalPlayer.Name .. "||\n**The mission is stuck.:** " .. tostring(questName) .. "\n*The system automatically skipped this task for 5 minutes.*",
-                ["type"] = "rich",
-                ["color"] = tonumber(0xFF5500),
-                ["footer"] = { ["text"] = "Poodle Auto Rank System" },
-                ["timestamp"] = DateTime.now():ToIsoDate()
-            }
-        }
+        ["embeds"] = {{
+            ["title"] = "Out of Quest Materials!",
+            ["description"] = "**Account:** ||" .. LocalPlayer.Name .. "||\n**The mission is stuck.:** " .. tostring(questName) .. "\n*The system automatically skipped this task for 5 minutes.*",
+            ["type"] = "rich",
+            ["color"] = tonumber(0xFF5500),
+            ["footer"] = { ["text"] = "Poodle Auto Rank System" },
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
     }
     pcall(function()
         httprequest({ Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) })
     end)
 end
 
+-- ====================== [ ANTI STUCK ] ======================
 task.spawn(function()
     pcall(function()
         local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -98,52 +99,73 @@ task.spawn(function()
         local hum = character:WaitForChild("Humanoid")
         local bg = Instance.new("BodyGyro")
         local bv = Instance.new("BodyVelocity")
-        bg.P = 9e4
-        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-        bg.cframe = hrp.CFrame
-        bg.Parent = hrp
-        bv.velocity = Vector3.new(0, 0, 0)
-        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-        bv.Parent = hrp
+        bg.P = 9e4; bg.maxTorque = Vector3.new(9e9, 9e9, 9e9); bg.cframe = hrp.CFrame; bg.Parent = hrp
+        bv.velocity = Vector3.new(0, 0, 0); bv.maxForce = Vector3.new(9e9, 9e9, 9e9); bv.Parent = hrp
         task.spawn(function()
-            while task.wait() do
-                pcall(function()
-                    hum.PlatformStand = true
-                    bv.velocity = Vector3.new(0, 0, 0)
-                    bg.cframe = hrp.CFrame
-                end)
-            end
+            while task.wait() do pcall(function() hum.PlatformStand = true; bv.velocity = Vector3.new(0, 0, 0); bg.cframe = hrp.CFrame end) end
         end)
     end)
 end)
 
-local function ExtremeOptimize(v)
+-- ====================== [ TỐI ƯU HÓA ĐỒ HỌA CỰC ĐẠI ] ======================
+local optimized = {}
+local function ExtremeOptimize(obj)
     pcall(function()
-        if v:IsA("BasePart") then
-            v.Material = Enum.Material.Plastic
-            v.Reflectance = 0
-            v.CastShadow = false
-        elseif v:IsA("Decal") or v:IsA("Texture") then
-            v.Transparency = 1
-        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Sparkles") or v:IsA("Smoke") then
-            v.Enabled = false
-        elseif v:IsA("Explosion") then
-            v.Visible = false
-        elseif v:IsA("PostEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("BlurEffect") then
-            v.Enabled = false
+        if optimized[obj] then return end
+        optimized[obj] = true
+        local cls = obj.ClassName
+        if cls == "Part" or cls == "MeshPart" or cls == "WedgePart" or cls == "TrussPart" then
+            obj.Material = Enum.Material.Plastic; obj.Reflectance = 0; obj.CastShadow = false
+        elseif cls == "Decal" or cls == "Texture" then
+            obj.Transparency = 1
+        elseif cls == "ParticleEmitter" or cls == "Trail" or cls == "Beam" or cls == "Fire" or cls == "Sparkles" or cls == "Smoke" then
+            obj.Enabled = false
+        elseif cls == "Explosion" then
+            obj.Visible = false
+        elseif cls == "PostEffect" or cls == "SunRaysEffect" or cls == "ColorCorrectionEffect" or cls == "BloomEffect" or cls == "DepthOfFieldEffect" or cls == "BlurEffect" then
+            obj.Enabled = false
         end
     end)
 end
 
-for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
-for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
+-- Xử lý theo lô (batch) để không đứng hình
+task.spawn(function()
+    local queue = {}
+    local function processQueue()
+        for i = 1, 50 do
+            local obj = table.remove(queue, 1)
+            if not obj then break end
+            ExtremeOptimize(obj)
+        end
+        if #queue > 0 then
+            task.wait(0.2)
+            processQueue()
+        end
+    end
+    -- Chỉ quét các vùng chính
+    local mainFolders = {"Map", "Map2", "Map3", "Map4", "Map5", "Map6", "__THINGS"}
+    for _, folderName in ipairs(mainFolders) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, desc in ipairs(folder:GetDescendants()) do
+                table.insert(queue, desc)
+            end
+        end
+    end
+    for _, desc in ipairs(Lighting:GetDescendants()) do table.insert(queue, desc) end
+    processQueue()
+end)
 
-Workspace.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
+-- Optimize các object mới được thêm vào
+Workspace.DescendantAdded:Connect(function(v)
+    if v:IsDescendantOf(Workspace) then ExtremeOptimize(v) end
+end)
 Lighting.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
 
+-- ====================== [ LOAD UTILS ] ======================
 local function loadUtils(url, file)
     local path = "Poodle-Utils/" .. file
-    local ok, res = pcall(function() return game:HttpGet(url) end) 
+    local ok, res = pcall(function() return game:HttpGet(url) end)
     if ok and res then
         if not isfolder("Poodle-Utils") then makefolder("Poodle-Utils") end
         writefile(path, res)
@@ -158,19 +180,54 @@ vm:Add("AllBreakables", {}, "table")
 vm:Add("Euids", {}, "table")
 vm:Add("PetIDs", {}, "table")
 vm:Add("current_zone", nil, "string")
-vm:Add("IsReadyToFarm", false, "boolean") 
-vm:Add("OutZoneTime", 0, "number") 
+vm:Add("IsReadyToFarm", false, "boolean")
+vm:Add("OutZoneTime", 0, "number")
 vm:Add("TargetZoneId", nil, "string")
 vm:Add("FlagZoneOffset", 0, "number")
-vm:Add("IsPetQuestActive", false, "boolean") 
+vm:Add("IsPetQuestActive", false, "boolean")
 
-pcall(function() 
+-- Cache hash cho Fast Farm
+local lastFarmHash = ""
+
+-- ====================== [ INF PET SPEED ] ======================
+pcall(function()
     local PetModule = require(Library.Client.PlayerPet)
-    PetModule.CalculateSpeedMultiplier = function() return math.huge end 
+    PetModule.CalculateSpeedMultiplier = function() return math.huge end
 end)
 
-LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end)
+-- ====================== [ ANTI-AFK TOÀN DIỆN ] ======================
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
 
+local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "InvokeServer" then
+        local args = {...}
+        local cmd = tostring(args[1] or "")
+        if cmd == "Idle Tracking: Update Timer" or cmd == "AFK_Ping" then return end
+    end
+    return oldNamecall(self, ...)
+end)
+
+pcall(function()
+    if getconnections then
+        for _, v in pairs(getconnections(UserInputService.WindowFocusReleased)) do pcall(function() v:Disable() end) end
+        for _, v in pairs(getconnections(UserInputService.WindowFocused)) do pcall(function() v:Disable() end) end
+        for _, v in pairs(getconnections(LocalPlayer.Idled)) do pcall(function() v:Disable() end) end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(60) do
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+        end)
+    end
+end)
+
+-- ====================== [ ẨN HOẠT ẢNH TRỨNG ] ======================
 getgenv().HideEggAnimation = true
 local EggFrontend = nil
 pcall(function() EggFrontend = getsenv(LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"]) end)
@@ -185,12 +242,14 @@ local function ToggleEggAnimation()
     end
 end
 
+-- ====================== [ HELPER FUNCTIONS ] ======================
 local function GetCurrentWorldNumber() return WorldsUtil.GetWorld() and WorldsUtil.GetWorld().WorldNumber or 1 end
 local function getcurrency()
     local worldNum = GetCurrentWorldNumber()
     local currencies = { [1] = "Coins", [2] = "TechCoins", [3] = "VoidCoins", [4] = "FantasyCoins" }
     return CurrencyCmds.Get(currencies[worldNum] or "Coins") or 0
 end
+
 local function GetZoneFolderByOffset(offset)
     local maxZoneId, maxZoneData = ZoneCmds.GetMaxOwnedZone()
     if not maxZoneData then return nil, 1 end
@@ -199,16 +258,15 @@ local function GetZoneFolderByOffset(offset)
     local searchPattern = "^" .. tostring(targetNum) .. " |"
     for _, folderName in ipairs({"Map", "Map2", "Map3", "Map4", "Map5", "Map6"}) do
         local mapFolder = Workspace:FindFirstChild(folderName)
-        if mapFolder then 
-            for _, zoneFolder in pairs(mapFolder:GetChildren()) do 
-                if string.find(zoneFolder.Name, searchPattern) then 
-                    return zoneFolder, targetNum 
-                end 
-            end 
+        if mapFolder then
+            for _, zoneFolder in pairs(mapFolder:GetChildren()) do
+                if string.find(zoneFolder.Name, searchPattern) then return zoneFolder, targetNum end
+            end
         end
     end
     return nil, targetNum
 end
+
 local function GetBestEggModule()
     local maxAvailableEgg = ZoneCmds.GetMaximumOverallZone().MaximumAvailableEgg
     for _, egg in pairs(DirectoryEggs) do
@@ -216,6 +274,7 @@ local function GetBestEggModule()
     end
     return nil
 end
+
 local function HatchBestEgg()
     local maxHatch = EggCmds.GetMaxHatch()
     local bestEgg = GetBestEggModule()
@@ -223,49 +282,51 @@ local function HatchBestEgg()
         Network.Invoke('Eggs_RequestPurchase', bestEgg._id, maxHatch)
     end
 end
+
 local function GetPetsFromEgg()
-    local v35 = {}
+    local pets = {}
     local eggMod = GetBestEggModule()
-    if not eggMod or type(eggMod.pets) ~= "table" then return v35 end
-    for _, v36 in pairs(eggMod.pets) do
-        if type(v36) == "table" and v36[1] and not v36[1]:match('Huge') then table.insert(v35, v36[1]) end
+    if not eggMod or type(eggMod.pets) ~= "table" then return pets end
+    for _, v in pairs(eggMod.pets) do
+        if type(v) == "table" and v[1] and not v[1]:match('Huge') then
+            table.insert(pets, v[1])
+        end
     end
-    return v35
+    return pets
 end
+
 local function GetBestNormalPetsUID()
     local inv = Save.Get().Inventory
     if not inv or type(inv.Pet) ~= "table" then return {} end
-    local v52 = GetPetsFromEgg()
-    local v56 = {}
-    for uid, v57 in pairs(inv.Pet) do
-        if table.find(v52, v57.id) and not (v57.pt or v57.sh) then
-            v56[uid] = { PetName = v57.id, Rarity = v57.pt or 0, UID = uid, Amount = v57._am or 1 }
+    local petNames = GetPetsFromEgg()
+    local result = {}
+    for uid, pet in pairs(inv.Pet) do
+        if table.find(petNames, pet.id) and not (pet.pt or pet.sh) then
+            result[uid] = { PetName = pet.id, Rarity = pet.pt or 0, UID = uid, Amount = pet._am or 1 }
         end
     end
-    return v56
+    return result
 end
+
 local function GetBestGoldenPetsUID()
     local inv = Save.Get().Inventory
     if not inv or type(inv.Pet) ~= "table" then return {} end
-    local v59 = GetPetsFromEgg()
-    local v63 = {}
-    for uid, v64 in pairs(inv.Pet) do
-        if table.find(v59, v64.id) and (v64.pt == 1 and not v64.sh) then
-            v63[uid] = { PetName = v64.id, Rarity = v64.pt, UID = uid, Amount = v64._am or 1 }
+    local petNames = GetPetsFromEgg()
+    local result = {}
+    for uid, pet in pairs(inv.Pet) do
+        if table.find(petNames, pet.id) and pet.pt == 1 and not pet.sh then
+            result[uid] = { PetName = pet.id, Rarity = pet.pt, UID = uid, Amount = pet._am or 1 }
         end
     end
-    return v63
+    return result
 end
 
-if CoreGui:FindFirstChild("AutoRankUI") then
-    CoreGui.AutoRankUI:Destroy()
-end
-
+-- ====================== [ TẠO UI ] ======================
+if CoreGui:FindFirstChild("AutoRankUI") then CoreGui.AutoRankUI:Destroy() end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoRankUI"
 ScreenGui.Parent = CoreGui
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false; ScreenGui.IgnoreGuiInset = true
 
 local FullscreenBG = Instance.new("Frame")
 FullscreenBG.Size = UDim2.new(1, 0, 1, 0)
@@ -440,336 +501,131 @@ for i = 1, 6 do
     QuestLabels[i] = QLabel
 end
 
--- ================= KHUNG HIỂN THỊ LOG HOÀN TOÀN MỚI =================
-local LogFrame = Instance.new("Frame")
-LogFrame.Size = UDim2.new(1, 0, 1, -280)
-LogFrame.Position = UDim2.new(0, 0, 0, 275)
-LogFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-LogFrame.BorderSizePixel = 0
-LogFrame.Parent = RightColumn
-
-local LogCorner = Instance.new("UICorner")
-LogCorner.CornerRadius = UDim.new(0, 8)
-LogCorner.Parent = LogFrame
-
-local LogPadding = Instance.new("UIPadding")
-LogPadding.PaddingLeft = UDim.new(0, 10)
-LogPadding.PaddingRight = UDim.new(0, 10)
-LogPadding.PaddingTop = UDim.new(0, 10)
-LogPadding.PaddingBottom = UDim.new(0, 10)
-LogPadding.Parent = LogFrame
-
-local LogLayout = Instance.new("UIListLayout")
-LogLayout.SortOrder = Enum.SortOrder.LayoutOrder
-LogLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-LogLayout.Padding = UDim.new(0, 4)
-LogLayout.Parent = LogFrame
-
-local LogLines = {}
-for i = 1, 6 do
-    local line = Instance.new("TextLabel")
-    line.Size = UDim2.new(1, 0, 0, 18)
-    line.BackgroundTransparency = 1
-    line.Font = Enum.Font.GothamMedium
-    line.TextColor3 = Color3.fromRGB(200, 200, 200)
-    line.TextSize = 13
-    line.TextXAlignment = Enum.TextXAlignment.Left
-    line.Text = ""
-    line.LayoutOrder = i
-    line.Parent = LogFrame
-    LogLines[i] = line
-end
-
-local MAX_LOG_LINES = 6
-local statusHistory = {}
-local lastUpdateId = nil
-
--- CƠ CHẾ UPDATE LOG TUYỆT ĐỐI CHÍNH XÁC (6 DÒNG)
-local function UpdateStatus(msg, updateId)
-    if updateId and updateId == lastUpdateId and #statusHistory > 0 then
-        if statusHistory[#statusHistory] ~= msg then
-            statusHistory[#statusHistory] = msg
-        end
-    else
-        if #statusHistory > 0 and statusHistory[#statusHistory] == msg then return end
-        table.insert(statusHistory, msg)
-        lastUpdateId = updateId
-    end
-    
-    while #statusHistory > MAX_LOG_LINES do 
-        table.remove(statusHistory, 1) 
-    end
-    
-    for i = 1, MAX_LOG_LINES do 
-        LogLines[i].Text = ""
-        LogLines[i].Visible = false 
-    end
-    
-    for i, textMsg in ipairs(statusHistory) do
-        LogLines[i].Text = textMsg
-        LogLines[i].Visible = true
-    end
-end
-
-local uiVisible = true
-ToggleBtn.MouseButton1Click:Connect(function()
-    uiVisible = not uiVisible
-    FullscreenBG.Visible = uiVisible
-end)
-
-local startTime = os.time()
-local frames = 0
-RunService.RenderStepped:Connect(function()
-    frames = frames + 1
-end)
-task.spawn(function()
-    while task.wait(1) do
-        local diff = os.time() - startTime
-        local h = math.floor(diff / 3600)
-        local m = math.floor((diff % 3600) / 60)
-        local s = diff % 60
-        UptimeLabel.Text = string.format("Uptime: %02d:%02d:%02d", h, m, s)
-        FPSLabel.Text = "FPS: " .. tostring(frames)
-        frames = 0
-    end
-end)
-
-local QuestNames = {
-    ["BEST_EGG"] = "Hatch Best Eggs",
-    ["EGG"] = "Hatch Eggs",
-    ["BREAKABLE"] = "Break Breakables",
-    ["CURRENT_BREAKABLE"] = "Break in Current Area",
-    ["BEST_COIN_JAR"] = "Break Coin Jars",
-    ["COMET"] = "Break Comets",
-    ["COIN_JAR"] = "Break Coin Jars",
-    ["BEST_COMET"] = "Break Comets",
-    ["BEST_MINI_CHEST"] = "Break Mini Chests",
-    ["BEST_SUPERIOR_MINI_CHEST"] = "Break Superior Chests",
-    ["BEST_LUCKYBLOCK"] = "Break Lucky Blocks",
-    ["BEST_PINATA"] = "Break Piñatas",
-    ["LUCKYBLOCK"] = "Break Lucky Blocks",
-    ["PINATA"] = "Break Piñatas",
-    ["BEST_GOLD_PET"] = "Craft Gold Pets",
-    ["BEST_RAINBOW_PET"] = "Craft Rainbow Pets",
-    ["USE_POTION"] = "Use Potions",
-    ["COLLECT_POTION"] = "Upgrade Potions",
-    ["COLLECT_ENCHANT"] = "Upgrade Enchants",
-    ["USE_FLAG"] = "Place Flags",
-    ["DIAMOND_BREAKABLE"] = "Break Diamond Objects",
-    ["HATCH_RARE_PET"] = "Hatch Rare Pets",
-    ["CURRENCY"] = "Collect Currency"
-}
-
-local function onBreakablesDestroyed(data)
-    local tbl = vm:Get("AllBreakables")
-    if type(data) == "string" then 
-        tbl[data] = nil
-    elseif type(data) == "table" then 
-        for _, v in pairs(data) do 
-            tbl[tostring(v[1])] = nil 
-        end 
-    end
-end
-
-local function onBreakablesCreated(data)
-    local tbl = vm:Get("AllBreakables")
-    for _, v in pairs(data) do 
-        if v[1] and v[1].u then 
-            tbl[tostring(v[1].u)] = v[1] 
-        end 
-    end
-end
-
+-- ====================== [ QUẢN LÝ BREAKABLES & PETS ] ======================
 Network.Fired("Breakables_Created"):Connect(onBreakablesCreated)
 Network.Fired("Breakables_Ping"):Connect(onBreakablesCreated)
 Network.Fired("Breakables_Destroyed"):Connect(onBreakablesDestroyed)
 Network.Fired("Breakables_DestroyDueToReplicationFail"):Connect(onBreakablesDestroyed)
-Network.Fired("Breakables_Cleanup"):Connect(function(data) 
+Network.Fired("Breakables_Cleanup"):Connect(function(data)
     local tbl = vm:Get("AllBreakables")
-    for _, v in pairs(data) do tbl[tostring(v[1])] = nil end 
+    for _, v in pairs(data) do tbl[tostring(v[1])] = nil end
 end)
 
 local function updateEuids()
     if type(PetNetworking.EquippedPets()) ~= "table" then return end
     local euids = vm:Get("Euids")
     local petids = vm:Get("PetIDs")
-    for k in pairs(euids) do euids[k] = nil end
-    for k in pairs(petids) do petids[k] = nil end
+    table.clear(euids)
+    table.clear(petids)
     for petID, petData in pairs(PetNetworking.EquippedPets()) do
         euids[petID] = petData
         table.insert(petids, petID)
     end
 end
-
 updateEuids()
 Network.Fired("Pets_LocalPetsUpdated"):Connect(updateEuids)
 Network.Fired("Pets_LocalPetsUnequipped"):Connect(updateEuids)
 
+-- Auto collect orbs & lootbags
 local THINGS = Workspace:WaitForChild("__THINGS")
 local LootbagsFolder = THINGS:FindFirstChild("Lootbags")
-if LootbagsFolder then 
-    LootbagsFolder.ChildAdded:Connect(function(bag) 
+if LootbagsFolder then
+    LootbagsFolder.ChildAdded:Connect(function(bag)
         pcall(function() bag.Transparency = 1 end)
-        task.wait() 
-        if bag then Network.Fire("Lootbags_Claim", { bag.Name }); bag:Destroy() end 
-    end) 
+        task.wait()
+        if bag then Network.Fire("Lootbags_Claim", { bag.Name }); bag:Destroy() end
+    end)
 end
 local OrbsFolder = THINGS:FindFirstChild("Orbs")
-if OrbsFolder then 
-    OrbsFolder.ChildAdded:Connect(function(orb) 
+if OrbsFolder then
+    OrbsFolder.ChildAdded:Connect(function(orb)
         pcall(function() orb.Transparency = 1 end)
-        task.wait() 
-        if orb then Network.Fire("Orbs: Collect", { tonumber(orb.Name) }); orb:Destroy() end 
-    end) 
+        task.wait()
+        if orb then Network.Fire("Orbs: Collect", { tonumber(orb.Name) }); orb:Destroy() end
+    end)
 end
 
-local function GetZonePath(zoneNumber, zoneId)
-    local searchPattern = "^" .. tostring(zoneNumber) .. " |"
-    for _, folderName in ipairs({"Map", "Map2", "Map3", "Map4", "Map5", "Map6"}) do
-        local mapFolder = Workspace:FindFirstChild(folderName)
-        if mapFolder then for _, zoneFolder in pairs(mapFolder:GetChildren()) do if string.find(zoneFolder.Name, searchPattern) then return zoneFolder end end end
-    end
-    return nil
-end
-
+-- ====================== [ TỐI ƯU FAST FARM ] ======================
 task.spawn(function()
-    while task.wait(1) do
-        local currentWorldNum = GetCurrentWorldNumber()
-        local nextZoneId, nextZoneData = ZoneCmds.GetNextZone()
-        local maxZoneId, maxZoneData = ZoneCmds.GetMaxOwnedZone()
-        if not maxZoneData then continue end
-        local nextRebirthData = nil
-        pcall(function() nextRebirthData = RebirthCmds.GetNextRebirth() end)
-        if nextRebirthData and maxZoneData.ZoneNumber >= nextRebirthData.ZoneNumberRequired then
-            vm:Set("IsReadyToFarm", false) 
-            vm:Set("OutZoneTime", 0)
-            UpdateStatus("Chờ thực hiện Rebirth...", "WAIT_REBIRTH")
-            Network.Invoke("Rebirth_Request", tostring(nextRebirthData.RebirthNumber))
-            task.wait(10)
+    local lastAssignments = {}
+    while task.wait(0.15) do
+        if not vm:Get("IsReadyToFarm") then
+            lastAssignments = {}  -- reset cache khi không farm
             continue
         end
-        if nextZoneData and nextZoneData.WorldNumber and nextZoneData.WorldNumber ~= currentWorldNum then
-            vm:Set("IsReadyToFarm", false)
-            vm:Set("OutZoneTime", 0)
-            UpdateStatus("Đang chuyển sang World " .. nextZoneData.WorldNumber .. "...", "WORLD_SWITCH")
-            pcall(function() Network.Invoke("World" .. nextZoneData.WorldNumber .. "Teleport") end)
-            task.wait(8) 
-            continue
-        end
-        if nextZoneData and nextZoneData.WorldNumber == currentWorldNum then
-            local coins = getcurrency()
-            local gatePrice = 0
-            pcall(function() gatePrice = CalcGatePrice(nextZoneData) end)
-            if gatePrice and coins and gatePrice <= coins and not vm:Get("IsPetQuestActive") then
-                vm:Set("IsReadyToFarm", false)
-                local success = Network.Invoke("Zones_RequestPurchase", nextZoneId)
-                if success then 
-                    task.wait(0.5); continue 
-                end
-            end
-        end
-        local zoneFolder = GetZonePath(maxZoneData.ZoneNumber, maxZoneId)
-        if zoneFolder and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPart = nil
-            if zoneFolder:FindFirstChild("INTERACT") and zoneFolder.INTERACT:FindFirstChild("BREAKABLE_SPAWNS") then targetPart = zoneFolder.INTERACT.BREAKABLE_SPAWNS:FindFirstChild("Main") or zoneFolder.INTERACT.BREAKABLE_SPAWNS:GetChildren()[1] end
-            if not targetPart and zoneFolder:FindFirstChild("PERSISTENT") and zoneFolder.PERSISTENT:FindFirstChild("Teleport") then targetPart = zoneFolder.PERSISTENT.Teleport end
-            if targetPart then
-                local hrp = LocalPlayer.Character.HumanoidRootPart
-                local dist = (hrp.Position - targetPart.Position).Magnitude
-                local previousZone = vm:Get("TargetZoneId")
-                if previousZone ~= maxZoneId then
-                    vm:Set("IsReadyToFarm", false)
-                    hrp.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
-                    task.wait(0.5)
-                    vm:Set("TargetZoneId", maxZoneId); vm:Set("OutZoneTime", 0)
-                else
-                    if dist > 45 then
-                        if vm:Get("IsPetQuestActive") then
-                            vm:Set("OutZoneTime", 0)
-                            vm:Set("IsReadyToFarm", false)
-                        else
-                            local outTime = vm:Get("OutZoneTime")
-                            if outTime == 0 then vm:Set("OutZoneTime", os.clock())
-                            elseif os.clock() - outTime >= 5 then
-                                vm:Set("IsReadyToFarm", false)
-                                hrp.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
-                                task.wait(0.5)
-                                vm:Set("OutZoneTime", 0)
-                            end
-                        end
-                    else
-                        vm:Set("OutZoneTime", 0); vm:Set("IsReadyToFarm", true); vm:Set("current_zone", maxZoneId)
-                    end
-                end
-            else vm:Set("IsReadyToFarm", false) end
-        else vm:Set("IsReadyToFarm", false) end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(0.15) do 
-        if not vm:Get("IsReadyToFarm") then continue end
         local zone = vm:Get("current_zone")
         if not zone then continue end
-        local availableBreakables = {}
-        for key, info in pairs(vm:Get("AllBreakables")) do if info.pid == zone then table.insert(availableBreakables, key) end end
-        local petIDs = vm:Get("PetIDs")
-        if #availableBreakables > 0 and #petIDs > 0 then
-            local bulkAssignments = {}
-            local petsPerBreakable = math.floor(#petIDs / #availableBreakables)
-            local extraPets = #petIDs % #availableBreakables
-            local currentPetIndex = 1
-            for i, breakKey in ipairs(availableBreakables) do
-                local countForThisBreakable = petsPerBreakable + (i <= extraPets and 1 or 0)
-                for j = 1, countForThisBreakable do
-                    if currentPetIndex <= #petIDs then
-                        local petID = petIDs[currentPetIndex]
-                        if vm:Get("Euids")[petID] then bulkAssignments[petID] = breakKey end
-                        currentPetIndex = currentPetIndex + 1
-                    end
+
+        local allBreakables = vm:Get("AllBreakables")
+        local available = {}
+        for key, info in pairs(allBreakables) do
+            if info.pid == zone then table.insert(available, key) end
+        end
+        local pets = vm:Get("PetIDs")
+        if #available == 0 or #pets == 0 then continue end
+
+        -- Tạo mapping mới
+        local newAssignments = {}
+        local base = math.floor(#pets / #available)
+        local extra = #pets % #available
+        local petIdx = 1
+        for i, breakKey in ipairs(available) do
+            local count = base + (i <= extra and 1 or 0)
+            for j = 1, count do
+                local petID = pets[petIdx]
+                if petID and vm:Get("Euids")[petID] then
+                    newAssignments[petID] = breakKey
                 end
+                petIdx = petIdx + 1
             end
-            if next(bulkAssignments) then pcall(function() Network.Fire("Breakables_JoinPetBulk", bulkAssignments) end) end
+        end
+
+        -- So sánh với lần trước, nếu không đổi thì bỏ qua
+        local hash = table.concat(available, ",") .. "|" .. table.concat(pets, ",") ..
+                     "|" .. tostring(base) .. "|" .. tostring(extra)
+        if hash ~= lastFarmHash then
+            lastFarmHash = hash
+            if next(newAssignments) then
+                pcall(function() Network.Fire("Breakables_JoinPetBulk", newAssignments) end)
+            end
         end
     end
 end)
 
+-- ====================== [ CLICK AURA NHẸ HƠN ] ======================
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.15) do
         if not vm:Get("IsReadyToFarm") then continue end
         local zone = vm:Get("current_zone")
         if not zone then continue end
+        local all = vm:Get("AllBreakables")
         local count = 0
-        pcall(function()
-            for key, info in pairs(vm:Get("AllBreakables")) do
-                if info.pid == zone then
-                    Network.UnreliableFire("Breakables_PlayerDealDamage", key)
-                    count = count + 1
-                    if count >= 15 then break end 
-                end
+        for key, info in pairs(all) do
+            if info.pid == zone then
+                pcall(function() Network.UnreliableFire("Breakables_PlayerDealDamage", key) end)
+                count = count + 1
+                if count >= 5 then break end
             end
-        end)
+        end
     end
 end)
 
+-- ====================== [ CÁC VÒNG LẶP KHÁC ] ======================
 task.spawn(function() while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end end)
-
 task.spawn(function()
     while task.wait(5) do
         pcall(function()
-            local data = Save.Get()
-            if not data then return end
+            local data = Save.Get(); if not data then return end
             local maxSlots = DaycareCmds.GetMaxSlots()
             local usedSlots = DaycareCmds.GetUsedSlots()
             local freeSlots = maxSlots - usedSlots
             local daycareActive = data.DaycareActive or {}
             for uid, petData in pairs(daycareActive) do
                 if DaycareCmds.ComputeRemainingTime(petData, workspace:GetServerTimeNow()) <= 0 then
-                    Network.Invoke("Daycare: Claim", uid)
-                    task.wait(0.5)
+                    Network.Invoke("Daycare: Claim", uid); task.wait(0.5)
                 end
             end
-            if freeSlots > 0 then
+             if freeSlots > 0 then
                 local invPets = data.Inventory.Pet or {}
                 local equippedPets = {}
                 pcall(function() equippedPets = PetNetworking.EquippedPets() or {} end)
@@ -801,24 +657,20 @@ task.spawn(function()
         end)
     end
 end)
-
 task.spawn(function()
     while task.wait(5) do
         pcall(function()
-            local save = Save.Get()
-            if not save then return end
+            local save = Save.Get(); if not save then return end
             local redeemed = save.FreeGiftsRedeemed or {}
             local currentTime = save.FreeGiftsTime or 0
             for _, gift in pairs(FreeGiftsDirectory) do
                 if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then
-                    Network.Invoke('Redeem Free Gift', gift._id)
-                    break 
+                    Network.Invoke('Redeem Free Gift', gift._id); break
                 end
             end
         end)
     end
 end)
-
 task.spawn(function()
     while task.wait(3) do
         pcall(function()
@@ -830,7 +682,6 @@ task.spawn(function()
         end)
     end
 end)
-
 task.spawn(function()
     while task.wait(1.5) do
         pcall(function()
@@ -841,7 +692,6 @@ task.spawn(function()
         end)
     end
 end)
-
 task.spawn(function()
     while task.wait(5) do
         pcall(function()
@@ -854,7 +704,6 @@ task.spawn(function()
         end)
     end
 end)
-
 local config = getgenv().AutoRankConfig or {}
 local DefaultQuestPriority = {
 	ZONE_GATE = 0, EGG = 1, BEST_EGG = 1, USE_POTION = 1, USE_FLAG = 1,
@@ -1131,7 +980,7 @@ task.spawn(function()
                     end
                 end
                 
-                -- 4. Ép Thuốc / Ép Sách
+               -- 4. Ép Thuốc / Ép Sách
                 if quest.name == "COLLECT_POTION" or quest.name == "COLLECT_ENCHANT" then
                     if not actionTakenThisLoop then
                         local lastTime = vm:Get("ActionTime_" .. quest.goalId) or 0
