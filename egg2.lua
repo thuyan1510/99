@@ -1,6 +1,5 @@
 -- ==========================================
--- 🌸 EASTER EVENT - V92 (ULTIMATE OPTIMIZED - DYNAMIC UI & THE NEST) 🌸
--- Fixed: Portal Entry Logic (StartPos) & Mode Switch Teleport Bug
+-- EASTER EVENT - V93 (ZONE SELECTOR & PRO UI)
 -- ==========================================
 repeat task.wait() until game:IsLoaded()
 if _G.SpringStarted then return end
@@ -20,6 +19,10 @@ elseif rawMode == 2 then Mode, ModeDisplay = "FarmOnly", "Farm Only (2)"
 elseif rawMode == 4 then Mode, ModeDisplay = "Nest", "The Nest (4)"
 end
 
+-- BIEN LUU TRUNG VA CONG MUC TIEU
+_G.CurrentTargetEgg = SafeNumber(UserSettings.TargetEgg, 8)
+_G.CurrentTargetZone = SafeNumber(UserSettings.TargetZone, 0) -- 0 la tat ca cac cong, 1-4 la cong cu the
+
 local FarmTimeMinutes = SafeNumber(UserSettings.FarmTimeMinutes, 20)
 local HatchTimeMinutes = SafeNumber(UserSettings.HatchTimeMinutes, 10)
 local AutoUpgrade = UserSettings.AutoUpgrade ~= false
@@ -31,7 +34,7 @@ local EventLuckSettings = UserSettings.AutoEventLuck or { Enabled = false, Type 
 local EnchantSettings = UserSettings.EquipEnchants or { Farm = {"Coins", "Coins", "Coins", "Coins"}, Hatch = {"Lucky Eggs", "Lucky Eggs", "Lucky Eggs", "Lucky Eggs", "Lucky Eggs"} }
 local WebhookConfig = UserSettings.Webhook or { url = "", ["Discord Id to ping"] = {""} }
 
--- Cache Services
+-- CACHE CÁC DỊCH VỤ CỦA GAME
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -48,7 +51,7 @@ local function getRootPart()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Core Folders Cache
+-- THƯ MỤC LƯU TRỮ VẬT THỂ
 local ThingsFolder = Workspace:WaitForChild("__THINGS")
 local OrbsFolder = ThingsFolder:WaitForChild("Orbs")
 local LootbagsFolder = ThingsFolder:WaitForChild("Lootbags")
@@ -70,7 +73,7 @@ local MapCmds = require(Library.Client.MapCmds)
 local FruitCmds = require(Library.Client.FruitCmds)
 
 -- ==========================================
--- 📢 WEBHOOK DISCORD
+-- WEBHOOK DISCORD
 -- ==========================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
@@ -128,7 +131,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🎰 ĐỘNG CƠ AUTO EVENT LUCK
+-- DONG CO AUTO EVENT LUCK
 -- ==========================================
 local function GetTokenBalances()
     local save = Save.Get()
@@ -182,7 +185,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🍎 SMART AUTO FRUIT
+-- SMART AUTO FRUIT
 -- ==========================================
 local function GetCurrentFruitStack(fruitName)
     local activeFruits = {}
@@ -236,7 +239,7 @@ end
 if AutoEatFruit then task.spawn(function() ManageFruits() end); Network.Fired("Fruits: Update"):Connect(function() task.wait(1); ManageFruits() end); task.spawn(function() while task.wait(30) do ManageFruits() end end) end
 
 -- ==========================================
--- 🔮 ĐỘNG CƠ SMART AUTO EQUIP ENCHANTS
+-- DONG CO SMART AUTO EQUIP ENCHANTS
 -- ==========================================
 local function GetSmartEnchantUIDs(targetEnchantNames)
     local save = Save.Get()
@@ -265,7 +268,7 @@ local function EquipEnchantLoadout(modeName, enchantList)
 end
 
 -- ==========================================
--- 🧲 MÁY QUÉT RAM AN TOÀN & CHỐNG LAG ĐỒ HỌA
+-- MAY QUET RAM AN TOAN & CHONG LAG DO HOA
 -- ==========================================
 for _, v in pairs(getgc(true)) do
     if type(v) == "table" then
@@ -338,7 +341,7 @@ if not IsDebugMode then
 end
 
 -- ==========================================
--- 📍 TỌA ĐỘ & HÀM CHUYỂN ĐỔI CHỮ SỐ
+-- TOA DO & HAM CHUYEN DOI CHU SO
 -- ==========================================
 _G.DynamicHubCF = CFrame.new(-18581.56, 17.03, -29110.16)
 local FarmOffset = Vector3.new(53.53, 0, 0.62)
@@ -365,13 +368,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- 🎨 DYNAMIC UI (HỖ TRỢ ĐỔI MODE TRỰC TIẾP)
+-- DYNAMIC UI (GOC PHAI MAN HINH, THU NHO 30%)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV92"
+	Self.GuiName = "EasterEventGuiV93"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -380,28 +383,39 @@ function FarmUI.new(UIConfig)
 	ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
 	Self.ScreenGui = ScreenGui
 
+    -- Nen giao dien thu nho 30% va nam o goc phai
 	local Background = Instance.new("Frame", ScreenGui)
-	Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(0, 255, 150)
-	Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Position = UDim2.new(0.5, 0, 0.5, 0); Background.AnchorPoint = Vector2.new(0.5, 0.5)
+	Background.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Background.BorderSizePixel = 0
+	Background.Size = UDim2.new(0.35, 0, 0.5, 0)
+    Background.Position = UDim2.new(0.99, 0, 0.01, 0)
+    Background.AnchorPoint = Vector2.new(1, 0)
+    
+    local bgCorner = Instance.new("UICorner", Background); bgCorner.CornerRadius = UDim.new(0.05, 0)
+    local bgStroke = Instance.new("UIStroke", Background); bgStroke.Color = Color3.fromRGB(0, 255, 150); bgStroke.Thickness = 2.5
 
-    -- PAGE 1 (Status)
 	local Page1 = Instance.new("Frame", Background)
 	Page1.Size = UDim2.new(1, 0, 1, 0); Page1.BackgroundTransparency = 1; Self.Container = Page1
 	local Layout1 = Instance.new("UIListLayout", Page1)
-	Layout1.Padding = UDim.new(0.015, 0); Layout1.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout1.VerticalAlignment = Enum.VerticalAlignment.Center; Layout1.SortOrder = Enum.SortOrder.LayoutOrder
+	Layout1.Padding = UDim.new(0.02, 0); Layout1.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout1.VerticalAlignment = Enum.VerticalAlignment.Center; Layout1.SortOrder = Enum.SortOrder.LayoutOrder
 
-    -- PAGE 2 (Settings / Modes)
     local Page2 = Instance.new("Frame", Background)
 	Page2.Size = UDim2.new(1, 0, 1, 0); Page2.BackgroundTransparency = 1; Page2.Visible = false
 	local Layout2 = Instance.new("UIListLayout", Page2)
-	Layout2.Padding = UDim.new(0.035, 0); Layout2.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout2.VerticalAlignment = Enum.VerticalAlignment.Center
+	Layout2.Padding = UDim.new(0.02, 0); Layout2.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout2.VerticalAlignment = Enum.VerticalAlignment.Center
 
-    -- TOGGLE BUTTON (3 States: Page1 -> Page2 -> Hidden)
+    -- Nut bat tat o goc phai
     local ToggleState = 1
     local ToggleBtn = Instance.new("TextButton", ScreenGui)
-    ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 22; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+    ToggleBtn.Size = UDim2.new(0, 40, 0, 40)
+    ToggleBtn.Position = UDim2.new(1, -10, 0, 10)
+    ToggleBtn.AnchorPoint = Vector2.new(1, 0)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 20; ToggleBtn.BorderSizePixel = 0
+    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+    local btnStroke = Instance.new("UIStroke", ToggleBtn); btnStroke.Color = Color3.fromRGB(0, 255, 150); btnStroke.Thickness = 2
     
+    ToggleBtn.MouseEnter:Connect(function() ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 45) end)
+    ToggleBtn.MouseLeave:Connect(function() ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25) end)
+
     ToggleBtn.MouseButton1Click:Connect(function()
         ToggleState = ToggleState + 1
         if ToggleState > 3 then ToggleState = 1 end
@@ -410,45 +424,134 @@ function FarmUI.new(UIConfig)
         else Background.Visible = false; ToggleBtn.Text = "🙈" end
     end)
 
-    -- SETUP PAGE 1 ITEMS
 	local Sorted = {}
 	for Name, Data in pairs(UIConfig.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
 	table.sort(Sorted, function(A, B) return A.Order < B.Order end)
 
 	for Index, Item in ipairs(Sorted) do
 		local Label = Instance.new("TextLabel", Page1)
-		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.7, 0, 0.055, 0)
+		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.8, 0, 0.055, 0)
 		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.RichText = true
-		Self.Elements[Item.Name] = Label
+        local textStroke = Instance.new("UIStroke", Label); textStroke.Color = Color3.fromRGB(0, 0, 0); textStroke.Thickness = 1.5
+        Self.Elements[Item.Name] = Label
 		if Index < #Sorted then
-			local Spacer = Instance.new("Frame", Page1)
-			Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.6, 0, 0, 2)
+			local Spacer = Instance.new("Frame", Page1); Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.7, 0, 0, 2); Spacer.BorderSizePixel = 0
 		end
 	end
 
-    -- SETUP PAGE 2 (MODES)
-    local Title2 = Instance.new("TextLabel", Page2)
-    Title2.Size = UDim2.new(0.8, 0, 0.12, 0); Title2.BackgroundTransparency = 1; Title2.Font = Enum.Font.FredokaOne; Title2.Text = "⚙️ CHỌN CHẾ ĐỘ ⚙️"; Title2.TextColor3 = Color3.fromRGB(0, 255, 150); Title2.TextScaled = true
-    local SpacerTop = Instance.new("Frame", Page2); SpacerTop.BackgroundColor3 = Color3.fromRGB(0, 255, 150); SpacerTop.Size = UDim2.new(0.6, 0, 0, 2)
+    -- CHON MODE
+    local TitleMode = Instance.new("TextLabel", Page2)
+    TitleMode.Size = UDim2.new(0.9, 0, 0, 20); TitleMode.BackgroundTransparency = 1; TitleMode.Font = Enum.Font.FredokaOne; TitleMode.Text = "⚙️ SELECT MODE"
+    TitleMode.TextColor3 = Color3.fromRGB(0, 255, 150); TitleMode.TextScaled = true; TitleMode.LayoutOrder = 1
+    Instance.new("UIStroke", TitleMode).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleMode).Thickness = 2
+    local Sp1 = Instance.new("Frame", Page2); Sp1.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp1.Size = UDim2.new(0.7, 0, 0, 2); Sp1.BorderSizePixel = 0; Sp1.LayoutOrder = 2
 
-    local ModesData = {
-        {id = "HatchOnly", name = "Hatch Only (1)"}, {id = "FarmOnly", name = "Farm Only (2)"}, {id = "Combine", name = "Combine (3)"}, {id = "Nest", name = "The Nest (4)"}
-    }
-    
-    for _, m in ipairs(ModesData) do
-        local Btn = Instance.new("TextButton", Page2)
-        Btn.Size = UDim2.new(0.65, 0, 0.12, 0); Btn.BackgroundColor3 = (m.id == Mode) and Color3.fromRGB(0, 150, 50) or Color3.fromRGB(30, 30, 30)
-        Btn.BorderColor3 = Color3.fromRGB(0, 255, 150); Btn.Font = Enum.Font.FredokaOne; Btn.Text = m.name; Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.TextScaled = true
-        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0.3, 0)
-        
+    local ModeFrame = Instance.new("Frame", Page2)
+    ModeFrame.Size = UDim2.new(0.95, 0, 0, 75); ModeFrame.BackgroundTransparency = 1; ModeFrame.LayoutOrder = 3
+    local ModeGrid = Instance.new("UIGridLayout", ModeFrame)
+    ModeGrid.CellSize = UDim2.new(0.46, 0, 0, 30); ModeGrid.CellPadding = UDim2.new(0.04, 0, 0, 8); ModeGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; ModeGrid.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local ModesData = { {id = "HatchOnly", name = "Hatch Only (1)"}, {id = "FarmOnly", name = "Farm Only (2)"}, {id = "Combine", name = "Combine (3)"}, {id = "Nest", name = "The Nest (4)"} }
+    for i, m in ipairs(ModesData) do
+        local Btn = Instance.new("TextButton", ModeFrame)
+        Btn.LayoutOrder = i; Btn.BackgroundColor3 = (m.id == Mode) and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(35, 35, 40); Btn.BorderSizePixel = 0
+        Btn.Font = Enum.Font.FredokaOne; Btn.Text = m.name; Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.TextScaled = true
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0.2, 0)
+        local modeStroke = Instance.new("UIStroke", Btn); modeStroke.Color = Color3.fromRGB(0, 255, 150); modeStroke.Thickness = 1.5; modeStroke.Transparency = (m.id == Mode) and 0 or 0.6
+        Instance.new("UIStroke", Btn).Color = Color3.fromRGB(0, 0, 0); Instance.new("UIStroke", Btn).Thickness = 1
+
+        Btn.MouseEnter:Connect(function() if Mode ~= m.id then Btn.BackgroundColor3 = Color3.fromRGB(55, 55, 60) end end)
+        Btn.MouseLeave:Connect(function() if Mode ~= m.id then Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end)
         Btn.MouseButton1Click:Connect(function()
             if _G.ChangeScriptMode then
                 _G.ChangeScriptMode(m.id, m.name)
-                for _, sib in ipairs(Page2:GetChildren()) do if sib:IsA("TextButton") then sib.BackgroundColor3 = Color3.fromRGB(30, 30, 30) end end
-                Btn.BackgroundColor3 = Color3.fromRGB(0, 150, 50)
+                for _, sib in ipairs(ModeFrame:GetChildren()) do 
+                    if sib:IsA("TextButton") then 
+                        sib.BackgroundColor3 = Color3.fromRGB(35, 35, 40) 
+                        local s = sib:FindFirstChildOfClass("UIStroke")
+                        if s and s.Color ~= Color3.fromRGB(0,0,0) then s.Transparency = 0.6 end
+                    end 
+                end
+                Btn.BackgroundColor3 = Color3.fromRGB(0, 180, 80); modeStroke.Transparency = 0
             end
         end)
     end
+
+    -- CHON CONG (ZONE)
+    local TitleZone = Instance.new("TextLabel", Page2)
+    TitleZone.Size = UDim2.new(0.9, 0, 0, 20); TitleZone.BackgroundTransparency = 1; TitleZone.Font = Enum.Font.FredokaOne; TitleZone.Text = "🚪 SELECT ZONE"
+    TitleZone.TextColor3 = Color3.fromRGB(0, 255, 150); TitleZone.TextScaled = true; TitleZone.LayoutOrder = 4
+    Instance.new("UIStroke", TitleZone).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleZone).Thickness = 2
+    local SpZone = Instance.new("Frame", Page2); SpZone.BackgroundColor3 = Color3.fromRGB(0, 255, 150); SpZone.Size = UDim2.new(0.7, 0, 0, 2); SpZone.BorderSizePixel = 0; SpZone.LayoutOrder = 5
+
+    local ZoneFrame = Instance.new("Frame", Page2)
+    ZoneFrame.Size = UDim2.new(0.95, 0, 0, 75); ZoneFrame.BackgroundTransparency = 1; ZoneFrame.LayoutOrder = 6
+    local ZoneGrid = Instance.new("UIGridLayout", ZoneFrame)
+    ZoneGrid.CellSize = UDim2.new(0.3, 0, 0, 30); ZoneGrid.CellPadding = UDim2.new(0.03, 0, 0, 8); ZoneGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; ZoneGrid.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local ZonesData = { {id = 1, name = "Zone 1"}, {id = 2, name = "Zone 2"}, {id = 3, name = "Zone 3"}, {id = 4, name = "Zone 4"}, {id = 0, name = "All Zones"} }
+    for i, z in ipairs(ZonesData) do
+        local Btn = Instance.new("TextButton", ZoneFrame)
+        Btn.LayoutOrder = i; Btn.BackgroundColor3 = (_G.CurrentTargetZone == z.id) and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(35, 35, 40); Btn.BorderSizePixel = 0
+        Btn.Font = Enum.Font.FredokaOne; Btn.Text = z.name; Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.TextScaled = true
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0.2, 0)
+        local zStroke = Instance.new("UIStroke", Btn); zStroke.Color = Color3.fromRGB(0, 255, 150); zStroke.Thickness = 1.5; zStroke.Transparency = (_G.CurrentTargetZone == z.id) and 0 or 0.6
+        Instance.new("UIStroke", Btn).Color = Color3.fromRGB(0, 0, 0); Instance.new("UIStroke", Btn).Thickness = 1
+
+        Btn.MouseEnter:Connect(function() if _G.CurrentTargetZone ~= z.id then Btn.BackgroundColor3 = Color3.fromRGB(55, 55, 60) end end)
+        Btn.MouseLeave:Connect(function() if _G.CurrentTargetZone ~= z.id then Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end)
+        Btn.MouseButton1Click:Connect(function()
+            if _G.ChangeTargetZone then
+                _G.ChangeTargetZone(z.id)
+                for _, sib in ipairs(ZoneFrame:GetChildren()) do 
+                    if sib:IsA("TextButton") then 
+                        sib.BackgroundColor3 = Color3.fromRGB(35, 35, 40) 
+                        local s = sib:FindFirstChildOfClass("UIStroke")
+                        if s and s.Color ~= Color3.fromRGB(0,0,0) then s.Transparency = 0.6 end
+                    end 
+                end
+                Btn.BackgroundColor3 = Color3.fromRGB(0, 180, 80); zStroke.Transparency = 0
+            end
+        end)
+    end
+
+    -- CHON TRUNG
+    local TitleEgg = Instance.new("TextLabel", Page2)
+    TitleEgg.Size = UDim2.new(0.9, 0, 0, 20); TitleEgg.BackgroundTransparency = 1; TitleEgg.Font = Enum.Font.FredokaOne; TitleEgg.Text = "🥚 SELECT EGGS"
+    TitleEgg.TextColor3 = Color3.fromRGB(0, 255, 150); TitleEgg.TextScaled = true; TitleEgg.LayoutOrder = 7
+    Instance.new("UIStroke", TitleEgg).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleEgg).Thickness = 2
+    local Sp2 = Instance.new("Frame", Page2); Sp2.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp2.Size = UDim2.new(0.7, 0, 0, 2); Sp2.BorderSizePixel = 0; Sp2.LayoutOrder = 8
+
+    local EggFrame = Instance.new("Frame", Page2)
+    EggFrame.Size = UDim2.new(0.95, 0, 0, 75); EggFrame.BackgroundTransparency = 1; EggFrame.LayoutOrder = 9
+    local EggGrid = Instance.new("UIGridLayout", EggFrame)
+    EggGrid.CellSize = UDim2.new(0.22, 0, 0, 30); EggGrid.CellPadding = UDim2.new(0.03, 0, 0, 8); EggGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; EggGrid.SortOrder = Enum.SortOrder.LayoutOrder
+
+    for i = 1, 8 do
+        local Btn = Instance.new("TextButton", EggFrame)
+        Btn.LayoutOrder = i; Btn.BackgroundColor3 = (_G.CurrentTargetEgg == i) and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(35, 35, 40); Btn.BorderSizePixel = 0
+        Btn.Font = Enum.Font.FredokaOne; Btn.Text = "Egg " .. i; Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.TextScaled = true
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0.2, 0)
+        local modeStroke = Instance.new("UIStroke", Btn); modeStroke.Color = Color3.fromRGB(0, 255, 150); modeStroke.Thickness = 1.5; modeStroke.Transparency = (_G.CurrentTargetEgg == i) and 0 or 0.6
+        Instance.new("UIStroke", Btn).Color = Color3.fromRGB(0, 0, 0); Instance.new("UIStroke", Btn).Thickness = 1
+
+        Btn.MouseEnter:Connect(function() if _G.CurrentTargetEgg ~= i then Btn.BackgroundColor3 = Color3.fromRGB(55, 55, 60) end end)
+        Btn.MouseLeave:Connect(function() if _G.CurrentTargetEgg ~= i then Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end)
+        Btn.MouseButton1Click:Connect(function()
+            if _G.ChangeTargetEgg then
+                _G.ChangeTargetEgg(i)
+                for _, sib in ipairs(EggFrame:GetChildren()) do 
+                    if sib:IsA("TextButton") then 
+                        sib.BackgroundColor3 = Color3.fromRGB(35, 35, 40) 
+                        local s = sib:FindFirstChildOfClass("UIStroke")
+                        if s and s.Color ~= Color3.fromRGB(0,0,0) then s.Transparency = 0.6 end
+                    end 
+                end
+                Btn.BackgroundColor3 = Color3.fromRGB(0, 180, 80); modeStroke.Transparency = 0
+            end
+        end)
+    end
+
 	return Self
 end
 
@@ -456,7 +559,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]           = {1, "🐰 EASTER EVENT 🐰", {0.8, 0, 0.08, 0}},
+        ["Title"]           = {1, "🐰 EASTER EVENT 🐰", {0.9, 0, 0.1, 0}},
         ["ModeInfo"]        = {2, "Mode: " .. ModeDisplay},
         ["Time"]            = {3, "Time: 00:00:00 | Time Left: 00:00"},
         ["EggsHatched"]     = {4, "Total Eggs: 0 | ⚡ Speed: 0/sec"},
@@ -468,7 +571,7 @@ local UI = FarmUI.new({
 })
 
 -- ==========================================
--- 🚀 DATA UPDATER 
+-- DATA UPDATER UI
 -- ==========================================
 local lastEggs = StartEggs
 task.spawn(function()
@@ -540,18 +643,16 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ SMART FARM V3
+-- DONG CO SMART FARM V3
 -- ==========================================
-do
-    local originalCalc = PlayerPet.CalculateSpeedMultiplier
+pcall(function()
+    local orig = PlayerPet.CalculateSpeedMultiplier
     PlayerPet.CalculateSpeedMultiplier = function() return math.huge end
-end
+end)
 
 local function getCurrentZone() return MapCmds.GetCurrentZone() end
-local function getCurrentInstanceID()
-    local inst = InstancingCmds.Get()
-    return inst and inst.instanceID or nil
-end
+local function getCurrentInstanceID() return InstancingCmds.Get() and InstancingCmds.Get().instanceID or nil end
+
 local function getClosestBreakables(range)
     range = range or 150
     local breakables = {}
@@ -570,12 +671,14 @@ local function getClosestBreakables(range)
     end
     return breakables
 end
+
 local function getPlayerPets()
     local pets = {}
     local allPets = PlayerPet.GetAll()
     for _, pet in pairs(allPets) do if pet.owner == Player then table.insert(pets, pet) end end
     return pets
 end
+
 local function fastFarm()
     local breakables = getClosestBreakables(150)
     local pets = getPlayerPets()
@@ -595,6 +698,7 @@ local function fastFarm()
     end
     Network.Fire("Breakables_JoinPetBulk", petToBreakable)
 end
+
 local function clickAura(range)
     range = range or 100
     local root = getRootPart()
@@ -607,6 +711,7 @@ local function clickAura(range)
         end
     end
 end
+
 local function collectOrbsAndLootbags()
     pcall(function()
         if OrbsFolder then 
@@ -632,14 +737,15 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 NETWORK AUTO UPGRADE
+-- NETWORK AUTO UPGRADE & TARGET EGG
 -- ==========================================
 local SpringEggUnlocks = { 
     { number = 2, cost = 300 }, { number = 3, cost = 1500 }, { number = 4, cost = 6000 }, { number = 5, cost = 20000 },
     { number = 6, cost = 3000000 }, { number = 7, cost = 100000000 }, { number = 8, cost = 280000000 }
 }
 task.spawn(function()
-    while task.wait(5) do
+    while task.wait(3) do
+        -- MUA NANG CAP SUC MANH
         if AutoUpgrade then
             pcall(function()
                 for upgradeId, upgradeData in pairs(EventUpgradesDir) do
@@ -648,43 +754,63 @@ task.spawn(function()
                         local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
                         if nextTierCost and nextTierCost._data then
                             local cId, costAmount = nextTierCost._data.id, nextTierCost._data._am or 1
-                            local currentAmount = Items.Misc(cId) and Items.Misc(cId):CountExact() or (CurrencyCmds.Get(cId) or 0)
+                            local currentAmount = 0
+                            pcall(function() currentAmount = Items.Misc(cId) and Items.Misc(cId):CountExact() or 0 end)
+                            if currentAmount == 0 then pcall(function() currentAmount = CurrencyCmds.Get(cId) or 0 end) end
+                            
                             if currentAmount >= costAmount then EventUpgradeCmds.Purchase(upgradeId) end
-                        end
-                    end
-                end
-                local save = Save.Get()
-                if save then
-                    local eggToken = 0
-                    if save.Inventory and save.Inventory.Misc then 
-                        for _, item in pairs(save.Inventory.Misc) do 
-                            local idStr = (item.id or ""):lower()
-                            if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
-                        end 
-                    end
-                    if eggToken == 0 then eggToken = type(CurrencyCmds.Get("SpringEggTokens")) == "number" and CurrencyCmds.Get("SpringEggTokens") or 0 end
-                    local currentUnlocked = save.Easter2026UnlockedEggs or 1
-                    local activeEgg = save.Easter2026ActiveEgg or 1
-                    for _, egg in ipairs(SpringEggUnlocks) do
-                        if egg.number > currentUnlocked and eggToken >= egg.cost then 
-                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end); task.wait(0.5)
-                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end); break 
-                        elseif egg.number == currentUnlocked and activeEgg ~= currentUnlocked then
-                            pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", currentUnlocked) end)
                         end
                     end
                 end
             end)
         end
+        
+        -- MUA VA CHON TRUNG
+        pcall(function()
+            local save = Save.Get()
+            if not save then return end
+            
+            local eggToken = 0
+            if save.Inventory and save.Inventory.Misc then 
+                for _, item in pairs(save.Inventory.Misc) do 
+                    local idStr = (item.id or ""):lower()
+                    if idStr:match("spring") and idStr:match("egg") then eggToken = eggToken + (item._am or 1) end 
+                end 
+            end
+            if eggToken == 0 then pcall(function() eggToken = CurrencyCmds.Get("SpringEggTokens") or 0 end) end
+            if eggToken == 0 then pcall(function() eggToken = CurrencyCmds.Get("Easter2026EggTokens") or 0 end) end
+            
+            local currentUnlocked = save.Easter2026UnlockedEggs or 1
+            local activeEgg = save.Easter2026ActiveEgg or 1
+            local target = _G.CurrentTargetEgg or 8
+            
+            for _, egg in ipairs(SpringEggUnlocks) do
+                if egg.number > currentUnlocked and eggToken >= egg.cost then 
+                    pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "PurchaseEgg", egg.number) end)
+                    task.wait(0.5) 
+                    
+                    if egg.number <= target then
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", egg.number) end)
+                    else
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", target) end)
+                    end
+                    break 
+                elseif egg.number == currentUnlocked then
+                    local desiredEgg = math.min(currentUnlocked, target)
+                    if activeEgg ~= desiredEgg then
+                        pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "SelectEgg", desiredEgg) end)
+                    end
+                end
+            end
+        end)
     end
 end)
-
 task.spawn(function() while task.wait(15) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end end)
 task.spawn(function() while task.wait(5) do pcall(function() local save = Save.Get(); if not save then return end; local redeemed = save.FreeGiftsRedeemed or {}; local currentTime = save.FreeGiftsTime or 0; for _, gift in pairs(FreeGiftsDirectory) do if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id); break end end end) end end)
 task.spawn(function() while task.wait(1.5) do pcall(function() local equipped = UltimateCmds.GetEquippedItem(); if equipped and equipped._data and equipped._data.id then UltimateCmds.Activate(equipped._data.id) end end) end end)
 
 -- ==========================================
--- 🚀 ĐỘNG CƠ HATCH TRỨNG SIÊU TỐC
+-- DONG CO HATCH TRUNG SIEU TOC
 -- ==========================================
 task.spawn(function()
     while true do
@@ -697,54 +823,76 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 SMART ROUND-ROBIN PORTALS & STATE MACHINE
+-- SMART ROUND-ROBIN PORTALS & STATE MACHINE
 -- ==========================================
 local SafePart = Instance.new("Part", Workspace)
 SafePart.Size = Vector3.new(25, 1, 25); SafePart.Anchored = true; SafePart.Transparency = 0.8; SafePart.Material = Enum.Material.Glass; SafePart.BrickColor = BrickColor.new("Toothpaste")
+
 local function TeleportPlayer(cf)
     if not cf then return end
     local root = getRootPart()
     if root then root.Anchored = false; root.CFrame = cf + Vector3.new(0, 1.5, 0); SafePart.CFrame = cf - Vector3.new(0, 1.5, 0); root.Velocity = Vector3.new(0,0,0) end
 end
 
-local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = 0, CurrentPortal = 1, IsReady = false }
+local State = { Phase = (Mode == "HatchOnly") and "HATCHING" or "FARMING", TimeLeft = 0, CurrentPortal = (_G.CurrentTargetZone == 0 and 1 or _G.CurrentTargetZone), IsReady = false }
 _G.CurrentPhase = State.Phase
 
--- HÀM API CHUYỂN MODE TỪ UI (CÓ BẢO VỆ CHỐNG LỖI VỊ TRÍ)
+-- HAM API CHUYEN MODE
 _G.ChangeScriptMode = function(newMode, newDisplay)
     Mode = newMode
     ModeDisplay = newDisplay
     State.IsReady = false
     _G.FarmReady = false
+    _G.ModeChanging = true
     
-    -- Đưa về Hub ngay lập tức để làm mới tọa độ, tránh offset bug
     task.spawn(function()
         pcall(function() Network.Fire("Instancing_FireCustomFromClient", "EasterHatchEvent", "ReturnToHub") end)
-        task.wait(0.5)
-        TeleportPlayer(HatchZoneCF)
+        TeleportPlayer(CFrame.new(0, 10, 0))
+        task.wait(3)
+        if Mode == "HatchOnly" then 
+            State.Phase = "HATCHING"; State.TimeLeft = math.huge
+        else 
+            State.Phase = "FARMING"; State.TimeLeft = 0
+            if Mode == "Nest" then 
+                State.CurrentPortal = 5 
+            else 
+                State.CurrentPortal = (_G.CurrentTargetZone == 0 and 1 or _G.CurrentTargetZone)
+            end
+        end
+        _G.CurrentPhase = State.Phase
+        _G.ModeChanging = false
     end)
-    
-    if Mode == "HatchOnly" then 
-        State.Phase = "HATCHING"
-        State.TimeLeft = math.huge
-    else 
-        State.Phase = "FARMING"
-        State.TimeLeft = 0
-        if Mode == "Nest" then State.CurrentPortal = 5 else State.CurrentPortal = 1 end
-    end
-    _G.CurrentPhase = State.Phase
-    UI:SetText("ModeInfo", "Mode: " .. ModeDisplay)
 end
 
--- HÀM DÒ TÌM CỔNG 1-4 (BẢN FIX XUNG ĐỘT DỊCH CHUYỂN)
+-- HAM API CHUYEN EGG
+_G.ChangeTargetEgg = function(eggNum)
+    _G.CurrentTargetEgg = eggNum
+end
+
+-- HAM API CHUYEN ZONE
+_G.ChangeTargetZone = function(zoneNum)
+    _G.CurrentTargetZone = zoneNum
+    if Mode ~= "Nest" and Mode ~= "HatchOnly" then
+        State.CurrentPortal = (zoneNum == 0) and 1 or zoneNum
+        State.IsReady = false
+        _G.FarmReady = false
+    end
+end
+
 local function SmartEnterZone()
-    _G.FarmReady = false; _G.CurrentFarmCF = nil
-    local success = false
-    for i = 0, 3 do
-        local tryPortal = ((State.CurrentPortal - 1 + i) % 4) + 1
+    _G.FarmReady = false; _G.CurrentFarmCF = nil; local success = false
+    
+    -- Xac dinh cac cong can vao phu thuoc vao setting
+    local portalsToTry = {}
+    if _G.CurrentTargetZone == 0 then
+        for i = 0, 3 do table.insert(portalsToTry, ((State.CurrentPortal - 1 + i) % 4) + 1) end
+    else
+        table.insert(portalsToTry, _G.CurrentTargetZone)
+        State.CurrentPortal = _G.CurrentTargetZone -- Dong bo State
+    end
+
+    for _, tryPortal in ipairs(portalsToTry) do
         local serverZoneID = tryPortal + 1 
-        
-        -- Lưu vị trí trước khi gọi cổng
         local root = getRootPart()
         local startPos = root and root.Position or Vector3.new(0,0,0)
         
@@ -757,10 +905,6 @@ local function SmartEnterZone()
                 local distMoved = (r.Position - startPos).Magnitude
                 local distFromHub = (r.Position - _G.DynamicHubCF.Position).Magnitude
                 local distFromHatch = (r.Position - HatchZoneCF.Position).Magnitude
-                
-                -- CHỈ CÔNG NHẬN LÀ VÀO CỔNG NẾU:
-                -- 1. Bị dịch chuyển > 50 studs
-                -- 2. Vị trí mới KHÔNG PHẢI là sảnh Hub hoặc khu ấp trứng (> 300 studs)
                 if distMoved > 50 and distFromHub > 300 and distFromHatch > 300 then 
                     success = true; State.CurrentPortal = tryPortal; break 
                 end
@@ -784,11 +928,8 @@ local function SmartEnterZone()
     return false
 end
 
--- HÀM DÒ TÌM CỔNG 5 THE NEST (BẢN FIX XUNG ĐỘT DỊCH CHUYỂN)
 local function EnterNestZone()
-    _G.FarmReady = false; _G.CurrentFarmCF = nil
-    local success = false
-    
+    _G.FarmReady = false; _G.CurrentFarmCF = nil; local success = false
     local root = getRootPart()
     local startPos = root and root.Position or Vector3.new(0,0,0)
     
@@ -800,8 +941,6 @@ local function EnterNestZone()
             local distMoved = (r.Position - startPos).Magnitude
             local distFromHub = (r.Position - _G.DynamicHubCF.Position).Magnitude
             local distFromHatch = (r.Position - HatchZoneCF.Position).Magnitude
-            
-            -- Xác nhận vào cổng cực kỳ chặt chẽ
             if distMoved > 50 and distFromHub > 300 and distFromHatch > 300 then 
                 success = true; State.CurrentPortal = 5; break 
             end
@@ -834,6 +973,22 @@ local function ReturnToHubNetwork()
     task.wait(1); TeleportPlayer(HatchZoneCF)
 end
 
+-- Ham noi bo quet bang thoi gian trong Game
+local function GetGameTimerText()
+    local textToReturn = nil
+    pcall(function()
+        if InstanceContainer and InstanceContainer:FindFirstChild("Active") then
+            for _, desc in ipairs(InstanceContainer.Active:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Visible then
+                    local txt = desc.Text
+                    if txt:match("%d+:%d+") or txt:match("^%d+s$") then textToReturn = txt; break end
+                end
+            end
+        end
+    end)
+    return textToReturn
+end
+
 task.spawn(function()
     local root = getRootPart()
     if root then root.Anchored = true end
@@ -847,10 +1002,16 @@ task.spawn(function()
     
     local currentEnchantPhase = ""
     local NestEntryTime = 0
+    local HasKilledBoss = false
 
     while task.wait(1) do
+        if _G.ModeChanging then
+            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | Dang chuyen doi...")
+            continue
+        end
+
         if InstancingCmds.GetInstanceID() ~= "EasterHatchEvent" then
-            UI:SetText("ModeInfo", "Đang tải Event Hub...")
+            UI:SetText("ModeInfo", "Dang tai Event Hub...")
             pcall(function() setthreadidentity(2); InstancingCmds.Enter("EasterHatchEvent"); setthreadidentity(8) end)
             task.wait(2); continue
         end
@@ -860,7 +1021,7 @@ task.spawn(function()
                 if Mode == "Nest" then
                     local entered = EnterNestZone()
                     if entered then
-                        State.IsReady = true; State.TimeLeft = 120; NestEntryTime = os.time()
+                        State.IsReady = true; HasKilledBoss = false; NestEntryTime = os.time()
                     else
                         State.Phase = "HATCHING"; _G.CurrentPhase = State.Phase; State.TimeLeft = 60 
                         ReturnToHubNetwork(); State.IsReady = true
@@ -886,23 +1047,50 @@ task.spawn(function()
             if Mode == "Nest" then
                 if State.Phase == "FARMING" then
                     local breakables = getClosestBreakables(150)
-                    if (os.time() - NestEntryTime > 3) then
-                        if #breakables == 0 or State.TimeLeft <= 0 then
-                            State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30
+                    local gameTimer = GetGameTimerText()
+                    
+                    if #breakables > 0 then
+                        HasKilledBoss = true
+                        UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | ⚔️ Dang dap Boss Chest!")
+                        NestEntryTime = os.time()
+                    else
+                        if not HasKilledBoss then
+                            local waitMsg = gameTimer and ("⏳ Doi ruong: " .. gameTimer) or "⏳ Doi ruong xuat hien..."
+                            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | " .. waitMsg)
+                            
+                            -- Failsafe: Neu ket trong phong qua 5 phut thi reset
+                            if os.time() - NestEntryTime > 300 then
+                                State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30; HasKilledBoss = false
+                            end
+                        else
+                            -- DA DAP XONG: Rut ra ngoai sanh
+                            State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false; State.TimeLeft = 30; HasKilledBoss = false
                         end
                     end
                 elseif State.Phase == "HATCHING" and State.TimeLeft <= 0 then
                     State.Phase = "FARMING"; State.IsReady = false
                 end
+                
             elseif Mode == "Combine" then 
                 if State.Phase == "FARMING" and State.TimeLeft <= 0 then
                     State.Phase = "HATCHING"; State.IsReady = false; _G.FarmReady = false
                 elseif State.Phase == "HATCHING" and State.TimeLeft <= 0 then
-                    State.Phase = "FARMING"; State.CurrentPortal = (State.CurrentPortal % 4) + 1; State.IsReady = false
+                    State.Phase = "FARMING"; 
+                    if _G.CurrentTargetZone == 0 then
+                        State.CurrentPortal = (State.CurrentPortal % 4) + 1
+                    else
+                        State.CurrentPortal = _G.CurrentTargetZone
+                    end
+                    State.IsReady = false
                 end
             elseif Mode == "FarmOnly" then 
                 if State.Phase == "FARMING" and State.TimeLeft <= 0 then
-                    State.CurrentPortal = (State.CurrentPortal % 4) + 1; State.IsReady = false; _G.FarmReady = false
+                    if _G.CurrentTargetZone == 0 then
+                        State.CurrentPortal = (State.CurrentPortal % 4) + 1
+                    else
+                        State.CurrentPortal = _G.CurrentTargetZone
+                    end
+                    State.IsReady = false; _G.FarmReady = false
                 end
             end
         end
@@ -930,21 +1118,9 @@ task.spawn(function()
         local timeStr = State.TimeLeft == math.huge and "Unlimited" or string.format("%02d:%02d", math.floor(math.max(0, State.TimeLeft)/60), math.max(0, State.TimeLeft)%60)
         UI:SetText("Time", string.format("Time: %02d:%02d:%02d | Time Left: %s", math.floor(elapsed/3600), math.floor((elapsed%3600)/60), elapsed%60, timeStr))
         
-        -- STATUS UI MỚI PHÂN BIỆT RÕ RÀNG
-        if Mode == "Nest" then
-            local statusStr = ""
-            if State.Phase == "FARMING" then
-                statusStr = "Đang Farm Boss Chest..."
-            else
-                if State.TimeLeft > 30 then
-                    statusStr = string.format("Cổng 5 khóa! Đợi: %ds", math.max(0, State.TimeLeft))
-                else
-                    statusStr = string.format("Đợi rương hồi: %ds", math.max(0, State.TimeLeft))
-                end
-            end
-            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | " .. statusStr)
-        else
-            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " | Target Portal: " .. State.CurrentPortal)
+        if Mode ~= "Nest" then
+            local zoneStr = _G.CurrentTargetZone == 0 and "All" or tostring(_G.CurrentTargetZone)
+            UI:SetText("ModeInfo", "Mode: " .. ModeDisplay .. " (Egg " .. _G.CurrentTargetEgg .. ") | Zone: " .. zoneStr .. " | Portal: " .. State.CurrentPortal)
         end
     end
 end)
