@@ -368,13 +368,13 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- DYNAMIC UI (GOC PHAI MAN HINH, THU NHO 30%)
+-- DYNAMIC UI (FULL MAN HINH, NUT NHO GON)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
 function FarmUI.new(UIConfig)
 	local Self = setmetatable({}, FarmUI)
-	Self.GuiName = "EasterEventGuiV93"
+	Self.GuiName = "EasterEventGuiV94"
 	Self.Elements = {}
 	Self.Parent = game:GetService("CoreGui")
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
@@ -383,33 +383,33 @@ function FarmUI.new(UIConfig)
 	ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.ResetOnSpawn = false
 	Self.ScreenGui = ScreenGui
 
-    -- Nen giao dien thu nho 30% va nam o goc phai
+    -- Nen giao dien full man hinh, hoi trong suot de thay game
 	local Background = Instance.new("Frame", ScreenGui)
 	Background.BackgroundColor3 = Color3.fromRGB(20, 20, 25); Background.BorderSizePixel = 0
-	Background.Size = UDim2.new(0.35, 0, 0.5, 0)
-    Background.Position = UDim2.new(0.99, 0, 0.01, 0)
-    Background.AnchorPoint = Vector2.new(1, 0)
+	Background.Size = UDim2.new(1, 0, 1, 0)
+    Background.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Background.AnchorPoint = Vector2.new(0.5, 0.5)
+    Background.BackgroundTransparency = 0.15 
     
-    local bgCorner = Instance.new("UICorner", Background); bgCorner.CornerRadius = UDim.new(0.05, 0)
     local bgStroke = Instance.new("UIStroke", Background); bgStroke.Color = Color3.fromRGB(0, 255, 150); bgStroke.Thickness = 2.5
 
 	local Page1 = Instance.new("Frame", Background)
 	Page1.Size = UDim2.new(1, 0, 1, 0); Page1.BackgroundTransparency = 1; Self.Container = Page1
 	local Layout1 = Instance.new("UIListLayout", Page1)
-	Layout1.Padding = UDim.new(0.02, 0); Layout1.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout1.VerticalAlignment = Enum.VerticalAlignment.Center; Layout1.SortOrder = Enum.SortOrder.LayoutOrder
+	Layout1.Padding = UDim.new(0, 12); Layout1.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout1.VerticalAlignment = Enum.VerticalAlignment.Center; Layout1.SortOrder = Enum.SortOrder.LayoutOrder
 
     local Page2 = Instance.new("Frame", Background)
 	Page2.Size = UDim2.new(1, 0, 1, 0); Page2.BackgroundTransparency = 1; Page2.Visible = false
 	local Layout2 = Instance.new("UIListLayout", Page2)
-	Layout2.Padding = UDim.new(0.02, 0); Layout2.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout2.VerticalAlignment = Enum.VerticalAlignment.Center
+	Layout2.Padding = UDim.new(0, 12); Layout2.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout2.VerticalAlignment = Enum.VerticalAlignment.Center
 
-    -- Nut bat tat o goc phai
+    -- Nut bat tat menu goc phai tren cung
     local ToggleState = 1
     local ToggleBtn = Instance.new("TextButton", ScreenGui)
-    ToggleBtn.Size = UDim2.new(0, 40, 0, 40)
-    ToggleBtn.Position = UDim2.new(1, -10, 0, 10)
+    ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+    ToggleBtn.Position = UDim2.new(1, -20, 0, 20)
     ToggleBtn.AnchorPoint = Vector2.new(1, 0)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 20; ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 25; ToggleBtn.BorderSizePixel = 0
     Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
     local btnStroke = Instance.new("UIStroke", ToggleBtn); btnStroke.Color = Color3.fromRGB(0, 255, 150); btnStroke.Thickness = 2
     
@@ -424,32 +424,38 @@ function FarmUI.new(UIConfig)
         else Background.Visible = false; ToggleBtn.Text = "🙈" end
     end)
 
+    -- PAGE 1: BANG THONG TIN HIEN THI
 	local Sorted = {}
 	for Name, Data in pairs(UIConfig.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
 	table.sort(Sorted, function(A, B) return A.Order < B.Order end)
 
 	for Index, Item in ipairs(Sorted) do
 		local Label = Instance.new("TextLabel", Page1)
-		Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.8, 0, 0.055, 0)
+		Label.Name = Item.Name; Label.LayoutOrder = Item.Order
+        -- Khoa kich thuoc pixel tuyet doi de khong bi phong to
+		Label.Size = UDim2.new(0, 500, 0, 35)
 		Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.RichText = true
         local textStroke = Instance.new("UIStroke", Label); textStroke.Color = Color3.fromRGB(0, 0, 0); textStroke.Thickness = 1.5
         Self.Elements[Item.Name] = Label
 		if Index < #Sorted then
-			local Spacer = Instance.new("Frame", Page1); Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0.7, 0, 0, 2); Spacer.BorderSizePixel = 0
+			local Spacer = Instance.new("Frame", Page1); Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Spacer.Size = UDim2.new(0, 350, 0, 2); Spacer.BorderSizePixel = 0
 		end
 	end
 
-    -- CHON MODE
+    -- PAGE 2: BANG DIEU KHIEN CHUC NANG
+    
+    -- 1. CHON MODE
     local TitleMode = Instance.new("TextLabel", Page2)
-    TitleMode.Size = UDim2.new(0.9, 0, 0, 20); TitleMode.BackgroundTransparency = 1; TitleMode.Font = Enum.Font.FredokaOne; TitleMode.Text = "⚙️ SELECT MODE"
+    TitleMode.Size = UDim2.new(0, 400, 0, 25); TitleMode.BackgroundTransparency = 1; TitleMode.Font = Enum.Font.FredokaOne; TitleMode.Text = "⚙️ SELECT MODE"
     TitleMode.TextColor3 = Color3.fromRGB(0, 255, 150); TitleMode.TextScaled = true; TitleMode.LayoutOrder = 1
     Instance.new("UIStroke", TitleMode).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleMode).Thickness = 2
-    local Sp1 = Instance.new("Frame", Page2); Sp1.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp1.Size = UDim2.new(0.7, 0, 0, 2); Sp1.BorderSizePixel = 0; Sp1.LayoutOrder = 2
+    local Sp1 = Instance.new("Frame", Page2); Sp1.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp1.Size = UDim2.new(0, 300, 0, 2); Sp1.BorderSizePixel = 0; Sp1.LayoutOrder = 2
 
     local ModeFrame = Instance.new("Frame", Page2)
-    ModeFrame.Size = UDim2.new(0.95, 0, 0, 75); ModeFrame.BackgroundTransparency = 1; ModeFrame.LayoutOrder = 3
+    ModeFrame.Size = UDim2.new(0, 600, 0, 85); ModeFrame.BackgroundTransparency = 1; ModeFrame.LayoutOrder = 3
     local ModeGrid = Instance.new("UIGridLayout", ModeFrame)
-    ModeGrid.CellSize = UDim2.new(0.46, 0, 0, 30); ModeGrid.CellPadding = UDim2.new(0.04, 0, 0, 8); ModeGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; ModeGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    -- Ep kich thuoc nut nho gon cho Mode
+    ModeGrid.CellSize = UDim2.new(0, 140, 0, 35); ModeGrid.CellPadding = UDim2.new(0, 15, 0, 10); ModeGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; ModeGrid.SortOrder = Enum.SortOrder.LayoutOrder
 
     local ModesData = { {id = "HatchOnly", name = "Hatch Only (1)"}, {id = "FarmOnly", name = "Farm Only (2)"}, {id = "Combine", name = "Combine (3)"}, {id = "Nest", name = "The Nest (4)"} }
     for i, m in ipairs(ModesData) do
@@ -460,8 +466,6 @@ function FarmUI.new(UIConfig)
         local modeStroke = Instance.new("UIStroke", Btn); modeStroke.Color = Color3.fromRGB(0, 255, 150); modeStroke.Thickness = 1.5; modeStroke.Transparency = (m.id == Mode) and 0 or 0.6
         Instance.new("UIStroke", Btn).Color = Color3.fromRGB(0, 0, 0); Instance.new("UIStroke", Btn).Thickness = 1
 
-        Btn.MouseEnter:Connect(function() if Mode ~= m.id then Btn.BackgroundColor3 = Color3.fromRGB(55, 55, 60) end end)
-        Btn.MouseLeave:Connect(function() if Mode ~= m.id then Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end)
         Btn.MouseButton1Click:Connect(function()
             if _G.ChangeScriptMode then
                 _G.ChangeScriptMode(m.id, m.name)
@@ -477,17 +481,18 @@ function FarmUI.new(UIConfig)
         end)
     end
 
-    -- CHON CONG (ZONE)
+    -- 2. CHON CONG (ZONE)
     local TitleZone = Instance.new("TextLabel", Page2)
-    TitleZone.Size = UDim2.new(0.9, 0, 0, 20); TitleZone.BackgroundTransparency = 1; TitleZone.Font = Enum.Font.FredokaOne; TitleZone.Text = "🚪 SELECT ZONE"
+    TitleZone.Size = UDim2.new(0, 400, 0, 25); TitleZone.BackgroundTransparency = 1; TitleZone.Font = Enum.Font.FredokaOne; TitleZone.Text = "🚪 SELECT ZONE"
     TitleZone.TextColor3 = Color3.fromRGB(0, 255, 150); TitleZone.TextScaled = true; TitleZone.LayoutOrder = 4
     Instance.new("UIStroke", TitleZone).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleZone).Thickness = 2
-    local SpZone = Instance.new("Frame", Page2); SpZone.BackgroundColor3 = Color3.fromRGB(0, 255, 150); SpZone.Size = UDim2.new(0.7, 0, 0, 2); SpZone.BorderSizePixel = 0; SpZone.LayoutOrder = 5
+    local SpZone = Instance.new("Frame", Page2); SpZone.BackgroundColor3 = Color3.fromRGB(0, 255, 150); SpZone.Size = UDim2.new(0, 300, 0, 2); SpZone.BorderSizePixel = 0; SpZone.LayoutOrder = 5
 
     local ZoneFrame = Instance.new("Frame", Page2)
-    ZoneFrame.Size = UDim2.new(0.95, 0, 0, 75); ZoneFrame.BackgroundTransparency = 1; ZoneFrame.LayoutOrder = 6
+    ZoneFrame.Size = UDim2.new(0, 600, 0, 45); ZoneFrame.BackgroundTransparency = 1; ZoneFrame.LayoutOrder = 6
     local ZoneGrid = Instance.new("UIGridLayout", ZoneFrame)
-    ZoneGrid.CellSize = UDim2.new(0.3, 0, 0, 30); ZoneGrid.CellPadding = UDim2.new(0.03, 0, 0, 8); ZoneGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; ZoneGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    -- Ep kich thuoc nut cho Zone
+    ZoneGrid.CellSize = UDim2.new(0, 100, 0, 35); ZoneGrid.CellPadding = UDim2.new(0, 12, 0, 10); ZoneGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; ZoneGrid.SortOrder = Enum.SortOrder.LayoutOrder
 
     local ZonesData = { {id = 1, name = "Zone 1"}, {id = 2, name = "Zone 2"}, {id = 3, name = "Zone 3"}, {id = 4, name = "Zone 4"}, {id = 0, name = "All Zones"} }
     for i, z in ipairs(ZonesData) do
@@ -498,8 +503,6 @@ function FarmUI.new(UIConfig)
         local zStroke = Instance.new("UIStroke", Btn); zStroke.Color = Color3.fromRGB(0, 255, 150); zStroke.Thickness = 1.5; zStroke.Transparency = (_G.CurrentTargetZone == z.id) and 0 or 0.6
         Instance.new("UIStroke", Btn).Color = Color3.fromRGB(0, 0, 0); Instance.new("UIStroke", Btn).Thickness = 1
 
-        Btn.MouseEnter:Connect(function() if _G.CurrentTargetZone ~= z.id then Btn.BackgroundColor3 = Color3.fromRGB(55, 55, 60) end end)
-        Btn.MouseLeave:Connect(function() if _G.CurrentTargetZone ~= z.id then Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end)
         Btn.MouseButton1Click:Connect(function()
             if _G.ChangeTargetZone then
                 _G.ChangeTargetZone(z.id)
@@ -515,17 +518,18 @@ function FarmUI.new(UIConfig)
         end)
     end
 
-    -- CHON TRUNG
+    -- 3. CHON TRUNG
     local TitleEgg = Instance.new("TextLabel", Page2)
-    TitleEgg.Size = UDim2.new(0.9, 0, 0, 20); TitleEgg.BackgroundTransparency = 1; TitleEgg.Font = Enum.Font.FredokaOne; TitleEgg.Text = "🥚 SELECT EGGS"
+    TitleEgg.Size = UDim2.new(0, 400, 0, 25); TitleEgg.BackgroundTransparency = 1; TitleEgg.Font = Enum.Font.FredokaOne; TitleEgg.Text = "🥚 SELECT EGGS"
     TitleEgg.TextColor3 = Color3.fromRGB(0, 255, 150); TitleEgg.TextScaled = true; TitleEgg.LayoutOrder = 7
     Instance.new("UIStroke", TitleEgg).Color = Color3.fromRGB(0,0,0); Instance.new("UIStroke", TitleEgg).Thickness = 2
-    local Sp2 = Instance.new("Frame", Page2); Sp2.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp2.Size = UDim2.new(0.7, 0, 0, 2); Sp2.BorderSizePixel = 0; Sp2.LayoutOrder = 8
+    local Sp2 = Instance.new("Frame", Page2); Sp2.BackgroundColor3 = Color3.fromRGB(0, 255, 150); Sp2.Size = UDim2.new(0, 300, 0, 2); Sp2.BorderSizePixel = 0; Sp2.LayoutOrder = 8
 
     local EggFrame = Instance.new("Frame", Page2)
-    EggFrame.Size = UDim2.new(0.95, 0, 0, 75); EggFrame.BackgroundTransparency = 1; EggFrame.LayoutOrder = 9
+    EggFrame.Size = UDim2.new(0, 600, 0, 85); EggFrame.BackgroundTransparency = 1; EggFrame.LayoutOrder = 9
     local EggGrid = Instance.new("UIGridLayout", EggFrame)
-    EggGrid.CellSize = UDim2.new(0.22, 0, 0, 30); EggGrid.CellPadding = UDim2.new(0.03, 0, 0, 8); EggGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; EggGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    -- Ep kich thuoc nut cho Trung
+    EggGrid.CellSize = UDim2.new(0, 85, 0, 35); EggGrid.CellPadding = UDim2.new(0, 12, 0, 10); EggGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center; EggGrid.SortOrder = Enum.SortOrder.LayoutOrder
 
     for i = 1, 8 do
         local Btn = Instance.new("TextButton", EggFrame)
@@ -535,8 +539,6 @@ function FarmUI.new(UIConfig)
         local modeStroke = Instance.new("UIStroke", Btn); modeStroke.Color = Color3.fromRGB(0, 255, 150); modeStroke.Thickness = 1.5; modeStroke.Transparency = (_G.CurrentTargetEgg == i) and 0 or 0.6
         Instance.new("UIStroke", Btn).Color = Color3.fromRGB(0, 0, 0); Instance.new("UIStroke", Btn).Thickness = 1
 
-        Btn.MouseEnter:Connect(function() if _G.CurrentTargetEgg ~= i then Btn.BackgroundColor3 = Color3.fromRGB(55, 55, 60) end end)
-        Btn.MouseLeave:Connect(function() if _G.CurrentTargetEgg ~= i then Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40) end end)
         Btn.MouseButton1Click:Connect(function()
             if _G.ChangeTargetEgg then
                 _G.ChangeTargetEgg(i)
