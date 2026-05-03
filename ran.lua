@@ -119,22 +119,32 @@ end)
 
 local destroyClasses = {"Decal", "Texture", "ParticleEmitter", "Trail", "Beam", "Fire", "Sparkles", "Smoke", "PostEffect", "SunRaysEffect", "ColorCorrectionEffect", "BloomEffect", "DepthOfFieldEffect", "BlurEffect"}
 
+-- Xác định thư mục quan trọng để không đụng vào
+local THINGS = Workspace:WaitForChild("__THINGS")
+
 local function ExtremeOptimize(v)
     pcall(function()
-        if v:IsA("BasePart") then
+        -- BỎ QUA thư mục __THINGS để tránh lỗi logic farm và lỗi Memory Leak
+        if v:IsDescendantOf(THINGS) then return end
+        
+        if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
             v.Material = Enum.Material.Plastic
             v.Reflectance = 0
             v.CastShadow = false
-            if v:IsA("MeshPart") then
+            v.Transparency = 1 -- Làm tàng hình thay vì xóa
+            if v:IsA("MeshPart") or v:IsA("SpecialMesh") then
                 v.TextureID = ""
             end
-        elseif v:IsA("Explosion") then
-            v.Visible = false
-        elseif table.find(destroyClasses, v.ClassName) then
-            v:Destroy() -- tieu huy hoan toan thay vi chi an di
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v.Transparency = 1 -- Làm tàng hình
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("PostEffect") then
+            v.Enabled = false -- Chỉ tắt hiệu ứng (Disable), KHÔNG DÙNG :Destroy()
         end
     end)
 end
+
+Lighting.GlobalShadows = false
+Lighting.FogEnd = 9e9
 
 for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
 for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
