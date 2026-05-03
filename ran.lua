@@ -119,38 +119,96 @@ end)
 
 local destroyClasses = {"Decal", "Texture", "ParticleEmitter", "Trail", "Beam", "Fire", "Sparkles", "Smoke", "PostEffect", "SunRaysEffect", "ColorCorrectionEffect", "BloomEffect", "DepthOfFieldEffect", "BlurEffect"}
 
--- Xác định thư mục quan trọng để không đụng vào
+-- ==========================================
+-- EXTREME OPTIMIZATION & DUMMY CAMERA (AUTO RANK VERSION)
+-- ==========================================
 local THINGS = Workspace:WaitForChild("__THINGS")
+local DummyPlatformPos = Vector3.new(0, 15000, 0)
+local ActiveDummy = nil
+local Cam = Workspace.CurrentCamera
 
-local function ExtremeOptimize(v)
-    pcall(function()
-        -- BỎ QUA thư mục __THINGS để tránh lỗi logic farm và lỗi Memory Leak
-        if v:IsDescendantOf(THINGS) then return end
-        
-        if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
-            v.Material = Enum.Material.Plastic
-            v.Reflectance = 0
-            v.CastShadow = false
-            v.Transparency = 1 -- Làm tàng hình thay vì xóa
-            if v:IsA("MeshPart") or v:IsA("SpecialMesh") then
-                v.TextureID = ""
+local function CreateOptimizationAndPlatforms()
+    -- 1. Tạo bệ đứng trên không trung cho Bản Sao (Dummy)
+    local mainPlat = Instance.new("Part", Workspace)
+    mainPlat.Size = Vector3.new(50, 1, 50)
+    mainPlat.Position = DummyPlatformPos - Vector3.new(0, 3, 0)
+    mainPlat.Anchored = true
+    mainPlat.Material = Enum.Material.Neon
+    mainPlat.BrickColor = BrickColor.new("Toothpaste")
+    mainPlat.Name = "DummyPlatform"
+
+    -- 2. Tắt ánh sáng, bóng đổ
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 9e9
+    for _, v in pairs(Lighting:GetDescendants()) do if v:IsA("PostEffect") then v.Enabled = false end end
+
+    -- 3. Quét tàng hình Map (Bỏ qua __THINGS và Bản sao)
+    local function optimizePart(v)
+        pcall(function()
+            if v:IsDescendantOf(THINGS) or v == mainPlat or (ActiveDummy and v:IsDescendantOf(ActiveDummy)) then return end
+
+            if v:IsA("BasePart") and not (v.Parent and v.Parent:FindFirstChild("Humanoid")) then
+                v.Material = Enum.Material.Plastic; v.Reflectance = 0; v.CastShadow = false; v.Transparency = 1
+                if v:IsA("MeshPart") or v:IsA("SpecialMesh") then v.TextureID = "" end
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("PostEffect") then
+                v.Enabled = false
+            elseif v:IsA("Explosion") then
+                v.Visible = false
             end
-        elseif v:IsA("Decal") or v:IsA("Texture") then
-            v.Transparency = 1 -- Làm tàng hình
-        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("PostEffect") then
-            v.Enabled = false -- Chỉ tắt hiệu ứng (Disable), KHÔNG DÙNG :Destroy()
-        end
-    end)
+        end)
+    end
+
+    for _, v in pairs(Workspace:GetDescendants()) do optimizePart(v) end
+    Workspace.DescendantAdded:Connect(optimizePart)
 end
 
-Lighting.GlobalShadows = false
-Lighting.FogEnd = 9e9
+-- Hàm tạo Dummy và khóa Camera
+local function SetupDummyAndCamera(char)
+    if not char then return end
+    char:WaitForChild("HumanoidRootPart")
+    char.Archivable = true
+    
+    -- Xóa Dummy cũ nếu có (Trường hợp vừa Rebirth/Đổi World)
+    if ActiveDummy then ActiveDummy:Destroy() end
+    
+    ActiveDummy = char:Clone()
+    ActiveDummy.Name = "AFK_Dummy"
+    ActiveDummy.Parent = Workspace
+    ActiveDummy:SetPrimaryPartCFrame(CFrame.new(DummyPlatformPos))
+    
+    for _, v in pairs(ActiveDummy:GetDescendants()) do
+        if v:IsA("BasePart") then v.Anchored = true end
+    end
+end
 
-for _, v in ipairs(Workspace:GetDescendants()) do ExtremeOptimize(v) end
-for _, v in ipairs(Lighting:GetDescendants()) do ExtremeOptimize(v) end
+-- Theo dõi vòng đời nhân vật (Quan trọng cho tính năng Rebirth của Auto Rank)
+local function HandleCharacter(char)
+    task.wait(1) -- Đợi nhân vật tải đầy đủ
+    SetupDummyAndCamera(char)
+end
 
-Workspace.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
-Lighting.DescendantAdded:Connect(function(v) ExtremeOptimize(v) end)
+if LocalPlayer.Character then HandleCharacter(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(HandleCharacter)
+
+-- Khởi chạy tối ưu hóa
+CreateOptimizationAndPlatforms()
+
+-- Vòng lặp khóa Camera vào Dummy và tàng hình nhân vật thật đang đi Farm
+RunService.RenderStepped:Connect(function()
+    -- Khóa góc nhìn lên Dummy
+    if Cam and ActiveDummy and ActiveDummy:FindFirstChild("Humanoid") then
+        Cam.CameraSubject = ActiveDummy.Humanoid
+    end
+    -- Tàng hình nhân vật thật
+    if LocalPlayer.Character then
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("Decal") then v.Transparency = 1 end
+        end
+    end
+end)
+-- ==========================================
 
 local function loadUtils(url, file)
     local path = "Poodle-Utils/" .. file
@@ -911,12 +969,29 @@ end)
 
 local config = getgenv().AutoRankConfig or {}
 local DefaultQuestPriority = {
-	ZONE_GATE = 0, EGG = 1, BEST_EGG = 1, USE_POTION = 1, USE_FLAG = 1,
-	BEST_RAINBOW_PET = 2, BEST_GOLD_PET = 2, COLLECT_POTION = 2, COLLECT_ENCHANT = 2,
-	COMET = 3, BEST_COMET = 3, COIN_JAR = 4, BEST_COIN_JAR = 4,
-	PINATA = 5, BEST_PINATA = 5, LUCKYBLOCK = 6, BEST_LUCKYBLOCK = 6,
-	CURRENT_BREAKABLE = 7, BEST_SUPERIOR_MINI_CHEST = 7, DIAMOND_BREAKABLE = 7,
-    BEST_MINI_CHEST = 7, HATCH_RARE_PET = 7, CURRENCY = 7,	
+	ZONE_GATE = 0,
+    EGG = 1,
+    BEST_EGG = 1,
+    USE_POTION = 1,
+    USE_FLAG = 1,
+    BEST_RAINBOW_PET = 2,
+    BEST_GOLD_PET = 2,
+    COLLECT_POTION = 2,
+    COLLECT_ENCHANT = 2,
+    COMET = 3,
+    BEST_COMET = 3,
+    COIN_JAR = 4,
+    BEST_COIN_JAR = 4,
+    PINATA = 5,
+    BEST_PINATA = 5,
+    LUCKYBLOCK = 6,
+    BEST_LUCKYBLOCK = 6,
+    CURRENT_BREAKABLE = 7,
+    BEST_SUPERIOR_MINI_CHEST = 7,
+    DIAMOND_BREAKABLE = 7,
+    BEST_MINI_CHEST = 7,
+    HATCH_RARE_PET = 7,
+    CURRENCY = 7, 
 }
 local QuestPriority = {}
 local UserPriority = config.QuestPriority or {}
