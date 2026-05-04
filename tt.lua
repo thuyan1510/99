@@ -13,7 +13,8 @@ local config = getgenv().FantasyConfig or {
     PingID = "",
     AutoCombinePresents = true, 
     MaxCombineTier = 4,
-    AutoTimeTrial = true
+    AutoTimeTrial = true,
+    Blackout = true
 }
 
 local CoreGui = game:GetService("CoreGui")
@@ -233,7 +234,7 @@ local function CreateOptimizationAndPlatforms()
     for _, v in pairs(Workspace:GetDescendants()) do optimizePart(v) end
     Workspace.DescendantAdded:Connect(optimizePart)
 end
-task.spawn(CreateOptimizationAndPlatforms)
+
 
 local function SetupDummyAndCamera()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -254,7 +255,10 @@ local function SetupDummyAndCamera()
         end
     end)
 end
-task.spawn(SetupDummyAndCamera)
+if config.Blackout ~= false then
+    task.spawn(CreateOptimizationAndPlatforms)
+    task.spawn(SetupDummyAndCamera)
+end
 
 local VirtualInputManager = game:GetService("VirtualInputManager")
 task.spawn(function()
@@ -868,7 +872,7 @@ task.spawn(function()
                                     if #breakables >= 20 then break end
                                 end
                             end
-                            if #breakables >= 20 then break end
+                            if #breakables >= 30 then break end
                         end
                     end
                 end
@@ -893,7 +897,7 @@ end)
 
 -- VÒNG LẶP SÁT THƯƠNG NORMAL FARM (RADAR SCAN + GIỚI HẠN MỤC TIÊU CỰC KỲ TỐI ƯU FPS)
 task.spawn(function()
-    while task.wait(0.25) do 
+    while task.wait(0.2) do 
         if _G.FARM_STATE ~= "NORMAL" then continue end
         if InstancingCmds.GetInstanceID() == INSTANCE_NAME then continue end 
         
