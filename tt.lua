@@ -904,9 +904,9 @@ task.spawn(function()
             local availableBreakables = {}
             -- CHỈ QUÉT RƯƠNG TRONG BÁN KÍNH 80 STUDS VÀ GIỚI HẠN TỐI ĐA 20 RƯƠNG
             for _, b in ipairs(BreakablesFolder:GetChildren()) do
-                if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - hrp.Position).Magnitude < 80 then
+                if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - hrp.Position).Magnitude < 150 then
                     table.insert(availableBreakables, b.Name)
-                    if #availableBreakables >= 20 then break end
+                    if #availableBreakables >= 50 then break end
                 end
             end
             
