@@ -1,4 +1,5 @@
-local injectedEnv = type(getgenv) == "function" and getgenv() or nil
+local success, env = pcall(function() return getgenv and getgenv() end)
+local injectedEnv = success and env or nil
 local globalEnv = injectedEnv or _G
 local REMOTE_CONFIG_KEYS = {
     "AutoTradeSettings",
@@ -155,25 +156,26 @@ local DEFAULT_CONFIG = {
     ConfirmTimeout = 20,
     TradeCloseTimeout = 20,
 
-    Process Existing Active Trade = true,
-    Keep Ready Synced = true,
-    Keep Confirm Synced = true,
-    Use Direct Ready Remote Fallback = true,
-    Use Direct Confirm Remote Fallback = false,
-    Debug Trade  State At Confirm = false,
-    Confirm Without Other Ready Detection = true,
+    -- ĐÃ FIX CÚ PHÁP Ở ĐÂY
+    ProcessExistingActiveTrade = true,
+    KeepReadySynced = true,
+    KeepConfirmSynced = true,
+    UseDirectReadyRemoteFallback = true,
+    UseDirectConfirmRemoteFallback = false,
+    DebugTradeStateAtConfirm = false,
+    ConfirmWithoutOtherReadyDetection = true,
 
-    Reject If Item List Empty = true,
-    Reject Skipped Requests = true,
-    Decline If Plan Fails = true,
-    Decline If Apply Fails = true,
-    Decline If Confirm Fails = true,
-    Decline If Other Never Ready = true,
-    Mark Player As Traded After Confirm Flow = true,
+    RejectIfItemListEmpty = true,
+    RejectSkippedRequests = true,
+    DeclineIfPlanFails = true,
+    DeclineIfApplyFails = true,
+    DeclineIfConfirmFails = true,
+    DeclineIfOtherNeverReady = true,
+    MarkPlayerAsTradedAfterConfirmFlow = true,
 
-    Skip Already Traded Players = true,
-    Remember Players This Session = false
-    Persist Already Traded Players = false,
+    SkipAlreadyTradedPlayers = true,
+    RememberPlayersThisSession = false,
+    PersistAlreadyTradedPlayers = false,
     PersistenceFile = "autotrade_processed_players.json",
 
     AllowedPlayers = {"kingltnsell"},
@@ -183,17 +185,11 @@ local DEFAULT_CONFIG = {
     TradeMessage = "thanks!",
 
     AllowPartialAmountByDefault = false,
+    
+    -- Các tùy chọn chuyển đồ thông minh
+    AddAllHugeTitanicGargantuan = true,
+    KeepHugeCount = 15,
 
-    -- Each entry supports:
-    -- name        = required string
-    -- amount      = required number or "all"
-    -- class       = optional, example "Currency", "Pet", "Misc"
-    -- match       = optional, "exact" (default) or "contains"
-    -- tier        = optional, useful for Enchant/Potion stacks when the raw item data stores a tier
-    -- variant     = optional, useful for pets, example "rainbow" or "golden"
-    -- required    = optional, default true
-    -- allowPartial= optional, default CONFIG.AllowPartialAmountByDefault
-    -- enabled     = optional, default true
     ItemList = {
         { name = "Spring", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
     },
@@ -1704,51 +1700,50 @@ end
 
 task.spawn(function()
     statusLog("Controller loaded. version=" .. Controller.Version .. " session=" .. tostring(Controller.SessionId) .. " config=" .. tostring(Controller.ConfigSource))
--- ========================================================
--- 🧠 TÍNH NĂNG CHUYỂN ĐỒ THÔNG MINH (ALT-TRANSFER INJECTION)
--- ========================================================
-if CONFIG.AddAllHugeTitanicGargantuan then
-    -- 1. Bơm lệnh tẩu tán TẤT CẢ Titanic và Gargantuan (Không giữ lại)
-    table.insert(CONFIG.ItemList, { name = "Titanic", amount = "all", class = "Pet", match = "contains", required = false, allowPartial = true })
-    table.insert(CONFIG.ItemList, { name = "Gargantuan", amount = "all", class = "Pet", match = "contains", required = false, allowPartial = true })
+    
+    -- ========================================================
+    -- 🧠 TÍNH NĂNG CHUYỂN ĐỒ THÔNG MINH (ALT-TRANSFER INJECTION)
+    -- ========================================================
+    if CONFIG.AddAllHugeTitanicGargantuan then
+        -- 1. Bơm lệnh tẩu tán TẤT CẢ Titanic và Gargantuan (Không giữ lại)
+        table.insert(CONFIG.ItemList, { name = "Titanic", amount = "all", class = "Pet", match = "contains", required = false, allowPartial = true })
+        table.insert(CONFIG.ItemList, { name = "Gargantuan", amount = "all", class = "Pet", match = "contains", required = false, allowPartial = true })
 
-    -- 2. Đếm xem trong kho đang có tổng cộng bao nhiêu con Huge
-    local function GetHugeCount()
-        local count = 0
-        local save = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get()
-        if save and save.Inventory and save.Inventory.Pet then
-            for _, pet in pairs(save.Inventory.Pet) do
-                if type(pet.id) == "string" and string.find(pet.id, "Huge") then
-                    count = count + (pet._am or 1)
+        -- 2. Đếm xem trong kho đang có tổng cộng bao nhiêu con Huge
+        local function GetHugeCount()
+            local count = 0
+            local save = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get()
+            if save and save.Inventory and save.Inventory.Pet then
+                for _, pet in pairs(save.Inventory.Pet) do
+                    if type(pet.id) == "string" and string.find(pet.id, "Huge") then
+                        count = count + (pet._am or 1)
+                    end
                 end
             end
+            return count
         end
-        return count
+
+        local totalHuges = GetHugeCount()
+        local keepCount = CONFIG.KeepHugeCount or 15
+        local hugesToTrade = totalHuges - keepCount
+
+        -- 3. Nếu số Huge đang có lớn hơn số Huge muốn giữ lại -> Bơm lệnh Trade phần dư thừa
+        if hugesToTrade > 0 then
+            table.insert(CONFIG.ItemList, { 
+                name = "Huge", 
+                amount = hugesToTrade, 
+                class = "Pet", 
+                match = "contains", 
+                required = false, 
+                allowPartial = true 
+            })
+            print(string.format("✅ [AUTO TRADE]: Đã tìm thấy %d Huges. Giữ lại %d. Sẽ trade %d Huges!", totalHuges, keepCount, hugesToTrade))
+        else
+            print(string.format("⚠️ [AUTO TRADE]: Chỉ có %d Huges (Chưa đủ %d để giữ lại). Sẽ không trade Huge!", totalHuges, keepCount))
+        end
     end
+    -- ========================================================
 
-    local totalHuges = GetHugeCount()
-    local keepCount = CONFIG.KeepHugeCount or 15
-    local hugesToTrade = totalHuges - keepCount
-
-    -- 3. Nếu số Huge đang có lớn hơn số Huge muốn giữ lại -> Bơm lệnh Trade phần dư thừa
-    if hugesToTrade > 0 then
-        table.insert(CONFIG.ItemList, { 
-            name = "Huge", 
-            amount = hugesToTrade, 
-            class = "Pet", 
-            match = "contains", 
-            required = false, 
-            allowPartial = true 
-        })
-        print(string.format("✅ [AUTO TRADE]: Đã tìm thấy %d Huges. Giữ lại %d. Sẽ trade %d Huges!", totalHuges, keepCount, hugesToTrade))
-    else
-        print(string.format("⚠️ [AUTO TRADE]: Chỉ có %d Huges (Chưa đủ %d để giữ lại). Sẽ không trade Huge!", totalHuges, keepCount))
-    end
-end
--- ========================================================
-
--- (Ngay bên dưới đoạn này sẽ là vòng lặp while cũ của tác giả)
--- while shouldRun() and CONFIG.Enabled do
     while shouldRun() and CONFIG.Enabled do
         local okLoop, loopError = pcall(function()
             local activeState = getTradeState()
