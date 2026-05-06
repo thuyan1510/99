@@ -6,7 +6,7 @@ if _G.CoreFarmStarted then return end
 _G.CoreFarmStarted = true
 
 -- ==========================================
--- ⚙️ CẤU HÌNH NGOẠI VI (EXTERNAL CONFIG)
+-- ⚙️ CẤU HÌNH NGOẠI VI (TRẢ LẠI GETGENV CỦA ÔNG)
 -- ==========================================
 local config = getgenv().FantasyConfig or {
     WebhookURL = "",
@@ -44,27 +44,40 @@ local RankCmds = require(Library.Client.RankCmds)
 local RanksDirectory = require(Library.Directory.Ranks)
 
 -- ==========================================
--- 1. LOAD VARIABLES MANAGER & STATES
+-- 1. LOAD VARIABLES MANAGER (FIXED NIL CALL)
 -- ==========================================
 local function loadUtils(url, file)
-    local path = "Poodle-Utils/" .. file
-    local ok, res = pcall(function() return game:HttpGet(url) end)
-    if ok and res then
-        if not isfolder("Poodle-Utils") then makefolder("Poodle-Utils") end
-        writefile(path, res)
-        return loadstring(res)()
+    local res = nil
+    pcall(function() res = game:HttpGet(url) end)
+    
+    if res and type(res) == "string" and string.len(res) > 0 then
+        pcall(function()
+            local path = "Poodle-Utils/" .. file
+            if isfolder and not isfolder("Poodle-Utils") then makefolder("Poodle-Utils") end
+            if writefile then writefile(path, res) end
+        end)
+        local func = loadstring(res)
+        if type(func) == "function" then return func() end
     end
-    return loadstring(readfile(path))()
+    
+    -- Fallback an toàn, chống báo lỗi attempt to call a nil value
+    return {
+        new = function()
+            local data = {}
+            return {
+                Add = function(self, k, v) data[k] = v end,
+                Get = function(self, k) return data[k] end,
+                Set = function(self, k, v) data[k] = v end
+            }
+        end
+    }
 end
 
-local vm = loadUtils("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/VariablesManager.lua", "VariablesManager.lua")
-local vmInst = vm:new()
+local vmInst = loadUtils("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/VariablesManager.lua", "VariablesManager.lua"):new()
 
 vmInst:Add("CurrentZone", nil, "string")
 vmInst:Add("SessionHuge", 0, "number")
 vmInst:Add("SessionTitanic", 0, "number")
-
--- Các biến Time Trial
 vmInst:Add("TT_DailyRuns", 0, "number")
 vmInst:Add("TT_SessionRuns", 0, "number")
 vmInst:Add("TT_TilesCleared", 0, "number")
@@ -217,7 +230,6 @@ end
 
 function WebhookSender.Initialize()
     if CACHE_LOADED then return true end
-    print("[Poodle Webhook] Loading thumbnails and exists data API...")
     task.spawn(function()
         local ok1 = LoadPetThumbnails()
         local ok2 = LoadItemThumbnails()
@@ -243,8 +255,7 @@ function WebhookSender.SendPet(petName, variant, playerName, existsCount)
     
     local fields = {
         { name = "🐾 Pet", value = string.format("```%s```", fullName), inline = true },
-        { name = "👤 Player", value = string.format("
-```%s```", playerName), inline = true },
+        { name = "👤 Player", value = string.format("```%s```", playerName), inline = true },
         { name = "📈 Exists", value = string.format("```%s```", existsCount or "?"), inline = true }
     }
     
@@ -405,7 +416,6 @@ local function GetCurrentFruitStack(fruitName)
     if type(data.Shiny) == "table" then
         for _ in pairs(data.Shiny) do count = count + 1 end
     end
-    
     return count
 end
 
@@ -465,22 +475,11 @@ local function ManageFruits()
     end
 end
 
-task.spawn(function()
-    ManageFruits()
-end)
-
-Network.Fired("Fruits: Update"):Connect(function() 
-    task.wait(1)
-    ManageFruits() 
-end)
-
-task.spawn(function()
-    while task.wait(30) do 
-        ManageFruits()
-    end
-end)
-
+task.spawn(ManageFruits)
+Network.Fired("Fruits: Update"):Connect(function() task.wait(1); ManageFruits() end)
+task.spawn(function() while task.wait(30) do ManageFruits() end end)
 task.spawn(function() while task.wait(30) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end end)
+
 task.spawn(function()
     while task.wait(15) do
         pcall(function()
@@ -522,11 +521,8 @@ end)
 -- 7. TRÍCH XUẤT HỘP QUÀ (LOOTBOXES)
 -- ==========================================
 local PresentTiers = {
-    [1] = "Small Fantasy Present",
-    [2] = "Medium Fantasy Present",
-    [3] = "Large Fantasy Present",
-    [4] = "X-Large Fantasy Present",
-    [5] = "Titanic Fantasy Present"
+    [1] = "Small Fantasy Present", [2] = "Medium Fantasy Present", [3] = "Large Fantasy Present",
+    [4] = "X-Large Fantasy Present", [5] = "Titanic Fantasy Present"
 }
 
 local function GetPresentCountsAndUids()
@@ -555,25 +551,18 @@ local function FormatValue(Value)
     else return tostring(math.floor(absNumber)) .. suffixes[index] end
 end
 
-local function GetCurrentWorldNumber() return WorldsUtil.GetWorld() and WorldsUtil.GetWorld().WorldNumber or 1 end
-local function GetCurrencyByWorld()
-    local worldNum = GetCurrentWorldNumber()
-    local currencies = { [1] = "Coins", [2] = "TechCoins", [3] = "VoidCoins", [4] = "FantasyCoins" }
-    return currencies[worldNum] or "Coins"
-end
-
-local function parseCurrency(val)
-    if type(val) == "string" then val = val:gsub(",", "") end
-    return tonumber(val) or 0
-end
-
 local function GetCurrentCurrency() 
-    local w = GetCurrencyByWorld(); if not w then return 0 end
-    local c = CurrencyCmds.Get(w); return parseCurrency(c) 
+    local w = WorldsUtil.GetWorld() and WorldsUtil.GetWorld().WorldNumber or 1
+    local currencies = { [1] = "Coins", [2] = "TechCoins", [3] = "VoidCoins", [4] = "FantasyCoins" }
+    local c = CurrencyCmds.Get(currencies[w] or "Coins")
+    if type(c) == "string" then c = c:gsub(",", "") end
+    return tonumber(c) or 0
 end
 
 local function GetGems() 
-    local c = CurrencyCmds.Get("Diamonds"); return parseCurrency(c) 
+    local c = CurrencyCmds.Get("Diamonds")
+    if type(c) == "string" then c = c:gsub(",", "") end
+    return tonumber(c) or 0 
 end
 
 -- ==========================================
@@ -595,37 +584,21 @@ if CoreGui:FindFirstChild("CoreFarmHUD") then CoreGui.CoreFarmHUD:Destroy() end
 local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "CoreFarmHUD"; ScreenGui.Parent = CoreGui; ScreenGui.ResetOnSpawn = false; ScreenGui.IgnoreGuiInset = true
 
 local FullscreenBG = Instance.new("Frame", ScreenGui)
-FullscreenBG.Size = UDim2.new(1, 0, 1, 0)
-FullscreenBG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-FullscreenBG.BorderSizePixel = 0
-FullscreenBG.ZIndex = 1
+FullscreenBG.Size = UDim2.new(1, 0, 1, 0); FullscreenBG.BackgroundColor3 = Color3.fromRGB(0, 0, 0); FullscreenBG.BorderSizePixel = 0; FullscreenBG.ZIndex = 1
 
 local Container = Instance.new("Frame", FullscreenBG)
-Container.Size = UDim2.new(0, 450, 0, 310)
-Container.Position = UDim2.new(0.5, 0, 0.5, 0)
-Container.AnchorPoint = Vector2.new(0.5, 0.5)
-Container.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-Container.BorderSizePixel = 0
+Container.Size = UDim2.new(0, 450, 0, 310); Container.Position = UDim2.new(0.5, 0, 0.5, 0); Container.AnchorPoint = Vector2.new(0.5, 0.5)
+Container.BackgroundColor3 = Color3.fromRGB(15, 15, 20); Container.BorderSizePixel = 0
 Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 8)
 Instance.new("UIStroke", Container).Color = Color3.fromRGB(0, 255, 150)
 
-local Layout = Instance.new("UIListLayout", Container)
-Layout.Padding = UDim.new(0, 6)
-Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-Layout.VerticalAlignment = Enum.VerticalAlignment.Center
+local Layout = Instance.new("UIListLayout", Container); Layout.Padding = UDim.new(0, 6); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 local function CreateLabel(text, color)
     local lbl = Instance.new("TextLabel", Container)
-    lbl.Size = UDim2.new(1, -20, 0, 24)
-    lbl.BackgroundTransparency = 1
-    lbl.Font = Enum.Font.GothamBold
-    lbl.TextScaled = false
-    lbl.TextSize = 14
-    lbl.TextColor3 = color or Color3.fromRGB(255, 255, 255)
-    lbl.Text = text
-    lbl.ZIndex = 3
-    Instance.new("UIStroke", lbl).Thickness = 1
-    return lbl
+    lbl.Size = UDim2.new(1, -20, 0, 24); lbl.BackgroundTransparency = 1; lbl.Font = Enum.Font.GothamBold; lbl.TextScaled = false
+    lbl.TextSize = 14; lbl.TextColor3 = color or Color3.fromRGB(255, 255, 255); lbl.Text = text; lbl.ZIndex = 3
+    Instance.new("UIStroke", lbl).Thickness = 1; return lbl
 end
 
 local UI = {
@@ -641,24 +614,12 @@ local UI = {
 }
 
 local ToggleBtn = Instance.new("TextButton", ScreenGui)
-ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.Position = UDim2.new(1, -20, 1, -20)
-ToggleBtn.AnchorPoint = Vector2.new(1, 1)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.TextSize = 25
-ToggleBtn.Text = "👁️"
-ToggleBtn.ZIndex = 10
-Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
-Instance.new("UIStroke", ToggleBtn).Color = Color3.fromRGB(0, 255, 150)
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30); ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255); ToggleBtn.Font = Enum.Font.GothamBold; ToggleBtn.TextSize = 25
+ToggleBtn.Text = "👁️"; ToggleBtn.ZIndex = 10; Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0); Instance.new("UIStroke", ToggleBtn).Color = Color3.fromRGB(0, 255, 150)
 
 local uiVisible = true
-ToggleBtn.MouseButton1Click:Connect(function() 
-    uiVisible = not uiVisible
-    FullscreenBG.Visible = uiVisible
-    ToggleBtn.Text = uiVisible and "👁️" or "🙈" 
-end)
+ToggleBtn.MouseButton1Click:Connect(function() uiVisible = not uiVisible; FullscreenBG.Visible = uiVisible; ToggleBtn.Text = uiVisible and "👁️" or "🙈" end)
 
 local isStatsInit = false
 local startCoin, startGem, startTime, startEggs = 0, 0, 0, 0
@@ -668,47 +629,28 @@ RunService.RenderStepped:Connect(function() frames = frames + 1 end)
 task.spawn(function()
     while task.wait(1) do
         if not isStatsInit and Save.Get() then
-            startCoin = GetCurrentCurrency()
-            startGem = GetGems()
-            startTime = tonumber(os.time()) or 0
-            startEggs = tonumber(Save.Get().EggsHatched) or 0
-            isStatsInit = true
+            startCoin = GetCurrentCurrency(); startGem = GetGems(); startTime = tonumber(os.time()) or 0; startEggs = tonumber(Save.Get().EggsHatched) or 0; isStatsInit = true
         end
-        
         if not isStatsInit then continue end
         
         local diff = (tonumber(os.time()) or 0) - startTime
-        local currentCoin = GetCurrentCurrency()
-        local currentGem = GetGems()
-        local coinEarned = math.max(0, currentCoin - startCoin)
-        local gemEarned = math.max(0, currentGem - startGem)
-        
-        local currentEggs = tonumber(Save.Get().EggsHatched) or 0
-        local hatchedSession = math.max(0, currentEggs - startEggs)
-        
-        local coinPerMin = diff > 0 and (coinEarned / (diff / 60)) or 0
-        local gemPerMin = diff > 0 and (gemEarned / (diff / 60)) or 0
+        local currentCoin = GetCurrentCurrency(); local currentGem = GetGems()
+        local coinEarned = math.max(0, currentCoin - startCoin); local gemEarned = math.max(0, currentGem - startGem)
+        local hatchedSession = math.max(0, (tonumber(Save.Get().EggsHatched) or 0) - startEggs)
         
         local pCounts, _ = GetPresentCountsAndUids()
-        
         local currentDailyRuns = Save.Get().TimeTrialStats and Save.Get().TimeTrialStats.DailyRuns or 0
-        if vmInst:Get("TT_SessionRuns") < currentDailyRuns then
-            vmInst:Set("TT_SessionRuns", currentDailyRuns)
-        end
+        if vmInst:Get("TT_SessionRuns") < currentDailyRuns then vmInst:Set("TT_SessionRuns", currentDailyRuns) end
         
         UI.Uptime.Text = string.format("Time: %02d:%02d:%02d | FPS: %d", math.floor(diff / 3600), math.floor((diff % 3600) / 60), diff % 60, frames)
         UI.Status.Text = "Status: " .. vmInst:Get("StatusMessage")
-        
-        local sessionRuns = vmInst:Get("TT_SessionRuns")
-        local tilesCleared = vmInst:Get("TT_TilesCleared")
-        UI.TTProg.Text = string.format("Time Trial: %d/10 | Tile: %d/5", sessionRuns, tilesCleared)
+        UI.TTProg.Text = string.format("Time Trial: %d/10 | Tile: %d/5", vmInst:Get("TT_SessionRuns"), vmInst:Get("TT_TilesCleared"))
         if not config.AutoTimeTrial then UI.TTProg.Text = "Time Trial: Disabled" end
-        
         UI.PresentStats.Text = string.format("Presents: %s S | %s M | %s L | %s XL | %s T", FormatValue(pCounts[1]), FormatValue(pCounts[2]), FormatValue(pCounts[3]), FormatValue(pCounts[4]), FormatValue(pCounts[5]))
         UI.EggStats.Text = "Total Egg Hatched: " .. FormatValue(hatchedSession)
         UI.HugeStats.Text = "Claim Huge: " .. vmInst:Get("SessionHuge") .. " | Titanic: " .. vmInst:Get("SessionTitanic")
-        UI.CoinStats.Text = "Coins: " .. FormatValue(currentCoin) .. " | " .. FormatValue(coinPerMin) .. "/min"
-        UI.GemStats.Text = "Gems: " .. FormatValue(currentGem) .. " | " .. FormatValue(gemPerMin) .. "/min"
+        UI.CoinStats.Text = "Coins: " .. FormatValue(currentCoin) .. " | " .. FormatValue(diff > 0 and (coinEarned / (diff / 60)) or 0) .. "/min"
+        UI.GemStats.Text = "Gems: " .. FormatValue(currentGem) .. " | " .. FormatValue(diff > 0 and (gemEarned / (diff / 60)) or 0) .. "/min"
         frames = 0
     end
 end)
@@ -726,12 +668,7 @@ task.spawn(function()
     local function processPetWebhook(data)
         local isShiny = data.sh; local isRainbow = data.pt == 2; local isGolden = data.pt == 1
         local variant = "Normal"
-        if isShiny and isRainbow then variant = "Shiny Rainbow"
-        elseif isShiny and isGolden then variant = "Shiny Golden"
-        elseif isShiny then variant = "Shiny"
-        elseif isRainbow then variant = "Rainbow"
-        elseif isGolden then variant = "Golden" end
-        
+        if isShiny and isRainbow then variant = "Shiny Rainbow" elseif isShiny and isGolden then variant = "Shiny Golden" elseif isShiny then variant = "Shiny" elseif isRainbow then variant = "Rainbow" elseif isGolden then variant = "Golden" end
         local existsCount = WebhookSender.GetExistsCount(data.id) or "?"
         WebhookSender.SendPet(data.id, variant, LocalPlayer.Name, existsCount)
     end
@@ -780,9 +717,7 @@ local function getBreakablesInTile(tilePos, radius)
     local count = 0
     if BreakablesFolder then
         for _, b in pairs(BreakablesFolder:GetChildren()) do 
-            pcall(function() 
-                if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - tilePos).Magnitude <= radius then count = count + 1 end 
-            end) 
+            pcall(function() if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - tilePos).Magnitude <= radius then count = count + 1 end end) 
         end
     end
     local fakeZones = THINGS:FindFirstChild("__FAKE_INSTANCE_BREAK_ZONES")
@@ -797,10 +732,7 @@ local function getBreakablesInTile(tilePos, radius)
 end
 
 local function getNextActiveTile()
-    for i, tilePos in ipairs(TT_TILES) do 
-        if getBreakablesInTile(tilePos, TILE_RADIUS) > 0 then return i end 
-    end
-    return nil 
+    for i, tilePos in ipairs(TT_TILES) do if getBreakablesInTile(tilePos, TILE_RADIUS) > 0 then return i end end; return nil 
 end
 
 -- TIẾN TRÌNH QUẢN LÝ
@@ -814,55 +746,33 @@ task.spawn(function()
                 
                 if InstancingCmds.GetInstanceID() ~= INSTANCE_NAME then
                     vmInst:Set("StatusMessage", "Entering Time Trial...")
-                    InstancingCmds.Enter(INSTANCE_NAME)
-                    task.wait(4)
+                    InstancingCmds.Enter(INSTANCE_NAME); task.wait(4)
                 else
-                    vmInst:Set("StatusMessage", "Loading Time Trial Spawns...")
-                    task.wait(0.5) 
-                    teleportTo(TT_TILES[1]) 
-                    task.wait(3.5) 
-                    
+                    vmInst:Set("StatusMessage", "Loading Time Trial Spawns..."); task.wait(0.5); teleportTo(TT_TILES[1]); task.wait(3.5) 
                     local bossSpawned = false
-
                     while InstancingCmds.GetInstanceID() == INSTANCE_NAME do
-                        if getBreakablesInTile(TT_BOSS, TILE_RADIUS) > 0 then 
-                            bossSpawned = true
-                            break 
-                        end
-
+                        if getBreakablesInTile(TT_BOSS, TILE_RADIUS) > 0 then bossSpawned = true; break end
                         local nextTileIndex = getNextActiveTile()
                         if nextTileIndex then
-                            vmInst:Set("StatusMessage", "Clearing Tile " .. nextTileIndex)
-                            vmInst:Set("TT_TilesCleared", nextTileIndex)
-                            teleportTo(TT_TILES[nextTileIndex])
-                            task.wait(0.5)
-
+                            vmInst:Set("StatusMessage", "Clearing Tile " .. nextTileIndex); vmInst:Set("TT_TilesCleared", nextTileIndex)
+                            teleportTo(TT_TILES[nextTileIndex]); task.wait(0.5)
                             while getBreakablesInTile(TT_TILES[nextTileIndex], TILE_RADIUS) > 0 do
-                                if getBreakablesInTile(TT_BOSS, TILE_RADIUS) > 0 then 
-                                    bossSpawned = true
-                                    break 
-                                end
+                                if getBreakablesInTile(TT_BOSS, TILE_RADIUS) > 0 then bossSpawned = true; break end
                                 task.wait(0.2)
                             end
                         else
-                            vmInst:Set("StatusMessage", "Waiting for spawns...")
-                            task.wait(0.5)
+                            vmInst:Set("StatusMessage", "Waiting for spawns..."); task.wait(0.5)
                         end
-                        
                         if bossSpawned then break end
                     end
 
                     if bossSpawned then
                         for w = 20, 1, -1 do
                             if InstancingCmds.GetInstanceID() ~= INSTANCE_NAME then break end
-                            vmInst:Set("StatusMessage", "Waiting 20s for Rank... (" .. w .. "s)")
-                            task.wait(1)
+                            vmInst:Set("StatusMessage", "Waiting 20s for Rank... (" .. w .. "s)"); task.wait(1)
                         end
-                    
-                        vmInst:Set("StatusMessage", "Fighting Boss!")
-                        teleportTo(TT_BOSS)
+                        vmInst:Set("StatusMessage", "Fighting Boss!"); teleportTo(TT_BOSS)
                         while getBreakablesInTile(TT_BOSS, TILE_RADIUS) > 0 do task.wait(0.5) end
-                        
                         vmInst:Set("TT_SessionRuns", vmInst:Get("TT_SessionRuns") + 1)
                     end
 
@@ -877,25 +787,19 @@ task.spawn(function()
                                             local text = desc:IsA("TextButton") and desc.Text:lower() or ""
                                             local name = desc.Name:lower()
                                             if text:match("leave") or text:match("confirm") or text:match("continue") or text:match("ok") or text:match("claim") or name:match("leave") or name:match("confirm") or name:match("claim") then
-                                                if getconnections then
-                                                    for _, conn in pairs(getconnections(desc.MouseButton1Click)) do conn:Fire() end
-                                                end
+                                                if getconnections then for _, conn in pairs(getconnections(desc.MouseButton1Click)) do conn:Fire() end end
                                             end
                                         end
                                     end
                                 end
                             end
                         end)
-                        pcall(function() InstancingCmds.Leave() end)
-                        task.wait(1)
-                        leaveAttempts = leaveAttempts + 1
+                        pcall(function() InstancingCmds.Leave() end); task.wait(1); leaveAttempts = leaveAttempts + 1
                     end
-                    task.wait(4)
-                    vmInst:Set("TT_TilesCleared", 0)
+                    task.wait(4); vmInst:Set("TT_TilesCleared", 0)
                 end
             else
                 _G.FARM_STATE = "NORMAL"
-                
                 local maxZoneId, maxZoneData = ZoneCmds.GetMaxOwnedZone()
                 if not maxZoneData then return end
                 local zoneFolder = maxZoneData.ZoneFolder
@@ -908,12 +812,9 @@ task.spawn(function()
                     
                     if targetPart then
                         if (hrp.Position - targetPart.Position).Magnitude > 50 then
-                            vmInst:Set("StatusMessage", "Teleporting to Max Zone...")
-                            hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
-                            task.wait(1)
+                            vmInst:Set("StatusMessage", "Teleporting to Max Zone..."); hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0); task.wait(1)
                         else
-                            vmInst:Set("CurrentZone", maxZoneId)
-                            vmInst:Set("StatusMessage", "Farming & Hatching")
+                            vmInst:Set("CurrentZone", maxZoneId); vmInst:Set("StatusMessage", "Farming & Hatching")
                         end
                     end
                 end
@@ -933,8 +834,7 @@ task.spawn(function()
                 
                 for _, b in ipairs(BreakablesFolder:GetChildren()) do
                     if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - hrp.Position).Magnitude < 120 then 
-                        table.insert(breakables, b.Name)
-                        if #breakables >= 20 then break end
+                        table.insert(breakables, b.Name); if #breakables >= 20 then break end
                     end
                 end
                 
@@ -944,8 +844,7 @@ task.spawn(function()
                         for _, z in ipairs(fakeZones:GetChildren()) do
                             for _, b in ipairs(z:GetChildren()) do
                                 if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - hrp.Position).Magnitude < 120 then 
-                                    table.insert(breakables, b.Name)
-                                    if #breakables >= 20 then break end
+                                    table.insert(breakables, b.Name); if #breakables >= 20 then break end
                                 end
                             end
                             if #breakables >= 30 then break end
@@ -972,7 +871,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ⚔️ V8 ASYNC FAST FARM (NO-SORT + STATIC PETS)
+-- ⚔️ V8 ASYNC FAST FARM (NO-SORT + STATIC PETS + DELAY 0.2s)
 -- ==========================================
 local lastFarmTick = 0
 local FARM_DELAY = 0.2 
@@ -989,7 +888,7 @@ RunService.Heartbeat:Connect(function()
     if not root then return end
     local rootPos = root.Position
 
-    -- QUÉT SIÊU TỐC
+    -- QUÉT SIÊU TỐC: BẢO MẬT 50 RƯƠNG
     local targets = {}
     for _, b in ipairs(BreakablesFolder:GetChildren()) do
         if b:IsA("Model") and b.PrimaryPart then
@@ -1002,7 +901,7 @@ RunService.Heartbeat:Connect(function()
 
     local numTargets = #targets
     if numTargets > 0 then
-        -- ⚡ CLICK AURA: Bắn Player Damage
+        -- ⚡ CLICK AURA: Bắn Player Damage (Max 30 mục tiêu)
         local auraLimit = math.min(numTargets, 30)
         for i = 1, auraLimit do
             Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i])
@@ -1021,7 +920,7 @@ RunService.Heartbeat:Connect(function()
                 bulkAssignments[myPets[i]] = targets[targetIndex]
             end
 
-            -- ⚡ DEFER CALL: Bắn tín hiệu bất đồng bộ
+            -- ⚡ DEFER CALL: Gửi Server
             if next(bulkAssignments) then
                 task.defer(function()
                     Network.Fire("Breakables_JoinPetBulk", bulkAssignments)
