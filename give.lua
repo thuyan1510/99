@@ -171,7 +171,7 @@ local DEFAULT_CONFIG = {
     DeclineIfApplyFails = true,
     DeclineIfConfirmFails = true,
     DeclineIfOtherNeverReady = true,
-    MarkPlayerAsTradedAfterConfirmFlow = true,
+    MarkPlayerAsTradedAfterConfirmFlow = false,
 
     SkipAlreadyTradedPlayers = true,
     RememberPlayersThisSession = false,
@@ -188,10 +188,23 @@ local DEFAULT_CONFIG = {
     
     -- Các tùy chọn chuyển đồ thông minh
     AddAllHugeTitanicGargantuan = true,
-    KeepHugeCount = 15,
+    KeepHugeCount = 0,
 
     ItemList = {
-        { name = "Spring", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "Lucky Block", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "TNT", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "Comet", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "Gift", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "Bundle", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "key", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "Voucher", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "Charm", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+        { name = "UFO", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
+        { name = "Nightmare", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
+        { name = "Black Hole", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
+        { name = "Chest Spell", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
+        { name = "Tsunami", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
+        { name = "UFO", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
     },
 }
 
@@ -1737,9 +1750,9 @@ task.spawn(function()
                 required = false, 
                 allowPartial = true 
             })
-            print(string.format("✅ [AUTO TRADE]: Đã tìm thấy %d Huges. Giữ lại %d. Sẽ trade %d Huges!", totalHuges, keepCount, hugesToTrade))
+            print(string.format("✅", totalHuges, keepCount, hugesToTrade))
         else
-            print(string.format("⚠️ [AUTO TRADE]: Chỉ có %d Huges (Chưa đủ %d để giữ lại). Sẽ không trade Huge!", totalHuges, keepCount))
+            print(string.format("⚠️", totalHuges, keepCount))
         end
     end
     -- ========================================================
