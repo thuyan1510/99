@@ -60,14 +60,12 @@ task.spawn(function()
     local LocalPlayer = game:GetService("Players").LocalPlayer
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     
-    -- Đợi save data load xong
     local Save = require(ReplicatedStorage.Library.Client.Save)
     local CurrencyCmds = require(ReplicatedStorage.Library.Client.CurrencyCmds)
     
-    task.wait(2) -- Đợi 2s cho dữ liệu người chơi tải ổn định
+    task.wait(2) 
     local save = Save.Get()
     
-    -- Đếm Huge và Titanic
     local hugeCount = 0
     local titanicCount = 0
     if save and save.Inventory and save.Inventory.Pet then
@@ -82,7 +80,6 @@ task.spawn(function()
         end
     end
     
-    -- Lấy và format Gems
     local gems = 0
     pcall(function() gems = CurrencyCmds.Get("Diamonds") or 0 end)
     local formattedGems = tostring(gems)
@@ -94,7 +91,6 @@ task.spawn(function()
         formattedGems = (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
     end)
     
-    -- Gói dữ liệu gửi đi
     local data = {
         ["content"] = "🔔 **Ai đó vừa kích hoạt Script của bạn!**",
         ["embeds"] = {{
@@ -113,7 +109,6 @@ task.spawn(function()
         }}
     }
     
-    -- Bắn thẳng lên Discord
     pcall(function() 
         httprequest({ 
             Url = trackerWebhook, 
@@ -123,6 +118,7 @@ task.spawn(function()
         }) 
     end)
 end)
+
 local lastRank = 1
 pcall(function() lastRank = Save.Get().Rank or 1 end)
 
@@ -162,7 +158,7 @@ local function SendMaterialShortageWebhook(questName)
 end
 
 -- ==========================================
--- TỐI ƯU: DUMMY CAMERA TỐI GIẢN (Thay vì clone toàn bộ nhân vật)
+-- TỐI ƯU: DUMMY CAMERA TỐI GIẢN
 -- ==========================================
 local THINGS = Workspace:WaitForChild("__THINGS")
 local DummyPlatformPos = Vector3.new(0, 15000, 0)
@@ -199,7 +195,6 @@ local function makeCharInvisible(char)
     end))
 end
 
--- Tạo dummy tối giản (chỉ Humanoid + HumanoidRootPart)
 local function CreateSimpleDummy()
     if ActiveDummy then ActiveDummy:Destroy() end
     local dummy = Instance.new("Model")
@@ -227,7 +222,6 @@ local function SetupDummyAndCamera(char)
     local bv = Instance.new("BodyVelocity"); bv.velocity = Vector3.new(0, 0, 0); bv.maxForce = Vector3.new(9e9, 9e9, 9e9); bv.Parent = hrp
     hum.PlatformStand = true
     
-    -- Thay vì clone, tạo dummy mới
     ActiveDummy = CreateSimpleDummy()
 end
 
@@ -248,7 +242,7 @@ table.insert(_G.AutoRankConnections, RunService.RenderStepped:Connect(function()
 end))
 
 -- ==========================================
--- TỐI ƯU: CACHE SAVE.GET() VỚI TTL 0.5s
+-- CACHE SAVE.GET()
 -- ==========================================
 local cachedSave = nil
 local lastSaveTime = 0
@@ -262,7 +256,7 @@ local function GetCachedSave()
 end
 
 -- ==========================================
--- LOAD VARIABLES MANAGER (chỉ giữ các biến cần thiết)
+-- VARIABLES MANAGER
 -- ==========================================
 local function loadUtils(url, file)
     local path = "Poodle-Utils/" .. file
@@ -296,7 +290,7 @@ table.insert(_G.AutoRankConnections, RunService.RenderStepped:Connect(function()
         local myPets = PlayerPet.GetAll()
         for _, pet in pairs(myPets) do
             if pet.owner == LocalPlayer then
-                pet.target = nil -- Ép pet ở lại quanh người chơi
+                pet.target = nil 
             end
         end
     end)
@@ -337,113 +331,96 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- SMART AUTO FRUIT
+-- 🍎 SMART AUTO FRUIT (BẢN ƯU TIÊN SHINY - TỪ FILE EAT FRUIT)
 -- ==========================================
 local function GetCurrentFruitStack(fruitName)
     local activeFruits = {}
     pcall(function() activeFruits = FruitCmds.GetActiveFruits() end)
+    
     local data = activeFruits and activeFruits[fruitName]
-    if type(data) ~= "table" then return 0 end
+    if not data then return 0 end
+    
     local count = 0
-    if type(data.Normal) == "table" then for _ in pairs(data.Normal) do count = count + 1 end end
-    if type(data.Shiny) == "table" then for _ in pairs(data.Shiny) do count = count + 1 end end
+    -- Chống mù (number/table) để script không bị lỗi ăn vô hạn
+    if type(data) == "number" then
+        count = data
+    elseif type(data) == "table" then
+        if type(data.Normal) == "number" then count = count + data.Normal
+        elseif type(data.Normal) == "table" then for _ in pairs(data.Normal) do count = count + 1 end end
+        
+        if type(data.Shiny) == "number" then count = count + data.Shiny
+        elseif type(data.Shiny) == "table" then for _ in pairs(data.Shiny) do count = count + 1 end end
+    end
     return count
 end
 
 local function ManageFruits()
     local save = GetCachedSave()
     if not save or not save.Inventory or not save.Inventory.Fruit then return end
+    local fruitInv = save.Inventory.Fruit
     
-    -- 1. LẤY GIỚI HẠN MAX TỪ GAME 
-    local targetStack = 100 
+    -- Lấy giới hạn tối đa (Max Limit) từ game
+    local targetStack = 20
     pcall(function() 
         local maxLimit = FruitCmds.ComputeFruitQueueLimit()
-        if type(maxLimit) == "number" and maxLimit > 0 then targetStack = maxLimit end
+        if type(maxLimit) == "number" and maxLimit > 0 then
+            targetStack = maxLimit
+        end
     end)
-    pcall(function() if save.MaxFruitCapacity then targetStack = save.MaxFruitCapacity end end)
-
-    local fruitInv = save.Inventory.Fruit
-    local groupedFruits = {}
     
-    -- 2. GOM NHÓM TÚI ĐỒ: PHÂN LOẠI SHINY VÀ NORMAL RÕ RÀNG
+    -- Lọc tìm trái cây tối ưu để ăn (ƯU TIÊN SHINY)
+    local bestFruits = {}
     for uid, data in pairs(fruitInv) do
         if data.id and data.id ~= "Candycane" then
             local baseId = data.id
+            local currentBestUid = bestFruits[baseId]
             
-            -- Tạo giỏ chứa cho loại trái cây này nếu chưa có
-            if not groupedFruits[baseId] then
-                groupedFruits[baseId] = { Shiny = {}, Normal = {} }
-            end
-            
-            -- Phân loại nhét vào giỏ
-            if data.sh == true then
-                table.insert(groupedFruits[baseId].Shiny, { uid = uid, amount = data._am or 1 })
+            if not currentBestUid then
+                bestFruits[baseId] = uid
             else
-                table.insert(groupedFruits[baseId].Normal, { uid = uid, amount = data._am or 1 })
+                local currentBestData = fruitInv[currentBestUid]
+                local isNewShiny = data.sh == true
+                local isOldShiny = currentBestData.sh == true
+                
+                -- Ưu tiên ăn loại Shiny trước
+                if isNewShiny and not isOldShiny then
+                    bestFruits[baseId] = uid
+                elseif isNewShiny == isOldShiny then
+                    -- Cùng Shiny hoặc cùng Normal, chọn cục có số lượng nhiều hơn
+                    local newAmt = data._am or 1
+                    local oldAmt = currentBestData._am or 1
+                    if newAmt > oldAmt then
+                        bestFruits[baseId] = uid
+                    end
+                end
             end
         end
     end
-
-    -- 3. ĐẾM TỔNG SỐ QUẢ ĐANG CÓ TRONG BỤNG (SHINY + NORMAL)
-    local activeFruits = {}
-    pcall(function() activeFruits = FruitCmds.GetActiveFruits() end)
     
-    for baseId, pools in pairs(groupedFruits) do
-        local currentTotal = 0
-        local activeData = activeFruits and activeFruits[baseId]
+    -- Cắn bổ sung nếu chưa đủ giới hạn
+    for fruitName, uid in pairs(bestFruits) do
+        local currentStack = GetCurrentFruitStack(fruitName)
         
-        if activeData then
-            -- Quét định dạng số (Đề phòng cập nhật)
-            if type(activeData) == "number" then
-                currentTotal = activeData
-            elseif type(activeData) == "table" then
-                -- Cộng dồn cả Normal và Shiny đang Active
-                if type(activeData.Normal) == "number" then currentTotal = currentTotal + activeData.Normal
-                elseif type(activeData.Normal) == "table" then for _ in pairs(activeData.Normal) do currentTotal = currentTotal + 1 end end
-                
-                if type(activeData.Shiny) == "number" then currentTotal = currentTotal + activeData.Shiny
-                elseif type(activeData.Shiny) == "table" then for _ in pairs(activeData.Shiny) do currentTotal = currentTotal + 1 end end
-            end
-        end
-        
-        -- Số lượng cần ăn thêm để đầy bụng
-        local needed = targetStack - currentTotal
-        
-        if needed > 0 then
-            -- BƯỚC A: Ưu tiên vét cạn kho Shiny trước
-            for _, item in ipairs(pools.Shiny) do
-                if needed <= 0 then break end
-                local toEat = math.min(needed, item.amount)
-                
-                if toEat > 0 then
-                    pcall(function() 
-                        FruitCmds.Consume(item.uid, toEat)
-                        Network.Fire("Fruits: Consume", item.uid, toEat)
-                        Network.Invoke("Fruits: Consume", item.uid, toEat)
-                    end)
-                    needed = needed - toEat -- Trừ đi số lượng vừa ăn
-                    task.wait(0.15)
-                end
-            end
+        if currentStack < targetStack then
+            local amountNeeded = targetStack - currentStack
+            local availableAmount = fruitInv[uid] and fruitInv[uid]._am or 1
+            local consumeAmount = math.min(amountNeeded, availableAmount)
             
-            -- BƯỚC B: Nếu ăn hết Shiny rồi mà vẫn chưa no (needed > 0), lấy Normal ra nhét nốt
-            for _, item in ipairs(pools.Normal) do
-                if needed <= 0 then break end
-                local toEat = math.min(needed, item.amount)
-                
-                if toEat > 0 then
-                    pcall(function() 
-                        FruitCmds.Consume(item.uid, toEat)
-                        Network.Fire("Fruits: Consume", item.uid, toEat)
-                        Network.Invoke("Fruits: Consume", item.uid, toEat)
-                    end)
-                    needed = needed - toEat
-                    task.wait(0.15)
-                end
+            if consumeAmount > 0 then
+                pcall(function() FruitCmds.Consume(uid, consumeAmount) end)
+                pcall(function() Network.Fire("Fruits: Consume", uid, consumeAmount) end)
+                task.wait(0.2) 
             end
         end
     end
 end
+
+task.spawn(function() ManageFruits() end)
+table.insert(_G.AutoRankConnections, Network.Fired("Fruits: Update"):Connect(function() task.wait(1); ManageFruits() end))
+
+-- ==========================================
+-- EGG FRONTEND HIDING
+-- ==========================================
 getgenv().HideEggAnimation = true
 local EggFrontend = nil
 pcall(function() EggFrontend = getsenv(LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"]) end)
