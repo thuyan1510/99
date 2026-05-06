@@ -41,6 +41,7 @@ local DaycareCmds = require(Library.Client.DaycareCmds)
 local DaycareLoot = require(Library.Modules.DaycareLoot)
 local PetItem = require(Library.Items.PetItem)
 local FruitCmds = require(Library.Client.FruitCmds)
+local PlayerPet = require(Library.Client.PlayerPet)
 
 local config = getgenv().AutoRankConfig or {}
 local WEBHOOK_URL = config.WebhookURL or ""
@@ -184,8 +185,6 @@ local function GetCachedSave()
     end
     return cachedSave
 end
--- Giữ nguyên hàm Save.Get() gốc cho những nơi cần realtime (webhook pet, claim reward...). 
--- Trong phần lớn các vòng lặp, ta sẽ dùng GetCachedSave().
 
 -- ==========================================
 -- LOAD VARIABLES MANAGER (chỉ giữ các biến cần thiết)
@@ -207,13 +206,29 @@ vm:Add("Euids", {}, "table"); vm:Add("PetIDs", {}, "table")
 vm:Add("current_zone", nil, "string"); vm:Add("IsReadyToFarm", false, "boolean"); vm:Add("OutZoneTime", 0, "number") 
 vm:Add("TargetZoneId", nil, "string"); vm:Add("FlagZoneOffset", 0, "number"); vm:Add("IsPetQuestActive", false, "boolean") 
 
-pcall(function() 
-    local PetModule = require(Library.Client.PlayerPet)
-    PetModule.CalculateSpeedMultiplier = function() return math.huge end 
+-- ==========================================
+-- TỐI ƯU HÓA: STATIC PETS & SPEED VÔ CỰC
+-- ==========================================
+pcall(function()
+    PlayerPet.CalculateSpeedMultiplier = function() return math.huge end
+    if PlayerPet.SetTarget then
+        PlayerPet.SetTarget = function() return end 
+    end
 end)
 
+table.insert(_G.AutoRankConnections, RunService.RenderStepped:Connect(function()
+    pcall(function()
+        local myPets = PlayerPet.GetAll()
+        for _, pet in pairs(myPets) do
+            if pet.owner == LocalPlayer then
+                pet.target = nil -- Ép pet ở lại quanh người chơi
+            end
+        end
+    end)
+end))
+
 -- ==========================================
--- ANTI-AFK (giữ nguyên)
+-- ANTI-AFK
 -- ==========================================
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
@@ -247,7 +262,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- SMART AUTO FRUIT (giữ nguyên)
+-- SMART AUTO FRUIT
 -- ==========================================
 local function GetCurrentFruitStack(fruitName)
     local activeFruits = {}
@@ -261,7 +276,7 @@ local function GetCurrentFruitStack(fruitName)
 end
 
 local function ManageFruits()
-    local save = GetCachedSave()  -- dùng cache
+    local save = GetCachedSave()
     if not save or not save.Inventory or not save.Inventory.Fruit then return end
     local fruitInv = save.Inventory.Fruit
     local targetStack = 20
@@ -320,7 +335,7 @@ local function getcurrency()
 end
 
 -- ==========================================
--- TỐI ƯU: PRELOAD ZONE FOLDER (ánh xạ số zone -> folder)
+-- PRELOAD ZONE FOLDER
 -- ==========================================
 local ZoneNumberToFolder = {}
 local function PreloadAllZones()
@@ -379,7 +394,7 @@ local function GetBestGoldenPetsUID()
 end
 
 -- ==========================================
--- UI (giữ nguyên, chỉ thay Save.Get bằng GetCachedSave ở những chỗ không quan trọng)
+-- UI
 -- ==========================================
 if CoreGui:FindFirstChild("AutoRankUI") then CoreGui.AutoRankUI:Destroy() end
 
@@ -463,6 +478,7 @@ local OrbsFolder = THINGS:FindFirstChild("Orbs")
 
 task.spawn(function()
     while task.wait(0.8) do
+        if not vm:Get("IsReadyToFarm") then continue end
         pcall(function()
             local bags = {}
             if LootbagsFolder then
@@ -485,7 +501,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ĐIỀU KHIỂN ZONE & REBIRTH (giữ nguyên)
+-- ĐIỀU KHIỂN ZONE & REBIRTH
 -- ==========================================
 task.spawn(function()
     while task.wait(1) do
@@ -540,59 +556,67 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ⚔️ FARM LOOP TỐI ƯU (tái sử dụng bảng, giảm tần suất, loại bỏ pcall thừa)
+-- ⚔️ V8 ASYNC FAST FARM (NO-SORT + STATIC PETS)
 -- ==========================================
-local tempBreakables = {}
-local tempAssignments = {}
-local function ClearTable(tbl)
-    for i = #tbl, 1, -1 do tbl[i] = nil end
-end
+local lastFarmTick = 0
+local FARM_DELAY = 0.2 
 
-task.spawn(function()
-    while task.wait(0.4) do  -- giảm từ 0.25 xuống 0.4
-        if not vm:Get("IsReadyToFarm") then continue end
-        
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then continue end
-        
-        ClearTable(tempBreakables)
-        -- Quét breakables trong bán kính 150, tối đa 50
-        for _, b in ipairs(BreakablesFolder:GetChildren()) do
-            if b:IsA("Model") and b.PrimaryPart then
-                local dist = (b.PrimaryPart.Position - hrp.Position).Magnitude
-                if dist < 150 then
-                    table.insert(tempBreakables, b.Name)
-                    if #tempBreakables >= 50 then break end
-                end
-            end
-        end
-        
-        local numB = #tempBreakables
-        if numB > 0 then
-            -- Gửi damage (không cần pcall)
-            local maxDamageSend = math.min(numB, 5)
-            for i = 1, maxDamageSend do
-                Network.UnreliableFire("Breakables_PlayerDealDamage", tempBreakables[i])
-            end
-            
-            -- Gán pet (tái sử dụng tempAssignments)
-            ClearTable(tempAssignments)
-            local petIDs = vm:Get("PetIDs")
-            local euids = vm:Get("Euids")
-            local numP = #petIDs
-            if numP > 0 then
-                for i, petID in ipairs(petIDs) do
-                    if euids[petID] then
-                        tempAssignments[petID] = tempBreakables[(i % numB) + 1]
-                    end
-                end
-                if next(tempAssignments) then
-                    Network.Fire("Breakables_JoinPetBulk", tempAssignments)
-                end
+table.insert(_G.AutoRankConnections, RunService.Heartbeat:Connect(function()
+    if not vm:Get("IsReadyToFarm") then return end
+    
+    local now = os.clock()
+    if now - lastFarmTick < FARM_DELAY then return end
+    lastFarmTick = now
+
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local rootPos = root.Position
+
+    -- QUÉT SIÊU TỐC (ĐÃ FIX LỖI HIGHLIGHT)
+    local targets = {}
+    for _, b in ipairs(BreakablesFolder:GetChildren()) do
+        -- Lọc kỹ: Bắt buộc phải là Model và có PrimaryPart
+        if b:IsA("Model") and b.PrimaryPart then
+            if (b.PrimaryPart.Position - rootPos).Magnitude < 130 then
+                table.insert(targets, b.Name)
+                if #targets >= 50 then break end
             end
         end
     end
-end)
+
+    local numTargets = #targets
+    if numTargets > 0 then
+        -- ⚡ CLICK AURA: Bắn Player Damage vào các mục tiêu
+        local auraLimit = math.min(numTargets, 30)
+        for i = 1, auraLimit do
+            Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i])
+        end
+
+        local petIDs = vm:Get("PetIDs")
+        local euids = vm:Get("Euids")
+        local numPets = #petIDs
+        
+        if numPets > 0 then
+            local bulkAssignments = {}
+            
+            -- Phân chia Pet thần tốc
+            for i = 1, numPets do
+                local petID = petIDs[i]
+                if euids[petID] then
+                    local targetIndex = ((i - 1) % numTargets) + 1
+                    bulkAssignments[petID] = targets[targetIndex]
+                end
+            end
+
+            -- ⚡ DEFER CALL: Bắn tín hiệu bất đồng bộ
+            if next(bulkAssignments) then
+                task.defer(function()
+                    Network.Fire("Breakables_JoinPetBulk", bulkAssignments)
+                end)
+            end
+        end
+    end
+end))
 
 -- ==========================================
 -- CÁC TÁC VỤ PHỤ TRỢ (gom nhóm để giảm coroutine)
@@ -675,7 +699,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- QUEST PRIORITY (giữ nguyên)
+-- QUEST PRIORITY 
 -- ==========================================
 local config = getgenv().AutoRankConfig or {}
 local QuestPriority = {}
@@ -714,7 +738,7 @@ local function FormatValue(Value)
 end
 
 -- ==========================================
--- RANK REWARDS (đã tối ưu dùng GetCachedSave)
+-- RANK REWARDS
 -- ==========================================
 task.spawn(function()
     while task.wait(5) do
@@ -750,7 +774,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- MAIN QUEST LOOP (tần suất giảm xuống 2s)
+-- MAIN QUEST LOOP 
 -- ==========================================
 task.spawn(function()
     while task.wait(2) do
