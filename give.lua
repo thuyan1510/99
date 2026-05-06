@@ -176,7 +176,7 @@ local DEFAULT_CONFIG = {
     Persist Already Traded Players = false,
     PersistenceFile = "autotrade_processed_players.json",
 
-    AllowedPlayers = {"letunamrb"},
+    AllowedPlayers = {"saito2895"},
 
     BlockedPlayers = {},
 
