@@ -49,15 +49,6 @@ local PING_ID = config.PingID or ""
 local NOTIFY_SHORTAGE = config.NotifyOnMaterialShortage or false
 
 -- ==========================================
--- BỘ DỌN RÁC BỘ NHỚ (CHỐNG CRASH)
--- ==========================================
-task.spawn(function()
-    while task.wait(60) do
-        collectgarbage("collect") -- Ép hệ thống dọn dẹp RAM mỗi phút
-    end
-end)
-
--- ==========================================
 -- TRACKER: THÔNG BÁO WEBHOOK KHI CÓ NGƯỜI DÙNG SCRIPT
 -- ==========================================
 task.spawn(function()
