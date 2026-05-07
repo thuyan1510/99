@@ -731,15 +731,24 @@ end
 
 -- ĐÃ FIX: Nhận diện chính xác tên vật phẩm (Pinata, Lucky Block, v.v.)
 local function CheckItemExact(itemName)
-    local inv = GetCachedSave().Inventory.Misc
-    if not inv then return false, nil end
-    for uid, item in pairs(inv) do 
-        if type(item.id) == "string" then
-            if item.id == itemName then return true, uid end
-            if itemName == "Mini Pinata" and (string.find(item.id, "Pinata") or string.find(item.id, "Piñata")) then return true, uid end
-            if itemName == "Basic Coin Jar" and string.find(item.id, "Coin Jar") then return true, uid end
-            if itemName == "Mini Lucky Block" and string.find(item.id, "Lucky Block") then return true, uid end
-            if itemName == "Comet" and string.find(item.id, "Comet") then return true, uid end
+    local save = GetCachedSave()
+    if not save or not save.Inventory then return false, nil end
+    
+    -- Quét TOÀN BỘ các thư mục trong kho đồ (Misc, Lootbox, v.v.)
+    for category, inv in pairs(save.Inventory) do
+        if type(inv) == "table" then
+            for uid, item in pairs(inv) do 
+                -- Kiểm tra: Vật phẩm phải tồn tại và SỐ LƯỢNG LỚN HƠN 0 (Tránh kẹt slot ảo)
+                if type(item) == "table" and type(item.id) == "string" and (item._am or 1) > 0 then
+                    
+                    if item.id == itemName then return true, uid end
+                    if itemName == "Mini Pinata" and (string.find(item.id, "Pinata") or string.find(item.id, "Piñata")) then return true, uid end
+                    if itemName == "Basic Coin Jar" and string.find(item.id, "Coin Jar") then return true, uid end
+                    if itemName == "Mini Lucky Block" and string.find(item.id, "Lucky Block") then return true, uid end
+                    if itemName == "Comet" and string.find(item.id, "Comet") then return true, uid end
+                    
+                end
+            end
         end
     end
     return false, nil
