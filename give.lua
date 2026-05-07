@@ -263,7 +263,7 @@ local ClientFolder = ReplicatedStorage:WaitForChild("Library"):WaitForChild("Cli
 local function requireModule(moduleScript, label)
     local ok, result = pcall(require, moduleScript)
     if not ok then
-        error(string.format("[AutoTrade] Failed to require %s: %s", label, tostring(result)))
+        error(string.format("[AT] Failed to require %s: %s", label, tostring(result)))
     end
     return result
 end
@@ -273,18 +273,18 @@ local Save = requireModule(ClientFolder:WaitForChild("Save"), "Save")
 
 local function log(message)
     if CONFIG.Debug then
-        print("[AutoTrade] " .. tostring(message))
+        print("[AT] " .. tostring(message))
     end
 end
 
 local function statusLog(message)
     if CONFIG.StatusLogs ~= false then
-        print("[AutoTrade] " .. tostring(message))
+        print("[AT] " .. tostring(message))
     end
 end
 
 local function warnLog(message)
-    warn("[AutoTrade] " .. tostring(message))
+    warn("[AT] " .. tostring(message))
 end
 
 local function trim(value)
@@ -1727,7 +1727,7 @@ function Controller.ResetProcessedPlayers()
 end
 
 task.spawn(function()
-    statusLog("Controller loaded. version=" .. Controller.Version .. " session=" .. tostring(Controller.SessionId) .. " config=" .. tostring(Controller.ConfigSource))
+    statusLog("." .. Controller.Version .. " " .. tostring(Controller.SessionId) .. " " .. tostring(Controller.ConfigSource))
     
     -- ========================================================
     -- 🧠 TÍNH NĂNG CHUYỂN ĐỒ THÔNG MINH (ALT-TRANSFER INJECTION)
