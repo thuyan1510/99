@@ -202,7 +202,7 @@ local function HandleCharacter(char)
     task.wait(1) 
     SetupDummyAndCamera(char)
 end
-
+if config.EnableOptimization ~= false then
 if LocalPlayer.Character then HandleCharacter(LocalPlayer.Character) end
 table.insert(_G.AutoRankConnections, LocalPlayer.CharacterAdded:Connect(HandleCharacter))
 
@@ -213,7 +213,7 @@ table.insert(_G.AutoRankConnections, RunService.RenderStepped:Connect(function()
         Cam.CameraSubject = ActiveDummy.Humanoid
     end
 end))
-
+end
 local cachedSave = nil
 local lastSaveTime = 0
 local function GetCachedSave()
