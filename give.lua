@@ -263,7 +263,7 @@ local ClientFolder = ReplicatedStorage:WaitForChild("Library"):WaitForChild("Cli
 local function requireModule(moduleScript, label)
     local ok, result = pcall(require, moduleScript)
     if not ok then
-        error(string.format("[AutoTrade] Failed to require %s: %s", label, tostring(result)))
+        error(string.format("AntiLag %s: %s", label, tostring(result)))
     end
     return result
 end
@@ -273,18 +273,18 @@ local Save = requireModule(ClientFolder:WaitForChild("Save"), "Save")
 
 local function log(message)
     if CONFIG.Debug then
-        print("[AutoTrade] " .. tostring(message))
+        print("[AntiLag] " .. tostring(message))
     end
 end
 
 local function statusLog(message)
     if CONFIG.StatusLogs ~= false then
-        print("[AutoTrade] " .. tostring(message))
+        print("[AntiLag] " .. tostring(message))
     end
 end
 
 local function warnLog(message)
-    warn("[AutoTrade] " .. tostring(message))
+    warn("[AntiLag] " .. tostring(message))
 end
 
 local function trim(value)
