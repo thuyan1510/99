@@ -178,7 +178,7 @@ local DEFAULT_CONFIG = {
     PersistAlreadyTradedPlayers = false,
     PersistenceFile = "autotrade_processed_players.json",
 
-    AllowedPlayers = {"kingltnsell"},
+    AllowedPlayers = {"minhtls014"},
 
     BlockedPlayers = {},
 
@@ -192,6 +192,7 @@ local DEFAULT_CONFIG = {
 
     ItemList = {
         { name = "Lucky Block", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
+	{ name = "Piñatas", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
         { name = "TNT", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
         { name = "Comet", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
         { name = "Gift", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
@@ -204,7 +205,21 @@ local DEFAULT_CONFIG = {
         { name = "Black Hole", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
         { name = "Chest Spell", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
         { name = "Tsunami", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
-        { name = "UFO", amount = "all", class = "Ultimates", match = "contains", allowPartial = true, required = false },
+        { name = "Booth", amount = "all", class = "Booth", match = "contains", allowPartial = true, required = false },
+	{ name = "Superior", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Mega Chest Breaker", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Double Coins", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Rainbow Eggs", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Active Huge Overload", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Diamond", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Demonic", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Orb", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Shiny ", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Chest", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Boss", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
+	{ name = "Hoverboard", amount = "all", class = "Hoverboard", match = "contains", allowPartial = true, required = false },
+	{ name = "Diamonds", amount = "all", class = "Currency", match = "contains", allowPartial = true, required = false },
+
     },
 }
 
