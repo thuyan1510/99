@@ -16,6 +16,7 @@ local config = {
     AutoUpgrade      = (UserConfig.AutoUpgrade ~= nil) and UserConfig.AutoUpgrade or true,            
     AutoMerchant     = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
     AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
+    AutoSellPets = true,
     
     -- Mức nâng cấp xúc xắc tối đa: 
     -- 1 = Lucky II | 2 = Lucky III | 3 = Mega Lucky | 4 = Mega Lucky II | 5 = Fire Dice
@@ -215,32 +216,52 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 8. AUTO UPGRADE (NÂNG CẤP SỰ KIỆN RNG)
+-- AUTO UPGRADE (MÁY NÂNG CẤP RNG)
 -- ==========================================
-task.spawn(function()
-    while task.wait(3) do
-        if config.AutoUpgrade then
+if config.AutoUpgrade then
+    task.spawn(function()
+        print("[RNG System] Đang khởi động Auto Upgrade (RngUpgradeMachine)...")
+        while task.wait(3) do
             pcall(function()
-                local save = Save.Get(); if not save then return end
+                local save = Save.Get()
+                if not save then return end
+
+                -- Quét danh bạ nâng cấp của game
                 for upgradeId, upgradeData in pairs(EventUpgradesDir) do
+                    -- Lọc các ID nâng cấp thuộc sự kiện RNG
                     if string.find(string.lower(upgradeId), "rng") then
+                        
                         local currentTier = EventUpgradeCmds.GetTier(upgradeId)
                         local nextTierCost = upgradeData.TierCosts and upgradeData.TierCosts[currentTier + 1]
                         
+                        -- Nếu chưa max cấp và có dữ liệu giá tiền
                         if nextTierCost and nextTierCost._data then
-                            local cId = nextTierCost._data.id; local costAmount = nextTierCost._data._am or 1 
+                            local cId = nextTierCost._data.id 
+                            local costAmount = nextTierCost._data._am or 1 
                             local currentAmount = 0
-                            pcall(function() currentAmount = CurrencyCmds.Get(cId) or 0 end)
-                            if currentAmount == 0 then pcall(function() if Items.Misc(cId) then currentAmount = Items.Misc(cId):CountExact() or 0 end end) end
                             
-                            if currentAmount >= costAmount then EventUpgradeCmds.Purchase(upgradeId) end
+                            -- Kiểm tra số dư Xu (Coins)
+                            pcall(function() currentAmount = CurrencyCmds.Get(cId) or 0 end)
+                            
+                            -- Failsafe: Nếu xu được lưu dưới dạng Item (như Token)
+                            if currentAmount == 0 then
+                                pcall(function()
+                                    if Items.Misc(cId) then currentAmount = Items.Misc(cId):CountExact() or 0 end
+                                end)
+                            end
+                            
+                            -- Tiến hành mua nếu đủ tiền
+                            if currentAmount >= costAmount then
+                                EventUpgradeCmds.Purchase(upgradeId)
+                                task.wait(0.2)
+                            end
                         end
                     end
                 end
             end)
         end
-    end
-end)
+    end)
+end
 
 -- ==========================================
 -- 9. AUTO MERCHANT & AUTO CRAFT DICE
@@ -322,7 +343,50 @@ task.spawn(function()
         end
     end
 end)
+-- ==========================================
+-- AUTO SELL PETS (BÁN PET RÁC ĐỔI XU RNG)
+-- ==========================================
+-- Thêm biến này vào getgenv().RNGConfig ở đầu script: AutoSellPets = true,
 
+if config.AutoSellPets then
+    task.spawn(function()
+        print("[RNG System] Đang khởi động Auto Sell Pets tại RngEventPetMerchant...")
+        while task.wait(10) do -- Cứ 10 giây quét túi đồ 1 lần
+            pcall(function()
+                local save = Save.Get()
+                if not save or not save.Inventory or not save.Inventory.Pet then return end
+                
+                local petsToSell = {}
+                local batchCount = 0
+                
+                for uid, petData in pairs(save.Inventory.Pet) do
+                    if type(petData.id) == "string" then
+                        -- BỘ LỌC AN TOÀN: Bỏ qua Huge, Titanic và Exclusive
+                        if not string.find(petData.id, "Huge") and not string.find(petData.id, "Titanic") and not string.find(petData.id, "Exclusive") then
+                            -- Nếu muốn chỉ bán pet RNG, bạn có thể thêm điều kiện lọc id pet ở đây
+                            local amount = petData._am or 1
+                            petsToSell[uid] = amount
+                            batchCount = batchCount + 1
+                            
+                            -- Gửi lệnh bán theo từng đợt 50 loại pet để chống lag
+                            if batchCount >= 50 then
+                                Network.Invoke("RngEventPetMerchant_Activate", petsToSell)
+                                petsToSell = {} -- Xóa dữ liệu đợt cũ
+                                batchCount = 0
+                                task.wait(0.5) -- Trễ nhẹ giữa các đợt
+                            end
+                        end
+                    end
+                end
+                
+                -- Bán nốt những pet còn sót lại (nếu có)
+                if batchCount > 0 then
+                    Network.Invoke("RngEventPetMerchant_Activate", petsToSell)
+                end
+            end)
+        end
+    end)
+end
 -- ==========================================
 -- 11. GIAO DIỆN NỀN ĐEN PIRA (FULLSCREEN UI)
 -- ==========================================
