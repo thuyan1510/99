@@ -12,7 +12,8 @@ local UserConfig = getgenv().RNGConfig or {}
 local config = {
     WebhookURL       = UserConfig.WebhookURL or "",
     PingID           = UserConfig.PingID or "",            
-    Blackout         = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,               
+    Blackout         = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,           
+    
     AutoUpgrade      = (UserConfig.AutoUpgrade ~= nil) and UserConfig.AutoUpgrade or true,            
     AutoMerchant     = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
     AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
@@ -72,9 +73,11 @@ local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 local function FormatValue(Int)
     local n = tonumber(Int)
     if not n then return tostring(Int) end
-    local Index = 1; local Suffix = {"", "K", "M", "B", "T", "Q"}
+    local Index = 1;
+    local Suffix = {"", "K", "M", "B", "T", "Q"}
     local absNumber = math.abs(n)
-    while absNumber >= 1000 and Index < #Suffix do absNumber = absNumber / 1000; Index = Index + 1 end
+    while absNumber >= 1000 and Index < #Suffix do absNumber = absNumber / 1000;
+    Index = Index + 1 end
     if Index == 1 then return string.format("%d", math.floor(absNumber)) end
     return string.format("%.2f%s", absNumber, Suffix[Index])
 end
@@ -98,7 +101,8 @@ local function GetItemAmount(targetId)
         end
         if amount == 0 then
             for k, v in pairs(save) do
-                if string.lower(tostring(k)) == lowerTarget then amount = tonumber(v) or 0; break end
+                if string.lower(tostring(k)) == lowerTarget then amount = tonumber(v) or 0;
+                break end
             end
         end
     end)
@@ -187,7 +191,8 @@ if config.Blackout then
         local function optimizePart(v)
             pcall(function()
                 if v:IsA("BasePart") and not (v.Parent and v.Parent:FindFirstChild("Humanoid")) then
-                    v.Material = Enum.Material.Plastic; v.Reflectance = 0; v.CastShadow = false; v.Transparency = 1
+                    v.Material = Enum.Material.Plastic;
+                    v.Reflectance = 0; v.CastShadow = false; v.Transparency = 1
                 elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Transparency = 1 end
             end)
         end
@@ -217,10 +222,13 @@ task.spawn(function() while task.wait(30) do pcall(function() Network.Invoke('Ma
 task.spawn(function()
     while task.wait(15) do
         pcall(function()
-            local save = Save.Get(); if not save then return end
-            local redeemed = save.FreeGiftsRedeemed or {}; local currentTime = save.FreeGiftsTime or 0
+            local save = Save.Get();
+            if not save then return end
+            local redeemed = save.FreeGiftsRedeemed or {};
+            local currentTime = save.FreeGiftsTime or 0
             for _, gift in pairs(FreeGiftsDirectory) do
-                if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id); break end
+                if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id);
+                break end
             end
         end)
     end
@@ -317,7 +325,7 @@ task.spawn(function()
             pcall(function()
                 local currentTime = os.time()
                 
-                -- Dùng Lucky Dice I (Mỗi 58s)
+                -- Dùng Lucky Dice I (Mỗi 50s)
                 if currentTime - LastLuckyDice >= 50 then
                     if GetDiceCount("Lucky Dice V2") > 0 then
                         Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
@@ -325,7 +333,7 @@ task.spawn(function()
                     end
                 end
                 
-                -- Dùng Lucky Dice II (Mỗi 298s)
+                -- Dùng Lucky Dice II (Mỗi 290s)
                 if currentTime - LastLuckyDiceII >= 290 then
                     if GetDiceCount("Lucky Dice II V2") > 0 then
                         Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
@@ -338,8 +346,8 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (SÚNG TỈA GIAO DIỆN)
--- Tính năng này móc trực tiếp vào sự thay đổi Text của màn hình
+-- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (ĐÃ SỬA KHÓA AN TOÀN)
+-- Tính năng này móc trực tiếp vào sự thay đổi Text/Visible của màn hình
 -- ==========================================
 task.spawn(function()
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
@@ -350,12 +358,18 @@ task.spawn(function()
     -- Hàm gắn cảm biến vào Label
     local function HookLabel(label)
         if label.Name == "Bonus" and label:IsA("TextLabel") then
-            -- Móc sự kiện: Chạy ngay lập tức mili-giây khi Text thay đổi
-            label:GetPropertyChangedSignal("Text"):Connect(function()
+            
+            local function CheckTrigger()
                 if not config.AutoUseMegaDice then return end
                 
+                -- Bắt buộc phải kiểm tra nếu UI bị ẩn đi thì phải mở khóa
+                if not label.Visible then
+                    MegaDiceLocked = false
+                    return
+                end
+                
                 local txt = string.lower(label.Text)
-                if string.find(txt, "bonus") or string.find(txt, "x") then
+                if txt ~= "" and (string.find(txt, "bonus") or string.find(txt, "x")) then
                     if not MegaDiceLocked then
                         MegaDiceLocked = true
                         
@@ -369,11 +383,21 @@ task.spawn(function()
                                 end
                             end)
                         end)
+                        
+                        -- Khóa an toàn: Tự mở lại sau 2 giây để chuẩn bị cho chu kỳ bonus tiếp theo
+                        -- Xử lý trường hợp UI Text bị kẹt nhưng đến lượt mới nó mới nháy Visible
+                        task.delay(2, function()
+                            MegaDiceLocked = false
+                        end)
                     end
                 else
                     MegaDiceLocked = false
                 end
-            end)
+            end
+
+            -- Móc sự kiện: Lắng nghe cả Text và Visible
+            label:GetPropertyChangedSignal("Text"):Connect(CheckTrigger)
+            label:GetPropertyChangedSignal("Visible"):Connect(CheckTrigger)
         end
     end
     
