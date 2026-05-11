@@ -314,7 +314,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN PRO CHECK DATA GỐC)
+-- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN PRO ĐỌC DATA GỐC)
 -- Đọc trực tiếp từ cơ sở dữ liệu của game thay vì đếm thời gian
 -- ==========================================
 task.spawn(function()
@@ -324,21 +324,22 @@ task.spawn(function()
                 local save = Save.Get()
                 if not save then return end
                 
-                -- Lấy danh sách các Buff đang hoạt động trên người nhân vật
-                local activeBuffs = save.ActiveBoosts or save.Boosts or save.ActiveBuffs or {}
+                -- Lấy danh sách các Buff từ đường dẫn gốc
+                local buffs = save.Buffs or {}
                 
-                -- Lặp qua 2 loại xúc xắc thường
-                for _, Dice in ipairs({ "Lucky Dice V2", "Lucky Dice II V2" }) do
-                    
-                    -- Nếu nhân vật KHÔNG CÓ buff này VÀ trong túi còn xúc xắc
-                    if not activeBuffs[Dice] and GetDiceCount(Dice) > 0 then
-                        
-                        -- Gửi lệnh cắn 1 viên
-                        Network.Invoke("LuckyDice_Consume", Dice, 1)
-                        
-                        -- Đợi 1 chút để game kịp cập nhật dữ liệu Buff lên Server trước khi vòng lặp chạy tiếp
-                        task.wait(0.5) 
-                    end
+                -- Kiểm tra & Cắn Lucky Dice V2
+                local dice1 = buffs["Lucky Dice V2"]
+                -- Nếu không có buff, HOẶC thời gian còn lại (remaining) dưới 3 giây
+                if (not dice1 or (dice1.remaining and tonumber(dice1.remaining) < 3)) and GetDiceCount("Lucky Dice V2") > 0 then
+                    Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
+                    task.wait(0.5) -- Nghỉ nhịp để Server cập nhật tránh spam
+                end
+                
+                -- Kiểm tra & Cắn Lucky Dice II V2
+                local dice2 = buffs["Lucky Dice II V2"]
+                if (not dice2 or (dice2.remaining and tonumber(dice2.remaining) < 3)) and GetDiceCount("Lucky Dice II V2") > 0 then
+                    Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
+                    task.wait(0.5)
                 end
             end)
         end
