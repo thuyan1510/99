@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 CẬP NHẬT: AUTO BOSS CHEST & CLICK AURA TỐC ĐỘ CAO (DỰA TRÊN BẢN GỐC)
+-- 🚀 BASE: rng.txt (BẢN CHUẨN) | ADD-ON: EVENT-DRIVEN DICE SNIPER
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
@@ -18,20 +18,17 @@ local config = {
     AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
     AutoSell         = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
     
-    -- [TÍNH NĂNG MỚI] Bật/Tắt đập rương Boss tự động
-    BossChestBreak   = (UserConfig.BossChestBreak ~= nil) and UserConfig.BossChestBreak or true,
+    -- TÍNH NĂNG MỚI ĐƯỢC BỔ SUNG:
+    AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
+    AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
     
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
-    
-    -- Danh sách tên thú cưng cần bán
     PetsToSell       = UserConfig.PetsToSell or {},
-    
     EventMapID       = "RngInstance",   
     MerchantID       = "LuckyDiceMerchantV2",
     CoinID           = "RNGCoins2" 
 }
 
--- Xử lý danh sách bán
 local TargetPetsToSell = {}
 for petName, shouldSell in pairs(config.PetsToSell) do
     if shouldSell == true then TargetPetsToSell[string.lower(tostring(petName))] = true end
@@ -107,6 +104,7 @@ local function GetItemAmount(targetId)
     return amount
 end
 
+-- Hàm check số lượng Xúc xắc (Giữ nguyên gốc để dùng an toàn)
 local function GetDiceCount(diceId)
     local count = 0
     pcall(function()
@@ -123,7 +121,7 @@ local function GetDiceCount(diceId)
 end
 
 -- ==========================================
--- 4. KÍCH HOẠT HIDE ROLL & AUTO ROLL (NGAY LẬP TỨC)
+-- 4. BẬT HIDE ROLL & AUTO ROLL GỐC
 -- ==========================================
 task.spawn(function()
     pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
@@ -239,7 +237,8 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, CÁC LOẠI MÁY, BUFF XÚC XẮC)
+-- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, MERCHANT, CRAFT)
+-- BẢN GỐC TỪ rng.txt, KHÔNG ĐỤNG CHẠM!
 -- ==========================================
 task.spawn(function()
     while task.wait(2) do
@@ -261,7 +260,6 @@ task.spawn(function()
                 if save and save.Inventory and save.Inventory.Pet then
                     local sellDict = {}
                     local count = 0
-                    
                     for uid, pet in pairs(save.Inventory.Pet) do
                         if type(pet.id) == "string" then
                             local petIdLower = string.lower(pet.id)
@@ -271,7 +269,6 @@ task.spawn(function()
                             end
                         end
                     end
-                    
                     if count > 0 then
                         Network.Invoke("RngEventPetMerchant_Activate", sellDict)
                     end
@@ -305,6 +302,89 @@ task.spawn(function()
             task.wait(0.5)
         end
     end
+end)
+
+-- ==========================================
+-- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN CHUẨN)
+-- ==========================================
+task.spawn(function()
+    local LastLuckyDice = 0
+    local LastLuckyDiceII = 0
+    
+    while task.wait(2) do
+        if config.AutoUseDice then
+            pcall(function()
+                local currentTime = os.time()
+                
+                -- Dùng Lucky Dice I (Mỗi 58s)
+                if currentTime - LastLuckyDice >= 58 then
+                    if GetDiceCount("Lucky Dice V2") > 0 then
+                        Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
+                        LastLuckyDice = currentTime
+                    end
+                end
+                
+                -- Dùng Lucky Dice II (Mỗi 298s)
+                if currentTime - LastLuckyDiceII >= 298 then
+                    if GetDiceCount("Lucky Dice II V2") > 0 then
+                        Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
+                        LastLuckyDiceII = currentTime
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (SÚNG TỈA GIAO DIỆN)
+-- Tính năng này móc trực tiếp vào sự thay đổi Text của màn hình
+-- ==========================================
+task.spawn(function()
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+    if not PlayerGui then return end
+    
+    local MegaDiceLocked = false
+    
+    -- Hàm gắn cảm biến vào Label
+    local function HookLabel(label)
+        if label.Name == "Bonus" and label:IsA("TextLabel") then
+            -- Móc sự kiện: Chạy ngay lập tức mili-giây khi Text thay đổi
+            label:GetPropertyChangedSignal("Text"):Connect(function()
+                if not config.AutoUseMegaDice then return end
+                
+                local txt = string.lower(label.Text)
+                if string.find(txt, "bonus") or string.find(txt, "x") then
+                    if not MegaDiceLocked then
+                        MegaDiceLocked = true
+                        
+                        -- Cắn Mega Dice song song ngay lập tức
+                        task.spawn(function()
+                            pcall(function()
+                                if GetDiceCount("Mega Lucky Dice II V2") > 0 then
+                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice II V2", 1)
+                                elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
+                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice V2", 1)
+                                end
+                            end)
+                        end)
+                    end
+                else
+                    MegaDiceLocked = false
+                end
+            end)
+        end
+    end
+    
+    -- Gắn cảm biến cho các UI đang có
+    for _, obj in pairs(PlayerGui:GetDescendants()) do
+        pcall(function() HookLabel(obj) end)
+    end
+    
+    -- Gắn cảm biến cho các UI mới sinh ra (Đề phòng game tải lại UI)
+    PlayerGui.DescendantAdded:Connect(function(obj)
+        pcall(function() HookLabel(obj) end)
+    end)
 end)
 
 -- ==========================================
@@ -423,66 +503,33 @@ local frames = 0
 RunService.RenderStepped:Connect(function() frames = frames + 1 end)
 local startTime = tonumber(os.time()) or 0
 
+local function GetDiceCounts()
+    local dice = { ["Lucky Dice V2"] = 0, ["Lucky Dice II V2"] = 0, ["Lucky Dice III V2"] = 0, ["Mega Lucky Dice V2"] = 0, ["Mega Lucky Dice II V2"] = 0, ["Fire Dice V2"] = 0 }
+    local save = Save.Get()
+    if save and save.Inventory and save.Inventory.Misc then
+        for _, item in pairs(save.Inventory.Misc) do
+            if item.id and dice[item.id] ~= nil then dice[item.id] = dice[item.id] + (item._am or 1) end
+        end
+    end
+    return dice
+end
+
 task.spawn(function()
     while task.wait(1) do
         local diff = (tonumber(os.time()) or 0) - startTime
         
         local currentCoin = GetItemAmount(config.CoinID)
         local save = Save.Get()
-        local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or save.RngRolls2 or save.RngRolls or 0 end)
+        local currentRolls = 0; pcall(function() currentRolls = save.RngRolls2 or save.RngRolls or 0 end)
+        local diceCounts = GetDiceCounts()
 
         UI:SetText("Uptime", string.format("Time: %02d:%02d:%02d | FPS: %d", math.floor(diff / 3600), math.floor((diff % 3600) / 60), diff % 60, frames))
         UI:SetText("RNGCoins", "RNG Coins: " .. FormatValue(currentCoin))
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
-        
-        -- Sửa lại cách gọi hàm đếm xúc xắc cho chuẩn với GetDiceCount(diceId)
-        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
-        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
-        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(GetDiceCount("Lucky Dice III V2")), FormatValue(GetDiceCount("Fire Dice V2"))))
+        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(diceCounts["Lucky Dice V2"]), FormatValue(diceCounts["Lucky Dice II V2"])))
+        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(diceCounts["Mega Lucky Dice V2"]), FormatValue(diceCounts["Mega Lucky Dice II V2"])))
+        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(diceCounts["Lucky Dice III V2"]), FormatValue(diceCounts["Fire Dice V2"])))
         
         frames = 0
     end
-end)
-
--- ==========================================
--- [TÍNH NĂNG MỚI]: AUTO BREAK BOSS CHEST & CLICK AURA TỐC ĐỘ CAO
--- ==========================================
-task.spawn(function()
-    local targetPos = CFrame.new(4279.34, 2569.27, -5370.22)
-    
-    RunService.Heartbeat:Connect(function()
-        if config.BossChestBreak then
-            pcall(function()
-                local character = LocalPlayer.Character
-                local hrp = character and character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    -- Liên tục giữ nhân vật tại vị trí Boss Chest đã chỉ định
-                    hrp.CFrame = targetPos
-                    
-                    -- Tìm kiếm mục tiêu trong thư mục Breakables
-                    local things = Workspace:FindFirstChild("__THINGS")
-                    local breakables = things and things:FindFirstChild("Breakables")
-                    
-                    if breakables then
-                        for _, breakable in ipairs(breakables:GetChildren()) do
-                            local bPos
-                            if breakable:GetAttribute("CFrame") then
-                                bPos = breakable:GetAttribute("CFrame").Position
-                            elseif breakable.PrimaryPart then
-                                bPos = breakable.PrimaryPart.Position
-                            end
-                            
-                            -- Giới hạn khoảng cách < 50 studs để tránh đánh nhầm
-                            if bPos and (bPos - hrp.Position).Magnitude < 50 then
-                                -- Dồn toàn lực Click Aura vào 1 mục tiêu duy nhất
-                                Network.Fire("Breakables_PlayerDealDamage", breakable.Name)
-                                -- Ngắt vòng lặp tìm kiếm ngay lập tức để tiết kiệm CPU và tăng tốc độ đánh
-                                break
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end)
 end)
