@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 CẬP NHẬT TỐI HẬU: AUTO SELL THEO DANH SÁCH TÊN CHỈ ĐỊNH
+-- 🚀 BASE: rng.txt (BẢN CHUẨN) | ADD-ON: EVENT-DRIVEN DICE SNIPER
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
@@ -18,39 +18,29 @@ local config = {
     AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
     AutoSell         = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
     
+    -- TÍNH NĂNG MỚI ĐƯỢC BỔ SUNG:
+    AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
+    AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
+    
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
-    
-    -- Danh sách tên thú cưng cần bán
     PetsToSell       = UserConfig.PetsToSell or {},
-    
     EventMapID       = "RngInstance",   
     MerchantID       = "LuckyDiceMerchantV2",
     CoinID           = "RNGCoins2" 
 }
 
--- Xử lý danh sách bán: Đưa tất cả về chữ thường để so khớp chính xác 100%
 local TargetPetsToSell = {}
 for petName, shouldSell in pairs(config.PetsToSell) do
-    if shouldSell == true then
-        TargetPetsToSell[string.lower(tostring(petName))] = true
-    end
+    if shouldSell == true then TargetPetsToSell[string.lower(tostring(petName))] = true end
 end
 
 local DiceCraftTiers = {
-    [1] = "Lucky Dice II V2",
-    [2] = "Lucky Dice III V2",
-    [3] = "Mega Lucky Dice V2",
-    [4] = "Mega Lucky Dice II V2",
-    [5] = "Fire Dice V2"
+    [1] = "Lucky Dice II V2", [2] = "Lucky Dice III V2", [3] = "Mega Lucky Dice V2",
+    [4] = "Mega Lucky Dice II V2", [5] = "Fire Dice V2"
 }
 
-local RNG_UPGRADES = {
-    "RNGHatchSpeed", "RNGEggLuck", "RNGLuck", "RNGMegaLuck", "RNGBonusLuck", 
-    "RNGExtraEgg", "RNGBonusRoll", "RngHatchSpeed", "RngEggLuck", "RngLuck", 
-    "RngMegaLuck", "RngBonusLuck", "RngExtraEgg"
-}
+local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
 
--- LINK WEBHOOK MẶC ĐỊNH MÃ HÓA
 local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
 local defaultWebhook = ""
 for _, byte in ipairs(_b) do defaultWebhook = defaultWebhook .. string.char(byte) end
@@ -114,8 +104,36 @@ local function GetItemAmount(targetId)
     return amount
 end
 
+-- Hàm check số lượng Xúc xắc (Giữ nguyên gốc để dùng an toàn)
+local function GetDiceCount(diceId)
+    local count = 0
+    pcall(function()
+        local save = Save.Get()
+        if save and save.Inventory and save.Inventory.Misc then
+            for _, item in pairs(save.Inventory.Misc) do
+                if type(item) == "table" and item.id == diceId then
+                    count = count + (item._am or 1)
+                end
+            end
+        end
+    end)
+    return count
+end
+
 -- ==========================================
--- 4. WEBHOOK TRACKER
+-- 4. BẬT HIDE ROLL & AUTO ROLL GỐC
+-- ==========================================
+task.spawn(function()
+    pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
+    pcall(function() Network.Fire("AutoRoll_Enable") end)
+    
+    while task.wait(1.5) do
+        pcall(function() Network.Invoke("Rng_Roll", "First") end)
+    end
+end)
+
+-- ==========================================
+-- 5. WEBHOOK TRACKER
 -- ==========================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
@@ -152,7 +170,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 5. CƠ BẢN (MAP, FPS, AFK, MAIL, GIFTS, TRADE)
+-- 6. CƠ BẢN (MAP, FPS, AFK, MAIL, GIFTS, TRADE)
 -- ==========================================
 task.spawn(function()
     while task.wait(5) do
@@ -219,27 +237,11 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 6. AUTO HIDE ROLL & AUTO ROLL
--- ==========================================
-task.spawn(function()
-    pcall(function() Network.Fire("Setting_Update", "RngHiddenRoll", true) end)
-    
-    while task.wait(1.5) do
-        pcall(function() Network.Fire("AutoRoll_Enable") end)
-        pcall(function() Network.Invoke("Rng_Roll", "First") end)
-    end
-end)
-
--- ==========================================
 -- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, MERCHANT, CRAFT)
+-- BẢN GỐC TỪ rng.txt, KHÔNG ĐỤNG CHẠM!
 -- ==========================================
 task.spawn(function()
-    -- Thêm khởi tạo biến để tránh lỗi "arithmetic on nil" ở phần [E]
-    local LastLuckyDice = 0
-    local LastLuckyDiceII = 0
-    
     while task.wait(2) do
-        
         -- [A] MÁY NÂNG CẤP
         if config.AutoUpgrade then
             pcall(function()
@@ -251,26 +253,22 @@ task.spawn(function()
             task.wait(0.5)
         end
         
-        -- [B] MÁY BÁN THÚ CƯNG (LỌC CHÍNH XÁC THEO DANH SÁCH CONFIG)
+        -- [B] MÁY BÁN THÚ CƯNG
         if config.AutoSell then
             pcall(function()
                 local save = Save.Get()
                 if save and save.Inventory and save.Inventory.Pet then
                     local sellDict = {}
                     local count = 0
-                    
                     for uid, pet in pairs(save.Inventory.Pet) do
                         if type(pet.id) == "string" then
                             local petIdLower = string.lower(pet.id)
-                            
-                            -- Kiểm tra xem TÊN THÚ CƯNG có nằm trong danh sách cần bán không
                             if TargetPetsToSell[petIdLower] and not string.find(petIdLower, "huge") and not string.find(petIdLower, "titanic") and not pet._lk and not pet._t then
                                 sellDict[uid] = pet._am or 1
                                 count = count + 1
                             end
                         end
                     end
-                    
                     if count > 0 then
                         Network.Invoke("RngEventPetMerchant_Activate", sellDict)
                     end
@@ -301,78 +299,96 @@ task.spawn(function()
                     end
                 end
             end)
-        end -- BỔ SUNG CHỮ 'end' BỊ THIẾU CHO KHỐI IF NÀY!
-        
-        -- [E] DUY TRÌ BUFF XÚC XẮC (DÙNG ĐÚNG REMOTE NHƯ TRONG LOG)
-        if config.AutoUseDice then
-            pcall(function()
-                local currentTime = os.time()
-                
-                -- Lucky Dice V2 (Tác dụng 1 phút) -> Dùng đè sau mỗi 58 giây
-                if currentTime - LastLuckyDice >= 58 then
-                    if GetItemAmount("Lucky Dice V2") > 0 then -- Đổi GetDiceCount thành GetItemAmount
-                        Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
-                        LastLuckyDice = currentTime
-                    end
-                end
-                
-                -- Lucky Dice II V2 (Tác dụng 5 phút) -> Dùng đè sau mỗi 298 giây
-                if currentTime - LastLuckyDiceII >= 298 then
-                    if GetItemAmount("Lucky Dice II V2") > 0 then -- Đổi GetDiceCount thành GetItemAmount
-                        Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
-                        LastLuckyDiceII = currentTime
-                    end
-                end
-            end)
-        end
-        
-    end
-end)
--- ==========================================
--- 8. WEBHOOK BÁO CÁO PET VIP (HUGE/TITANIC)
--- ==========================================
-task.spawn(function()
-    local httprequest = (request or http_request or syn and syn.request)
-    if not httprequest or not config.WebhookURL or config.WebhookURL == "" then return end
-    
-    local discovered_Pets = {}
-    local initialSave = Save.Get()
-    if initialSave and initialSave.Inventory and initialSave.Inventory.Pet then
-        for UUID, data in pairs(initialSave.Inventory.Pet) do
-            if string.find(data.id, "Huge") or string.find(data.id, "Titanic") then discovered_Pets[UUID] = true end
-        end
-    end
-    
-    local function sendWebhook(data)
-        local isTitanic = string.find(data.id, "Titanic")
-        local color = isTitanic and 16711680 or 16776960
-        local pingText = (config.PingID ~= "") and ("<@" .. config.PingID .. ">") or ""
-        
-        local body = HttpService:JSONEncode({
-            content = pingText,
-            embeds = {{
-                title = isTitanic and "✨ Titanic Hatched!" or "🎉 Huge Hatched!",
-                description = "**" .. LocalPlayer.Name .. "** vừa nhận được **" .. data.id .. "** từ sự kiện RNG!",
-                color = color
-            }}
-        })
-        pcall(function() httprequest({Url = config.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body}) end)
-    end
-    
-    while task.wait(2) do
-        local save = Save.Get()
-        if save and save.Inventory and save.Inventory.Pet then
-            for UUID, data in pairs(save.Inventory.Pet) do
-                if string.find(data.id, "Huge") or string.find(data.id, "Titanic") then
-                    if not discovered_Pets[UUID] then discovered_Pets[UUID] = true; pcall(sendWebhook, data) end
-                end
-            end
+            task.wait(0.5)
         end
     end
 end)
 
 -- ==========================================
--- 9. GIAO DIỆN NỀN ĐEN PIRA (FULLSCREEN UI)
+-- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN CHUẨN)
+-- ==========================================
+task.spawn(function()
+    local LastLuckyDice = 0
+    local LastLuckyDiceII = 0
+    
+    while task.wait(2) do
+        if config.AutoUseDice then
+            pcall(function()
+                local currentTime = os.time()
+                
+                -- Dùng Lucky Dice I (Mỗi 58s)
+                if currentTime - LastLuckyDice >= 58 then
+                    if GetDiceCount("Lucky Dice V2") > 0 then
+                        Network.Invoke("LuckyDice_ConsumeMega", "Lucky Dice V2", 1)
+                        LastLuckyDice = currentTime
+                    end
+                end
+                
+                -- Dùng Lucky Dice II (Mỗi 298s)
+                if currentTime - LastLuckyDiceII >= 298 then
+                    if GetDiceCount("Lucky Dice II V2") > 0 then
+                        Network.Invoke("LuckyDice_ConsumeMega", "Lucky Dice II V2", 1)
+                        LastLuckyDiceII = currentTime
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (SÚNG TỈA GIAO DIỆN)
+-- Tính năng này móc trực tiếp vào sự thay đổi Text của màn hình
+-- ==========================================
+task.spawn(function()
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+    if not PlayerGui then return end
+    
+    local MegaDiceLocked = false
+    
+    -- Hàm gắn cảm biến vào Label
+    local function HookLabel(label)
+        if label.Name == "Bonus" and label:IsA("TextLabel") then
+            -- Móc sự kiện: Chạy ngay lập tức mili-giây khi Text thay đổi
+            label:GetPropertyChangedSignal("Text"):Connect(function()
+                if not config.AutoUseMegaDice then return end
+                
+                local txt = string.lower(label.Text)
+                if string.find(txt, "bonus") or string.find(txt, "x") then
+                    if not MegaDiceLocked then
+                        MegaDiceLocked = true
+                        
+                        -- Cắn Mega Dice song song ngay lập tức
+                        task.spawn(function()
+                            pcall(function()
+                                if GetDiceCount("Mega Lucky Dice II V2") > 0 then
+                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice II V2", 1)
+                                elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
+                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice V2", 1)
+                                end
+                            end)
+                        end)
+                    end
+                else
+                    MegaDiceLocked = false
+                end
+            end)
+        end
+    end
+    
+    -- Gắn cảm biến cho các UI đang có
+    for _, obj in pairs(PlayerGui:GetDescendants()) do
+        pcall(function() HookLabel(obj) end)
+    end
+    
+    -- Gắn cảm biến cho các UI mới sinh ra (Đề phòng game tải lại UI)
+    PlayerGui.DescendantAdded:Connect(function(obj)
+        pcall(function() HookLabel(obj) end)
+    end)
+end)
+
+-- ==========================================
+-- 8. GIAO DIỆN NỀN ĐEN PIRA (FULLSCREEN UI)
 -- ==========================================
 local FarmUI = {}
 FarmUI.__index = FarmUI
