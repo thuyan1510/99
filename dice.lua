@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 BASE: rng.txt (BẢN CHUẨN) | ADD-ON: EVENT-DRIVEN DICE SNIPER
+-- 🚀 BASE: rng.txt (BẢN CHUẨN) | ADD-ON: EVENT-DRIVEN DICE SNIPER & BOSS CHEST
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
@@ -12,7 +12,8 @@ local UserConfig = getgenv().RNGConfig or {}
 local config = {
     WebhookURL       = UserConfig.WebhookURL or "",
     PingID           = UserConfig.PingID or "",            
-    Blackout         = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,               
+    Blackout         = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,           
+    
     AutoUpgrade      = (UserConfig.AutoUpgrade ~= nil) and UserConfig.AutoUpgrade or true,            
     AutoMerchant     = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
     AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
@@ -21,6 +22,7 @@ local config = {
     -- TÍNH NĂNG MỚI ĐƯỢC BỔ SUNG:
     AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
     AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
+    BossChestBreak   = (UserConfig.BossChestBreak ~= nil) and UserConfig.BossChestBreak or true,
     
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
     PetsToSell       = UserConfig.PetsToSell or {},
@@ -124,8 +126,9 @@ end
 -- 4. BẬT HIDE ROLL & AUTO ROLL GỐC
 -- ==========================================
 task.spawn(function()
-    pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
     pcall(function() Network.Fire("AutoRoll_Enable") end)
+        task.wait(1.5)
+    pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
     
     while task.wait(1.5) do
         pcall(function() Network.Invoke("Rng_Roll", "First") end)
@@ -317,7 +320,7 @@ task.spawn(function()
                 local currentTime = os.time()
                 
                 -- Dùng Lucky Dice I (Mỗi 58s)
-                if currentTime - LastLuckyDice >= 58 then
+                if currentTime - LastLuckyDice >= 50 then
                     if GetDiceCount("Lucky Dice V2") > 0 then
                         Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
                         LastLuckyDice = currentTime
@@ -325,7 +328,7 @@ task.spawn(function()
                 end
                 
                 -- Dùng Lucky Dice II (Mỗi 298s)
-                if currentTime - LastLuckyDiceII >= 298 then
+                if currentTime - LastLuckyDiceII >= 290 then
                     if GetDiceCount("Lucky Dice II V2") > 0 then
                         Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
                         LastLuckyDiceII = currentTime
@@ -362,9 +365,9 @@ task.spawn(function()
                         task.spawn(function()
                             pcall(function()
                                 if GetDiceCount("Mega Lucky Dice II V2") > 0 then
-                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice II V2", 1)
+                                    Network.Invoke("LuckyDice_ConsumMega", "Mega Lucky Dice II V2", 1)
                                 elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
-                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice V2", 1)
+                                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
                                 end
                             end)
                         end)
@@ -520,7 +523,7 @@ task.spawn(function()
         
         local currentCoin = GetItemAmount(config.CoinID)
         local save = Save.Get()
-        local currentRolls = 0; pcall(function() currentRolls = save.RngRolls2 or save.RngRolls or 0 end)
+        local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or 0 end)
         local diceCounts = GetDiceCounts()
 
         UI:SetText("Uptime", string.format("Time: %02d:%02d:%02d | FPS: %d", math.floor(diff / 3600), math.floor((diff % 3600) / 60), diff % 60, frames))
@@ -532,4 +535,49 @@ task.spawn(function()
         
         frames = 0
     end
+end)
+
+-- ==========================================
+-- [ADD-ON 3]: AUTO BREAK BOSS CHEST & CLICK AURA TỐC ĐỘ CAO
+-- Tính năng độc lập, không ảnh hưởng đến bất kỳ luồng nào khác
+-- ==========================================
+task.spawn(function()
+    local targetPos = CFrame.new(4279.34, 2569.27, -5370.22)
+    
+    RunService.Heartbeat:Connect(function()
+        if config.BossChestBreak then
+            pcall(function()
+                local character = LocalPlayer.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
+                
+                if hrp then
+                    -- Liên tục giữ nhân vật tại vị trí Boss Chest đã chỉ định
+                    hrp.CFrame = targetPos
+                    
+                    -- Tìm kiếm mục tiêu trong thư mục Breakables
+                    local things = Workspace:FindFirstChild("__THINGS")
+                    local breakables = things and things:FindFirstChild("Breakables")
+                    
+                    if breakables then
+                        for _, breakable in ipairs(breakables:GetChildren()) do
+                            local bPos
+                            if breakable:GetAttribute("CFrame") then
+                                bPos = breakable:GetAttribute("CFrame").Position
+                            elseif breakable.PrimaryPart then
+                                bPos = breakable.PrimaryPart.Position
+                            end
+                            
+                            -- Giới hạn khoảng cách < 50 studs để tránh đánh nhầm
+                            if bPos and (bPos - hrp.Position).Magnitude < 50 then
+                                -- Dồn toàn lực Click Aura vào 1 mục tiêu duy nhất
+                                Network.Fire("Breakables_PlayerDealDamage", breakable.Name)
+                                -- Ngắt vòng lặp tìm kiếm ngay lập tức để tiết kiệm CPU và tăng tốc độ đánh
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
 end)
