@@ -45,8 +45,9 @@ local DiceCraftTiers = {
 }
 
 local RNG_UPGRADES = {
-    "RNGHatchSpeed", "RNGEggLuck", "RNGBonusLuck", 
-    "RNGHugeLuck"
+    "RNGHatchSpeed", "RNGEggLuck", "RNGLuck", "RNGMegaLuck", "RNGBonusLuck", 
+    "RNGExtraEgg", "RNGBonusRoll", "RngHatchSpeed", "RngEggLuck", "RngLuck", 
+    "RngMegaLuck", "RngBonusLuck", "RngExtraEgg"
 }
 
 -- LINK WEBHOOK MẶC ĐỊNH MÃ HÓA
@@ -294,31 +295,6 @@ task.spawn(function()
                     if targetDice then 
                         Network.Invoke("LuckyDice_Craft", targetDice, 1)
                         task.wait(0.1) 
-                    end
-                end
-            end)
-        end
-        
-    end
-end)
-	-- [E] DUY TRÌ BUFF XÚC XẮC (DÙNG ĐÚNG REMOTE NHƯ TRONG LOG)
-        if config.AutoUseDice then
-            pcall(function()
-                local currentTime = os.time()
-                
-                -- Lucky Dice V2 (Tác dụng 1 phút) -> Dùng đè sau mỗi 58 giây
-                if currentTime - LastLuckyDice >= 50 then
-                    if GetDiceCount("Lucky Dice V2") > 0 then
-                        Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
-                        LastLuckyDice = currentTime
-                    end
-                end
-                
-                -- Lucky Dice II V2 (Tác dụng 5 phút) -> Dùng đè sau mỗi 298 giây
-                if currentTime - LastLuckyDiceII >= 290 then
-                    if GetDiceCount("Lucky Dice II V2") > 0 then
-                        Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
-                        LastLuckyDiceII = currentTime
                     end
                 end
             end)
