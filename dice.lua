@@ -234,6 +234,10 @@ end)
 -- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, MERCHANT, CRAFT)
 -- ==========================================
 task.spawn(function()
+    -- Thêm khởi tạo biến để tránh lỗi "arithmetic on nil" ở phần [E]
+    local LastLuckyDice = 0
+    local LastLuckyDiceII = 0
+    
     while task.wait(2) do
         
         -- [A] MÁY NÂNG CẤP
@@ -260,7 +264,6 @@ task.spawn(function()
                             local petIdLower = string.lower(pet.id)
                             
                             -- Kiểm tra xem TÊN THÚ CƯNG có nằm trong danh sách cần bán không
-                            -- Vẫn giữ chốt chặn an toàn: KHÔNG bán pet khóa (_lk), trang bị (_t), Huge, Titanic
                             if TargetPetsToSell[petIdLower] and not string.find(petIdLower, "huge") and not string.find(petIdLower, "titanic") and not pet._lk and not pet._t then
                                 sellDict[uid] = pet._am or 1
                                 count = count + 1
@@ -298,14 +301,16 @@ task.spawn(function()
                     end
                 end
             end)
-              -- [E] DUY TRÌ BUFF XÚC XẮC (DÙNG ĐÚNG REMOTE NHƯ TRONG LOG)
+        end -- BỔ SUNG CHỮ 'end' BỊ THIẾU CHO KHỐI IF NÀY!
+        
+        -- [E] DUY TRÌ BUFF XÚC XẮC (DÙNG ĐÚNG REMOTE NHƯ TRONG LOG)
         if config.AutoUseDice then
             pcall(function()
                 local currentTime = os.time()
                 
                 -- Lucky Dice V2 (Tác dụng 1 phút) -> Dùng đè sau mỗi 58 giây
                 if currentTime - LastLuckyDice >= 58 then
-                    if GetDiceCount("Lucky Dice V2") > 0 then
+                    if GetItemAmount("Lucky Dice V2") > 0 then -- Đổi GetDiceCount thành GetItemAmount
                         Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
                         LastLuckyDice = currentTime
                     end
@@ -313,7 +318,7 @@ task.spawn(function()
                 
                 -- Lucky Dice II V2 (Tác dụng 5 phút) -> Dùng đè sau mỗi 298 giây
                 if currentTime - LastLuckyDiceII >= 298 then
-                    if GetDiceCount("Lucky Dice II V2") > 0 then
+                    if GetItemAmount("Lucky Dice II V2") > 0 then -- Đổi GetDiceCount thành GetItemAmount
                         Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
                         LastLuckyDiceII = currentTime
                     end
@@ -323,7 +328,6 @@ task.spawn(function()
         
     end
 end)
-
 -- ==========================================
 -- 8. WEBHOOK BÁO CÁO PET VIP (HUGE/TITANIC)
 -- ==========================================
