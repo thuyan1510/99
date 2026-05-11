@@ -319,7 +319,7 @@ task.spawn(function()
                 -- Dùng Lucky Dice I (Mỗi 58s)
                 if currentTime - LastLuckyDice >= 58 then
                     if GetDiceCount("Lucky Dice V2") > 0 then
-                        Network.Invoke("LuckyDice_ConsumeMega", "Lucky Dice V2", 1)
+                        Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
                         LastLuckyDice = currentTime
                     end
                 end
@@ -327,7 +327,7 @@ task.spawn(function()
                 -- Dùng Lucky Dice II (Mỗi 298s)
                 if currentTime - LastLuckyDiceII >= 298 then
                     if GetDiceCount("Lucky Dice II V2") > 0 then
-                        Network.Invoke("LuckyDice_ConsumeMega", "Lucky Dice II V2", 1)
+                        Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
                         LastLuckyDiceII = currentTime
                     end
                 end
@@ -362,9 +362,9 @@ task.spawn(function()
                         task.spawn(function()
                             pcall(function()
                                 if GetDiceCount("Mega Lucky Dice II V2") > 0 then
-                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice II V2", 1)
+                                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
                                 elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
-                                    Network.Invoke("LuckyDice_Consume", "Mega Lucky Dice V2", 1)
+                                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
                                 end
                             end)
                         end)
