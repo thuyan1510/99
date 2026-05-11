@@ -298,6 +298,27 @@ task.spawn(function()
                     end
                 end
             end)
+               -- [E] DUY TRÌ BUFF XÚC XẮC
+        if config.AutoUseDice then
+            pcall(function()
+                local currentTime = os.time()
+                
+                -- Lucky Dice V2 (Tác dụng 1 phút) -> Dùng đè sau mỗi 58 giây
+                if currentTime - LastLuckyDice >= 58 then
+                    if HasDice("Lucky Dice V2") then
+                        ConsumeDice("Lucky Dice V2")
+                        LastLuckyDice = currentTime
+                    end
+                end
+                
+                -- Lucky Dice II V2 (Tác dụng 5 phút) -> Dùng đè sau mỗi 298 giây
+                if currentTime - LastLuckyDiceII >= 298 then
+                    if HasDice("Lucky Dice II V2") then
+                        ConsumeDice("Lucky Dice II V2")
+                        LastLuckyDiceII = currentTime
+                    end
+                end
+            end)
         end
         
     end
