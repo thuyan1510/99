@@ -429,15 +429,16 @@ task.spawn(function()
         
         local currentCoin = GetItemAmount(config.CoinID)
         local save = Save.Get()
-        local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or 0 end)
-        local diceCounts = GetDiceCounts()
+        local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or save.RngRolls2 or save.RngRolls or 0 end)
 
         UI:SetText("Uptime", string.format("Time: %02d:%02d:%02d | FPS: %d", math.floor(diff / 3600), math.floor((diff % 3600) / 60), diff % 60, frames))
         UI:SetText("RNGCoins", "RNG Coins: " .. FormatValue(currentCoin))
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
-        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(diceCounts["Lucky Dice V2"]), FormatValue(diceCounts["Lucky Dice II V2"])))
-        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(diceCounts["Mega Lucky Dice V2"]), FormatValue(diceCounts["Mega Lucky Dice II V2"])))
-        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(diceCounts["Lucky Dice III V2"]), FormatValue(diceCounts["Fire Dice V2"])))
+        
+        -- Sửa lại cách gọi hàm đếm xúc xắc cho chuẩn với GetDiceCount(diceId)
+        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
+        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
+        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(GetDiceCount("Lucky Dice III V2")), FormatValue(GetDiceCount("Fire Dice V2"))))
         
         frames = 0
     end
