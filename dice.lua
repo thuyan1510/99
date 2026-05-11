@@ -314,37 +314,36 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN CHUẨN)
+-- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN PRO CHECK DATA GỐC)
+-- Đọc trực tiếp từ cơ sở dữ liệu của game thay vì đếm thời gian
 -- ==========================================
 task.spawn(function()
-    local LastLuckyDice = 0
-    local LastLuckyDiceII = 0
-    
     while task.wait(2) do
         if config.AutoUseDice then
             pcall(function()
-                local currentTime = os.time()
+                local save = Save.Get()
+                if not save then return end
                 
-                -- Dùng Lucky Dice I (Mỗi 50s)
-                if currentTime - LastLuckyDice >= 50 then
-                    if GetDiceCount("Lucky Dice V2") > 0 then
-                        Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
-                        LastLuckyDice = currentTime
-                    end
-                end
+                -- Lấy danh sách các Buff đang hoạt động trên người nhân vật
+                local activeBuffs = save.ActiveBoosts or save.Boosts or save.ActiveBuffs or {}
                 
-                -- Dùng Lucky Dice II (Mỗi 290s)
-                if currentTime - LastLuckyDiceII >= 290 then
-                    if GetDiceCount("Lucky Dice II V2") > 0 then
-                        Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
-                        LastLuckyDiceII = currentTime
+                -- Lặp qua 2 loại xúc xắc thường
+                for _, Dice in ipairs({ "Lucky Dice V2", "Lucky Dice II V2" }) do
+                    
+                    -- Nếu nhân vật KHÔNG CÓ buff này VÀ trong túi còn xúc xắc
+                    if not activeBuffs[Dice] and GetDiceCount(Dice) > 0 then
+                        
+                        -- Gửi lệnh cắn 1 viên
+                        Network.Invoke("LuckyDice_Consume", Dice, 1)
+                        
+                        -- Đợi 1 chút để game kịp cập nhật dữ liệu Buff lên Server trước khi vòng lặp chạy tiếp
+                        task.wait(0.5) 
                     end
                 end
             end)
         end
     end
 end)
-
 -- ==========================================
 -- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (ĐÃ SỬA KHÓA AN TOÀN)
 -- Tính năng này móc trực tiếp vào sự thay đổi Text/Visible của màn hình
