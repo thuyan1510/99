@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 CẬP NHẬT TỐI HẬU: AUTO SELL THEO DANH SÁCH TÊN CHỈ ĐỊNH
+-- 🚀 CẬP NHẬT: KÍCH HOẠT HIDE ROLL TỪ ĐẦU & AUTO USE DICE CHUẨN XÁC
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
@@ -17,10 +17,9 @@ local config = {
     AutoMerchant     = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
     AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
     AutoSell         = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
+    AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
     
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
-    
-    -- Danh sách tên thú cưng cần bán
     PetsToSell       = UserConfig.PetsToSell or {},
     
     EventMapID       = "RngInstance",   
@@ -28,29 +27,19 @@ local config = {
     CoinID           = "RNGCoins2" 
 }
 
--- Xử lý danh sách bán: Đưa tất cả về chữ thường để so khớp chính xác 100%
+-- Xử lý danh sách bán
 local TargetPetsToSell = {}
 for petName, shouldSell in pairs(config.PetsToSell) do
-    if shouldSell == true then
-        TargetPetsToSell[string.lower(tostring(petName))] = true
-    end
+    if shouldSell == true then TargetPetsToSell[string.lower(tostring(petName))] = true end
 end
 
 local DiceCraftTiers = {
-    [1] = "Lucky Dice II V2",
-    [2] = "Lucky Dice III V2",
-    [3] = "Mega Lucky Dice V2",
-    [4] = "Mega Lucky Dice II V2",
-    [5] = "Fire Dice V2"
+    [1] = "Lucky Dice II V2", [2] = "Lucky Dice III V2", [3] = "Mega Lucky Dice V2",
+    [4] = "Mega Lucky Dice II V2", [5] = "Fire Dice V2"
 }
 
-local RNG_UPGRADES = {
-    "RNGHatchSpeed", "RNGEggLuck", "RNGLuck", "RNGMegaLuck", "RNGBonusLuck", 
-    "RNGExtraEgg", "RNGBonusRoll", "RngHatchSpeed", "RngEggLuck", "RngLuck", 
-    "RngMegaLuck", "RngBonusLuck", "RngExtraEgg"
-}
+local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
 
--- LINK WEBHOOK MẶC ĐỊNH MÃ HÓA
 local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
 local defaultWebhook = ""
 for _, byte in ipairs(_b) do defaultWebhook = defaultWebhook .. string.char(byte) end
@@ -114,8 +103,38 @@ local function GetItemAmount(targetId)
     return amount
 end
 
+-- Hàm check số lượng Xúc xắc có trong túi
+local function GetDiceCount(diceId)
+    local count = 0
+    pcall(function()
+        local save = Save.Get()
+        if save and save.Inventory and save.Inventory.Misc then
+            for _, item in pairs(save.Inventory.Misc) do
+                if type(item) == "table" and item.id == diceId then
+                    count = count + (item._am or 1)
+                end
+            end
+        end
+    end)
+    return count
+end
+
 -- ==========================================
--- 4. WEBHOOK TRACKER
+-- 4. KÍCH HOẠT HIDE ROLL & AUTO ROLL (NGAY LẬP TỨC)
+-- ==========================================
+task.spawn(function()
+    -- Bật ngay lập tức khi script load
+    pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
+    pcall(function() Network.Fire("AutoRoll_Enable") end)
+    
+    -- Vòng lặp duy trì
+    while task.wait(1.5) do
+        pcall(function() Network.Invoke("Rng_Roll", "First") end)
+    end
+end)
+
+-- ==========================================
+-- 5. WEBHOOK TRACKER
 -- ==========================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
@@ -152,7 +171,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 5. CƠ BẢN (MAP, FPS, AFK, MAIL, GIFTS, TRADE)
+-- 6. CƠ BẢN (MAP, FPS, AFK, MAIL, GIFTS, TRADE)
 -- ==========================================
 task.spawn(function()
     while task.wait(5) do
@@ -218,21 +237,13 @@ task.spawn(function()
     end)
 end)
 
--- ==========================================
--- 6. AUTO HIDE ROLL & AUTO ROLL
--- ==========================================
-task.spawn(function()
-    pcall(function() Network.Fire("Setting_Update", "RngHiddenRoll", true) end)
-    
-    while task.wait(1.5) do
-        pcall(function() Network.Fire("AutoRoll_Enable") end)
-        pcall(function() Network.Invoke("Rng_Roll", "First") end)
-    end
-end)
 
 -- ==========================================
--- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, MERCHANT, CRAFT)
+-- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, CÁC LOẠI MÁY, BUFF XÚC XẮC)
 -- ==========================================
+local LastLuckyDice = 0
+local LastLuckyDiceII = 0
+
 task.spawn(function()
     while task.wait(2) do
         
@@ -252,24 +263,21 @@ task.spawn(function()
             pcall(function()
                 local save = Save.Get()
                 if save and save.Inventory and save.Inventory.Pet then
-                    local sellDict = {}
-                    local count = 0
+                    local sellArray = {}
                     
                     for uid, pet in pairs(save.Inventory.Pet) do
                         if type(pet.id) == "string" then
                             local petIdLower = string.lower(pet.id)
                             
-                            -- Kiểm tra xem TÊN THÚ CƯNG có nằm trong danh sách cần bán không
-                            -- Vẫn giữ chốt chặn an toàn: KHÔNG bán pet khóa (_lk), trang bị (_t), Huge, Titanic
+                            -- So khớp với danh sách trắng PetsToSell
                             if TargetPetsToSell[petIdLower] and not string.find(petIdLower, "huge") and not string.find(petIdLower, "titanic") and not pet._lk and not pet._t then
-                                sellDict[uid] = pet._am or 1
-                                count = count + 1
+                                table.insert(sellArray, uid)
                             end
                         end
                     end
                     
-                    if count > 0 then
-                        Network.Invoke("RngEventPetMerchant_Activate", sellDict)
+                    if #sellArray > 0 then
+                        Network.Invoke("RngEventPetMerchant_Activate", sellArray)
                     end
                 end
             end)
@@ -295,6 +303,30 @@ task.spawn(function()
                     if targetDice then 
                         Network.Invoke("LuckyDice_Craft", targetDice, 1)
                         task.wait(0.1) 
+                    end
+                end
+            end)
+            task.wait(0.5)
+        end
+        
+        -- [E] DUY TRÌ BUFF XÚC XẮC (DÙNG ĐÚNG REMOTE NHƯ TRONG LOG)
+        if config.AutoUseDice then
+            pcall(function()
+                local currentTime = os.time()
+                
+                -- Lucky Dice V2 (Tác dụng 1 phút) -> Dùng đè sau mỗi 58 giây
+                if currentTime - LastLuckyDice >= 50 then
+                    if GetDiceCount("Lucky Dice V2") > 0 then
+                        Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
+                        LastLuckyDice = currentTime
+                    end
+                end
+                
+                -- Lucky Dice II V2 (Tác dụng 5 phút) -> Dùng đè sau mỗi 298 giây
+                if currentTime - LastLuckyDiceII >= 290 then
+                    if GetDiceCount("Lucky Dice II V2") > 0 then
+                        Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
+                        LastLuckyDiceII = currentTime
                     end
                 end
             end)
@@ -462,17 +494,6 @@ local frames = 0
 RunService.RenderStepped:Connect(function() frames = frames + 1 end)
 local startTime = tonumber(os.time()) or 0
 
-local function GetDiceCounts()
-    local dice = { ["Lucky Dice V2"] = 0, ["Lucky Dice II V2"] = 0, ["Lucky Dice III V2"] = 0, ["Mega Lucky Dice V2"] = 0, ["Mega Lucky Dice II V2"] = 0, ["Fire Dice V2"] = 0 }
-    local save = Save.Get()
-    if save and save.Inventory and save.Inventory.Misc then
-        for _, item in pairs(save.Inventory.Misc) do
-            if item.id and dice[item.id] ~= nil then dice[item.id] = dice[item.id] + (item._am or 1) end
-        end
-    end
-    return dice
-end
-
 task.spawn(function()
     while task.wait(1) do
         local diff = (tonumber(os.time()) or 0) - startTime
@@ -480,14 +501,13 @@ task.spawn(function()
         local currentCoin = GetItemAmount(config.CoinID)
         local save = Save.Get()
         local currentRolls = 0; pcall(function() currentRolls = save.RngRolls2 or save.RngRolls or 0 end)
-        local diceCounts = GetDiceCounts()
 
         UI:SetText("Uptime", string.format("Time: %02d:%02d:%02d | FPS: %d", math.floor(diff / 3600), math.floor((diff % 3600) / 60), diff % 60, frames))
         UI:SetText("RNGCoins", "RNG Coins: " .. FormatValue(currentCoin))
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
-        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(diceCounts["Lucky Dice V2"]), FormatValue(diceCounts["Lucky Dice II V2"])))
-        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(diceCounts["Mega Lucky Dice V2"]), FormatValue(diceCounts["Mega Lucky Dice II V2"])))
-        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(diceCounts["Lucky Dice III V2"]), FormatValue(diceCounts["Fire Dice V2"])))
+        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
+        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
+        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(GetDiceCount("Lucky Dice III V2")), FormatValue(GetDiceCount("Fire Dice V2"))))
         
         frames = 0
     end
