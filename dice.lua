@@ -37,8 +37,9 @@ for petName, shouldSell in pairs(config.PetsToSell) do
 end
 
 local DiceCraftTiers = {
-    [1] = "Lucky Dice II V2", [2] = "Lucky Dice III V2", [3] = "Mega Lucky Dice V2",
-    [4] = "Mega Lucky Dice II V2", [5] = "Fire Dice V2"
+    [1] = "Lucky Dice II V2", 
+    [2] = "Mega Lucky Dice V2",
+    [3] = "Mega Lucky Dice II V2"
 }
 
 local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
@@ -519,8 +520,7 @@ local UI = FarmUI.new({
         ["RNGCoins"] = {3, "RNG Coins: 0"},
         ["Rolls"]    = {4, "Total Rolls: 0"},
         ["Dice1"]    = {5, "Lucky Dice: 0 | Lucky II: 0"},
-        ["Dice2"]    = {6, "Mega Dice: 0 | Mega II: 0"},
-        ["Dice3"]    = {7, "Lucky III: 0 | Fire Dice: 0"}
+        ["Dice2"]    = {6, "Mega Dice: 0 | Mega II: 0"}
     }
 })
 
@@ -553,7 +553,6 @@ task.spawn(function()
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
         UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(diceCounts["Lucky Dice V2"]), FormatValue(diceCounts["Lucky Dice II V2"])))
         UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(diceCounts["Mega Lucky Dice V2"]), FormatValue(diceCounts["Mega Lucky Dice II V2"])))
-        UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(diceCounts["Lucky Dice III V2"]), FormatValue(diceCounts["Fire Dice V2"])))
         
         frames = 0
     end
