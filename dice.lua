@@ -22,6 +22,7 @@ local config = {
     
     AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
     AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
+	AutoUseMegaDiceWeather  = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or true,
     
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
     PetsToSell       = UserConfig.PetsToSell or {},
@@ -495,66 +496,93 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [ADD-ON 2]: EVENT & WEATHER SNIPER (TEST MODE - KHÔNG MẤT DICE)
+-- [ADD-ON 2]: EVENT & WEATHER SNIPER (LIÊN KẾT ĐIỀU KIỆN CHẶT CHẼ)
 -- ==========================================
 task.spawn(function()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-    local isWeatherActive = false 
+    local TextChatService = game:GetService("TextChatService")
+    
     local MegaDiceLocked = false
     
-    -- 📡 Theo dõi Chat để bật/tắt trạng thái Weather
+    -- BIẾN TOÀN CỤC LƯU TRẠNG THÁI THỜI TIẾT HIỆN TẠI
+    local IsWeatherActive = false 
+    
+    local function FireMegaDice(reason)
+        if not config.AutoUseMegaDice then return end
+        
+        print("🎯 BÓP CÒ MEGA DICE! Lý do: " .. reason)
+        
+        task.spawn(function()
+            pcall(function()
+                if GetDiceCount("Mega Lucky Dice II V2") > 0 then
+                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
+                elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
+                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
+                end
+            end)
+        end)
+    end
+
+    -- =======================================
+    -- 1. HỆ THỐNG ĐỌC KHUNG CHAT (CẬP NHẬT TRẠNG THÁI THỜI TIẾT)
+    -- =======================================
     if TextChatService then
-        TextChatService.MessageReceived:Connect(function(msg)
-            local txt = string.lower(msg.Text)
-            if string.find(txt, "begun") and (string.find(txt, "blizzard") or string.find(txt, "lightning")) then
-                isWeatherActive = true
-                warn("⛈️ [RADAR] Nhận diện thời tiết! isWeatherActive = TRUE")
-            elseif string.find(txt, "clear skies have returned") then
-                isWeatherActive = false
-                warn("🌤️ [RADAR] Hết thời tiết! isWeatherActive = FALSE")
+        TextChatService.MessageReceived:Connect(function(textChatMessage)
+            local msg = string.lower(textChatMessage.Text)
+            
+            -- Khi thời tiết bắt đầu -> Mở khóa an toàn
+            if string.find(msg, "blizzard has begun") or string.find(msg, "lightning storm has begun") then
+                IsWeatherActive = true
+                print("⛈️ THỜI TIẾT KÍCH HOẠT! Đã mở khóa an toàn cho Súng Mega Dice.")
+                
+            -- Khi thời tiết kết thúc -> Đóng khóa an toàn
+            elseif string.find(msg, "clear skies have returned") then
+                IsWeatherActive = false
+                print("🌤️ Hết bão! Đã đóng khóa an toàn Súng Mega Dice.")
             end
         end)
     end
 
-    -- 🔫 Logic bóp cò Mega Dice (CHỈ IN LOG F9)
+    -- =======================================
+    -- 2. HỆ THỐNG KIỂM TRA BONUS (QUYẾT ĐỊNH BẮN)
+    -- =======================================
     local function HookLabel(label)
         if label.Name == "Bonus" and label:IsA("TextLabel") then
-            label:GetPropertyChangedSignal("Visible"):Connect(function()
-                if not label.Visible then MegaDiceLocked = false return end
+            local function CheckBonusTrigger()
+                if not label.Visible then 
+                    MegaDiceLocked = false 
+                    return 
+                end
                 
-                -- ĐIỀU KIỆN LỒNG GHÉP:
-                if config.AutoUseMegaDice and not MegaDiceLocked then
-                    local shouldFire = false
-                    local reason = ""
-                    
-                    if not config.AutoUseMegaDiceWeather then
-                        shouldFire = true 
-                        reason = "Chỉ cần Bonus (Cài đặt không đòi hỏi thời tiết)"
-                    elseif config.AutoUseMegaDiceWeather and isWeatherActive then
-                        shouldFire = true
-                        reason = "Đang có Bonus VÀ Đang có Thời tiết"
-                    end
-                    
-                    if shouldFire then
+                local txt = string.lower(label.Text)
+                if txt ~= "" and (string.find(txt, "bonus") or string.find(txt, "x")) then
+                    if not MegaDiceLocked then
+                        
+                        -- KHÓA AN TOÀN CHÍNH: Kiểm tra cài đặt thời tiết
+                        if config.AutoUseMegaDiceWeather == true and IsWeatherActive == false then
+                            -- Nếu Config yêu cầu phải có thời tiết, nhưng hiện tại trời lại quang mây tạnh -> Không bắn
+                            return 
+                        end
+                        
                         MegaDiceLocked = true
-                        
-                        -- TEST MODE: IN RA LOG F9 THAY VÌ CẮN THẬT
-                        local testMessage = string.format("🎯 [TEST MODE BÓP CÒ] Hệ số: %s | Lý do: %s", label.Text, reason)
-                        warn(testMessage) -- warn() sẽ làm dòng chữ có màu vàng cam nổi bật trong F9
-                        print(testMessage)
-                        
-                        -- Mở khóa sau 2 giây
+                        FireMegaDice("Lượt Roll Bonus (" .. txt .. ") + Thời tiết hợp lệ")
                         task.delay(2, function() MegaDiceLocked = false end)
                     end
+                else
+                    MegaDiceLocked = false
                 end
-            end)
+            end
+
+            label:GetPropertyChangedSignal("Text"):Connect(CheckBonusTrigger)
+            label:GetPropertyChangedSignal("Visible"):Connect(CheckBonusTrigger)
         end
     end
     
     for _, obj in pairs(PlayerGui:GetDescendants()) do pcall(function() HookLabel(obj) end) end
     PlayerGui.DescendantAdded:Connect(function(obj) pcall(function() HookLabel(obj) end) end)
 end)
-
 -- ==========================================
 -- [ADD-ON 3]: AUTO BREAK BOSS CHEST 
 -- ==========================================
