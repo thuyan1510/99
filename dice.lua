@@ -68,9 +68,15 @@ local Network = require(Library.Client.Network)
 local InstancingCmds = require(Library.Client.InstancingCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
-local ExistCmds = require(Library.Client.ExistCountCmds)
-local RapCmds = require(Library.Client.DevRAPCmds)
 local PetsDirectory = require(Library.Directory.Pets)
+local ExistCmds, RapCmds
+
+-- Dùng pcall để ép script chạy tiếp dù game có xóa mất thư viện RAP hay Exist
+pcall(function() ExistCmds = require(Library.Client.ExistCountCmds) end)
+pcall(function() RapCmds = require(Library.Client.DevRAPCmds) end)
+
+-- Mở rộng lưới quét dự phòng trường hợp Big Games đổi tên thành RAPCmds
+if not RapCmds then pcall(function() RapCmds = require(Library.Client.RAPCmds) end) end
 
 -- ==========================================
 -- 3. HÀM CHUYỂN ĐỔI CHỮ SỐ & TIỀN RAW
@@ -200,14 +206,21 @@ local function GetPetAsset(Id, pt)
 end
 
 local function GetPetStats(Cmds, Class, ItemTable)
-    return Cmds.Get({
-        Class = { Name = Class },
-        IsA = function(InputClass) return InputClass == Class end,
-        GetId = function() return ItemTable.id end,
-        StackKey = function()
-            return HttpService:JSONEncode({id = ItemTable.id, sh = ItemTable.sh, pt = ItemTable.pt, tn = ItemTable.tn})
-        end
-    }) or nil
+    -- Nếu module bị game xóa (nil), tự động trả về 0 thay vì báo lỗi đỏ
+    if not Cmds or type(Cmds) ~= "table" or not Cmds.Get then return 0 end 
+    
+    local success, result = pcall(function()
+        return Cmds.Get({
+            Class = { Name = Class },
+            IsA = function(InputClass) return InputClass == Class end,
+            GetId = function() return ItemTable.id end,
+            StackKey = function()
+                return HttpService:JSONEncode({id = ItemTable.id, sh = ItemTable.sh, pt = ItemTable.pt, tn = ItemTable.tn})
+            end
+        })
+    end)
+    
+    return success and result or 0
 end
 
 local function SendHugeWebhook(Id, pt, sh)
