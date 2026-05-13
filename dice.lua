@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🎲 POODLE HUD - RNG EVENT CORE (V5 - THE ULTIMATE EDITION)
+-- 🎲 POODLE HUD - RNG EVENT CORE (V5 - THE ULTIMATE EDITION
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
