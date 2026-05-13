@@ -22,7 +22,7 @@ local config = {
     
     AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
     AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
-	AutoUseMegaDiceWeather  = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or true,
+	AutoUseMegaDiceWeather = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or false,
     
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
     PetsToSell       = UserConfig.PetsToSell or {},
@@ -562,7 +562,7 @@ task.spawn(function()
                         
                         -- KHÓA AN TOÀN CHÍNH: Kiểm tra cài đặt thời tiết
                         if config.AutoUseMegaDiceWeather == true and IsWeatherActive == false then
-                            -- Nếu Config yêu cầu phải có thời tiết, nhưng hiện tại trời lại quang mây tạnh -> Không bắn
+                           print("🔒 Đã bỏ qua lượt Bonus này vì bạn cài đặt 'Chỉ dùng Mega Dice khi có thời tiết'.")
                             return 
                         end
                         
