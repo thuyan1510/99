@@ -35,10 +35,11 @@ for petName, shouldSell in pairs(config.PetsToSell) do
     if shouldSell == true then TargetPetsToSell[string.lower(tostring(petName))] = true end
 end
 
-local DiceCraftTiers = {
-    [1] = "Lucky Dice II V2", 
-    [2] = "Mega Lucky Dice V2",
-    [3] = "Mega Lucky Dice II V2"
+-- Bảng công thức chế tạo: Tên đích | Nguyên liệu cần | Số lượng cần | Giá tiền
+local CraftRecipes = {
+    [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
+    [2] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice II V2", DiceCost = 30, CoinCost = 100000 },
+    [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }
 }
 
 local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
@@ -429,13 +430,34 @@ task.spawn(function()
             task.wait(0.5)
         end
         
+        -- [D] MÁY CHẾ TẠO XÚC XẮC (BẢN TỐI ƯU HÓA CRAFT ALL)
         if config.AutoCraftDice then
             pcall(function()
+                -- Lấy tổng số tiền RNG Coins hiện có 1 lần duy nhất để làm toán
+                local currentCoins = GetItemAmount(config.CoinID)
+                
                 for i = 1, math.clamp(config.MaxDiceCraftTier, 1, 3) do
-                    local targetDice = DiceCraftTiers[i]
-                    if targetDice then 
-                        Network.Invoke("LuckyDice_Craft", targetDice, 1)
-                        task.wait(0.1) 
+                    local recipe = CraftRecipes[i]
+                    if recipe then
+                        local inputCount = GetDiceCount(recipe.Input)
+                        
+                        -- Tính giới hạn có thể tạo dựa trên Tiền và Nguyên liệu
+                        local maxByDice = math.floor(inputCount / recipe.DiceCost)
+                        local maxByCoins = math.floor(currentCoins / recipe.CoinCost)
+                        
+                        -- Lấy con số nhỏ nhất (Ví dụ đủ nguyên liệu tạo 100 viên nhưng tiền chỉ đủ tạo 10 viên -> Tạo 10)
+                        local craftAmount = math.min(maxByDice, maxByCoins)
+                        
+                        if craftAmount > 0 then
+                            -- Gửi lệnh tạo TẤT CẢ cùng 1 lúc
+                            Network.Invoke("LuckyDice_Craft", recipe.Target, craftAmount)
+                            
+                            -- Trừ đi số tiền vừa tiêu để vòng lặp tính toán đúng cho cấp tiếp theo
+                            currentCoins = currentCoins - (craftAmount * recipe.CoinCost)
+                            
+                            -- Nghỉ một chút để Server kịp nhồi xúc xắc mới vào túi
+                            task.wait(0.3) 
+                        end
                     end
                 end
             end)
