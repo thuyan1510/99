@@ -344,28 +344,49 @@ task.spawn(function()
             task.wait(0.5)
         end
         
+        -- [D] MÁY CHẾ TẠO XÚC XẮC (QUẢN LÝ KINH TẾ THÔNG MINH - SMART ECONOMY)
         if config.AutoCraftDice then
             pcall(function()
                 local currentCoins = GetItemAmount(config.CoinID)
+                
+                -- HÀM KIỂM TRA BOTTLENECK:
+                -- Xem có mốc xúc xắc cao hơn nào đã gom ĐỦ NGUYÊN LIỆU và đang chờ tiết kiệm tiền không?
+                local function IsHigherTierReady(currentTier)
+                    for j = config.MaxDiceCraftTier, currentTier + 1, -1 do
+                        local higherRecipe = CraftRecipes[j]
+                        if higherRecipe then
+                            local inputCount = GetDiceCount(higherRecipe.Input)
+                            -- Nếu đã gom đủ nguyên liệu cho cấp cao hơn -> Báo hiệu đang chờ tiết kiệm tiền
+                            if inputCount >= higherRecipe.DiceCost then
+                                return true 
+                            end
+                        end
+                    end
+                    return false
+                end
+
                 for i = math.clamp(config.MaxDiceCraftTier, 1, 3), 1, -1 do
                     local recipe = CraftRecipes[i]
                     if recipe then
-                        local inputCount = GetDiceCount(recipe.Input)
-                        local maxByDice = math.floor(inputCount / recipe.DiceCost)
-                        local maxByCoins = math.floor(currentCoins / recipe.CoinCost)
-                        local craftAmount = math.min(maxByDice, maxByCoins)
-                        if craftAmount > 0 then
-                            Network.Invoke("LuckyDice_Craft", recipe.Target, craftAmount)
-                            currentCoins = currentCoins - (craftAmount * recipe.CoinCost)
-                            task.wait(0.3)
+                        -- CHÌA KHÓA: Nếu cấp cao hơn đã đủ nguyên liệu -> Khóa thẻ, tuyệt đối KHÔNG cho cấp thấp tiêu tiền!
+                        if not IsHigherTierReady(i) then
+                            local inputCount = GetDiceCount(recipe.Input)
+                            local maxByDice = math.floor(inputCount / recipe.DiceCost)
+                            local maxByCoins = math.floor(currentCoins / recipe.CoinCost)
+                            
+                            local craftAmount = math.min(maxByDice, maxByCoins)
+                            
+                            if craftAmount > 0 then
+                                Network.Invoke("LuckyDice_Craft", recipe.Target, craftAmount)
+                                currentCoins = currentCoins - (craftAmount * recipe.CoinCost)
+                                task.wait(0.3) 
+                            end
                         end
                     end
                 end
             end)
             task.wait(0.5)
         end
-    end
-end)
 
 task.spawn(function()
     while task.wait(2) do
