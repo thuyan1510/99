@@ -35,10 +35,11 @@ for petName, shouldSell in pairs(config.PetsToSell) do
     if shouldSell == true then TargetPetsToSell[string.lower(tostring(petName))] = true end
 end
 
-local DiceCraftTiers = {
-    [1] = "Lucky Dice II V2", 
-    [2] = "Mega Lucky Dice V2",
-    [3] = "Mega Lucky Dice II V2"
+-- Bảng công thức chế tạo: Tên đích | Nguyên liệu cần | Số lượng cần | Giá tiền
+local CraftRecipes = {
+    [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
+    [2] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice II V2", DiceCost = 30, CoinCost = 100000 },
+    [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }
 }
 
 local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
@@ -429,13 +430,34 @@ task.spawn(function()
             task.wait(0.5)
         end
         
+        -- [D] MÁY CHẾ TẠO XÚC XẮC (BẢN TỐI ƯU HÓA CRAFT ALL)
         if config.AutoCraftDice then
             pcall(function()
+                -- Lấy tổng số tiền RNG Coins hiện có 1 lần duy nhất để làm toán
+                local currentCoins = GetItemAmount(config.CoinID)
+                
                 for i = 1, math.clamp(config.MaxDiceCraftTier, 1, 3) do
-                    local targetDice = DiceCraftTiers[i]
-                    if targetDice then 
-                        Network.Invoke("LuckyDice_Craft", targetDice, 1)
-                        task.wait(0.1) 
+                    local recipe = CraftRecipes[i]
+                    if recipe then
+                        local inputCount = GetDiceCount(recipe.Input)
+                        
+                        -- Tính giới hạn có thể tạo dựa trên Tiền và Nguyên liệu
+                        local maxByDice = math.floor(inputCount / recipe.DiceCost)
+                        local maxByCoins = math.floor(currentCoins / recipe.CoinCost)
+                        
+                        -- Lấy con số nhỏ nhất (Ví dụ đủ nguyên liệu tạo 100 viên nhưng tiền chỉ đủ tạo 10 viên -> Tạo 10)
+                        local craftAmount = math.min(maxByDice, maxByCoins)
+                        
+                        if craftAmount > 0 then
+                            -- Gửi lệnh tạo TẤT CẢ cùng 1 lúc
+                            Network.Invoke("LuckyDice_Craft", recipe.Target, craftAmount)
+                            
+                            -- Trừ đi số tiền vừa tiêu để vòng lặp tính toán đúng cho cấp tiếp theo
+                            currentCoins = currentCoins - (craftAmount * recipe.CoinCost)
+                            
+                            -- Nghỉ một chút để Server kịp nhồi xúc xắc mới vào túi
+                            task.wait(0.3) 
+                        end
                     end
                 end
             end)
@@ -473,70 +495,64 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [ADD-ON 2]: EVENT-DRIVEN MEGA DICE SNIPER (ĐÃ SỬA KHÓA AN TOÀN)
--- Tính năng này móc trực tiếp vào sự thay đổi Text/Visible của màn hình
+-- [ADD-ON 2]: EVENT & WEATHER SNIPER (TEST MODE - KHÔNG MẤT DICE)
 -- ==========================================
 task.spawn(function()
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-    if not PlayerGui then return end
-    
+    local isWeatherActive = false 
     local MegaDiceLocked = false
     
-    -- Hàm gắn cảm biến vào Label
+    -- 📡 Theo dõi Chat để bật/tắt trạng thái Weather
+    if TextChatService then
+        TextChatService.MessageReceived:Connect(function(msg)
+            local txt = string.lower(msg.Text)
+            if string.find(txt, "begun") and (string.find(txt, "blizzard") or string.find(txt, "lightning")) then
+                isWeatherActive = true
+                warn("⛈️ [RADAR] Nhận diện thời tiết! isWeatherActive = TRUE")
+            elseif string.find(txt, "clear skies have returned") then
+                isWeatherActive = false
+                warn("🌤️ [RADAR] Hết thời tiết! isWeatherActive = FALSE")
+            end
+        end)
+    end
+
+    -- 🔫 Logic bóp cò Mega Dice (CHỈ IN LOG F9)
     local function HookLabel(label)
         if label.Name == "Bonus" and label:IsA("TextLabel") then
-            
-            local function CheckTrigger()
-                if not config.AutoUseMegaDice then return end
+            label:GetPropertyChangedSignal("Visible"):Connect(function()
+                if not label.Visible then MegaDiceLocked = false return end
                 
-                -- Bắt buộc phải kiểm tra nếu UI bị ẩn đi thì phải mở khóa
-                if not label.Visible then
-                    MegaDiceLocked = false
-                    return
-                end
-                
-                local txt = string.lower(label.Text)
-                if txt ~= "" and (string.find(txt, "bonus") or string.find(txt, "x")) then
-                    if not MegaDiceLocked then
+                -- ĐIỀU KIỆN LỒNG GHÉP:
+                if config.AutoUseMegaDice and not MegaDiceLocked then
+                    local shouldFire = false
+                    local reason = ""
+                    
+                    if not config.AutoUseMegaDiceWeather then
+                        shouldFire = true 
+                        reason = "Chỉ cần Bonus (Cài đặt không đòi hỏi thời tiết)"
+                    elseif config.AutoUseMegaDiceWeather and isWeatherActive then
+                        shouldFire = true
+                        reason = "Đang có Bonus VÀ Đang có Thời tiết"
+                    end
+                    
+                    if shouldFire then
                         MegaDiceLocked = true
                         
-                        -- Cắn Mega Dice song song ngay lập tức
-                        task.spawn(function()
-                            pcall(function()
-                                if GetDiceCount("Mega Lucky Dice II V2") > 0 then
-                                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
-                                elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
-                                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
-                                end
-                            end)
-                        end)
+                        -- TEST MODE: IN RA LOG F9 THAY VÌ CẮN THẬT
+                        local testMessage = string.format("🎯 [TEST MODE BÓP CÒ] Hệ số: %s | Lý do: %s", label.Text, reason)
+                        warn(testMessage) -- warn() sẽ làm dòng chữ có màu vàng cam nổi bật trong F9
+                        print(testMessage)
                         
-                        -- Khóa an toàn: Tự mở lại sau 2 giây để chuẩn bị cho chu kỳ bonus tiếp theo
-                        -- Xử lý trường hợp UI Text bị kẹt nhưng đến lượt mới nó mới nháy Visible
-                        task.delay(2, function()
-                            MegaDiceLocked = false
-                        end)
+                        -- Mở khóa sau 2 giây
+                        task.delay(2, function() MegaDiceLocked = false end)
                     end
-                else
-                    MegaDiceLocked = false
                 end
-            end
-
-            -- Móc sự kiện: Lắng nghe cả Text và Visible
-            label:GetPropertyChangedSignal("Text"):Connect(CheckTrigger)
-            label:GetPropertyChangedSignal("Visible"):Connect(CheckTrigger)
+            end)
         end
     end
     
-    -- Gắn cảm biến cho các UI đang có
-    for _, obj in pairs(PlayerGui:GetDescendants()) do
-        pcall(function() HookLabel(obj) end)
-    end
-    
-    -- Gắn cảm biến cho các UI mới sinh ra (Đề phòng game tải lại UI)
-    PlayerGui.DescendantAdded:Connect(function(obj)
-        pcall(function() HookLabel(obj) end)
-    end)
+    for _, obj in pairs(PlayerGui:GetDescendants()) do pcall(function() HookLabel(obj) end) end
+    PlayerGui.DescendantAdded:Connect(function(obj) pcall(function() HookLabel(obj) end) end)
 end)
 
 -- ==========================================
