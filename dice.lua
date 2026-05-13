@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🎲 POODLE HUD - RNG EVENT CORE (V5 - THE ULTIMATE EDITION
+-- 🎲 POODLE HUD - RNG EVENT CORE (V6 - SMART ECONOMY)
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
@@ -313,6 +313,7 @@ task.spawn(function()
     end)
 end)
 
+-- VÒNG LẶP ROBOT TỰ ĐỘNG CỦA HỆ THỐNG
 task.spawn(function()
     while task.wait(2) do
         if config.AutoUpgrade then
@@ -342,10 +343,12 @@ task.spawn(function()
         if config.AutoMerchant then
             pcall(function() for i = 1, 6 do Network.Invoke("Merchant_RequestPurchase", config.MerchantID, i); task.wait(0.1) end end)
             task.wait(0.5)
-        end       
+        end
+        
         if config.AutoCraftDice then
             pcall(function()
                 local currentCoins = GetItemAmount(config.CoinID)
+                
                 local function IsHigherTierReady(currentTier)
                     for j = config.MaxDiceCraftTier, currentTier + 1, -1 do
                         local higherRecipe = CraftRecipes[j]
@@ -380,6 +383,8 @@ task.spawn(function()
             end)
             task.wait(0.5)
         end
+    end
+end)
 
 task.spawn(function()
     while task.wait(2) do
@@ -528,7 +533,7 @@ function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(funct
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]    = {1, "🎲 RNG EVENT CORE V5", {0.8, 0, 0.08, 0}},
+        ["Title"]    = {1, "🎲 RNG EVENT CORE V6", {0.8, 0, 0.08, 0}},
         ["Uptime"]   = {2, "Time: 00:00:00 | FPS: 0"},
         ["RNGCoins"] = {3, "RNG Coins: 0"},
         ["Rolls"]    = {4, "Total Rolls: 0"},
