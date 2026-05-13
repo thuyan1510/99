@@ -342,21 +342,15 @@ task.spawn(function()
         if config.AutoMerchant then
             pcall(function() for i = 1, 6 do Network.Invoke("Merchant_RequestPurchase", config.MerchantID, i); task.wait(0.1) end end)
             task.wait(0.5)
-        end
-        
-        -- [D] MÁY CHẾ TẠO XÚC XẮC (QUẢN LÝ KINH TẾ THÔNG MINH - SMART ECONOMY)
+        end       
         if config.AutoCraftDice then
             pcall(function()
                 local currentCoins = GetItemAmount(config.CoinID)
-                
-                -- HÀM KIỂM TRA BOTTLENECK:
-                -- Xem có mốc xúc xắc cao hơn nào đã gom ĐỦ NGUYÊN LIỆU và đang chờ tiết kiệm tiền không?
                 local function IsHigherTierReady(currentTier)
                     for j = config.MaxDiceCraftTier, currentTier + 1, -1 do
                         local higherRecipe = CraftRecipes[j]
                         if higherRecipe then
                             local inputCount = GetDiceCount(higherRecipe.Input)
-                            -- Nếu đã gom đủ nguyên liệu cho cấp cao hơn -> Báo hiệu đang chờ tiết kiệm tiền
                             if inputCount >= higherRecipe.DiceCost then
                                 return true 
                             end
@@ -368,7 +362,6 @@ task.spawn(function()
                 for i = math.clamp(config.MaxDiceCraftTier, 1, 3), 1, -1 do
                     local recipe = CraftRecipes[i]
                     if recipe then
-                        -- CHÌA KHÓA: Nếu cấp cao hơn đã đủ nguyên liệu -> Khóa thẻ, tuyệt đối KHÔNG cho cấp thấp tiêu tiền!
                         if not IsHigherTierReady(i) then
                             local inputCount = GetDiceCount(recipe.Input)
                             local maxByDice = math.floor(inputCount / recipe.DiceCost)
