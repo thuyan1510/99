@@ -23,7 +23,9 @@ local config = {
     AutoUseDice      = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
     AutoUseMegaDice  = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
 	AutoUseMegaDiceWeather = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or false,
-    
+    -- THÊM CẤU HÌNH CHỌN LOẠI MEGA DICE:
+    -- 1 = Chỉ Mega V2 | 2 = Chỉ Mega II V2 | 3 = Dùng Cả 2 (Ưu tiên Mega II)
+    MegaDiceMode = UserConfig.MegaDiceMode or 3,
     MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
     PetsToSell       = UserConfig.PetsToSell or {},
     EventMapID       = "RngInstance",   
@@ -431,32 +433,25 @@ task.spawn(function()
             task.wait(0.5)
         end
         
-        -- [D] MÁY CHẾ TẠO XÚC XẮC (BẢN TỐI ƯU HÓA CRAFT ALL)
+        -- [D] MÁY CHẾ TẠO XÚC XẮC (TOP-DOWN: ƯU TIÊN GHÉP CẤP CAO TRƯỚC)
         if config.AutoCraftDice then
             pcall(function()
-                -- Lấy tổng số tiền RNG Coins hiện có 1 lần duy nhất để làm toán
                 local currentCoins = GetItemAmount(config.CoinID)
                 
-                for i = 1, math.clamp(config.MaxDiceCraftTier, 1, 3) do
+                -- Vòng lặp ĐẾM NGƯỢC từ cấp cao nhất xuống 1 (Bước nhảy là -1)
+                for i = math.clamp(config.MaxDiceCraftTier, 1, 3), 1, -1 do
                     local recipe = CraftRecipes[i]
                     if recipe then
                         local inputCount = GetDiceCount(recipe.Input)
                         
-                        -- Tính giới hạn có thể tạo dựa trên Tiền và Nguyên liệu
                         local maxByDice = math.floor(inputCount / recipe.DiceCost)
                         local maxByCoins = math.floor(currentCoins / recipe.CoinCost)
                         
-                        -- Lấy con số nhỏ nhất (Ví dụ đủ nguyên liệu tạo 100 viên nhưng tiền chỉ đủ tạo 10 viên -> Tạo 10)
                         local craftAmount = math.min(maxByDice, maxByCoins)
                         
                         if craftAmount > 0 then
-                            -- Gửi lệnh tạo TẤT CẢ cùng 1 lúc
                             Network.Invoke("LuckyDice_Craft", recipe.Target, craftAmount)
-                            
-                            -- Trừ đi số tiền vừa tiêu để vòng lặp tính toán đúng cho cấp tiếp theo
                             currentCoins = currentCoins - (craftAmount * recipe.CoinCost)
-                            
-                            -- Nghỉ một chút để Server kịp nhồi xúc xắc mới vào túi
                             task.wait(0.3) 
                         end
                     end
@@ -464,8 +459,6 @@ task.spawn(function()
             end)
             task.wait(0.5)
         end
-    end
-end)
 
 -- ==========================================
 -- [ADD-ON 1]: DUY TRÌ BUFF XÚC XẮC THƯỜNG (BẢN PRO ĐỌC DATA GỐC)
@@ -512,14 +505,29 @@ task.spawn(function()
     local function FireMegaDice(reason)
         if not config.AutoUseMegaDice then return end
         
-        print("🎯 BÓP CÒ MEGA DICE! Lý do: " .. reason)
-        
         task.spawn(function()
             pcall(function()
-                if GetDiceCount("Mega Lucky Dice II V2") > 0 then
-                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
-                elseif GetDiceCount("Mega Lucky Dice V2") > 0 then
-                    Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
+                local mode = config.MegaDiceMode
+                local countMega1 = GetDiceCount("Mega Lucky Dice V2")
+                local countMega2 = GetDiceCount("Mega Lucky Dice II V2")
+                
+                if mode == 1 then
+                    
+                    if countMega1 > 0 then 
+                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1) 
+                    end
+                elseif mode == 2 then
+                   
+                    if countMega2 > 0 then 
+                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1) 
+                    end
+                elseif mode == 3 then
+                    
+                    if countMega2 > 0 then
+                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice II V2", 1)
+                    elseif countMega1 > 0 then
+                        Network.Invoke("LuckyDice_ConsumeMega", "Mega Lucky Dice V2", 1)
+                    end
                 end
             end)
         end)
@@ -532,15 +540,14 @@ task.spawn(function()
         TextChatService.MessageReceived:Connect(function(textChatMessage)
             local msg = string.lower(textChatMessage.Text)
             
-            -- Khi thời tiết bắt đầu -> Mở khóa an toàn
+         
             if string.find(msg, "blizzard has begun") or string.find(msg, "lightning storm has begun") then
                 IsWeatherActive = true
-                print("⛈️ THỜI TIẾT KÍCH HOẠT! Đã mở khóa an toàn cho Súng Mega Dice.")
-                
-            -- Khi thời tiết kết thúc -> Đóng khóa an toàn
+
+       
             elseif string.find(msg, "clear skies have returned") then
                 IsWeatherActive = false
-                print("🌤️ Hết bão! Đã đóng khóa an toàn Súng Mega Dice.")
+                
             end
         end)
     end
@@ -562,7 +569,6 @@ task.spawn(function()
                         
                         -- KHÓA AN TOÀN CHÍNH: Kiểm tra cài đặt thời tiết
                         if config.AutoUseMegaDiceWeather == true and IsWeatherActive == false then
-                           print("🔒 Đã bỏ qua lượt Bonus này vì bạn cài đặt 'Chỉ dùng Mega Dice khi có thời tiết'.")
                             return 
                         end
                         
