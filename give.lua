@@ -158,7 +158,7 @@ local DEFAULT_CONFIG = {
     TradeCloseTimeout = 20,
 
     -- ĐÃ FIX CÚ PHÁP Ở ĐÂY
-    ProcessExistingActiveTrade = true,
+    ProcessExistingActiveTrade = true,	
     KeepReadySynced = true,
     KeepConfirmSynced = true,
     UseDirectReadyRemoteFallback = true,
@@ -177,7 +177,7 @@ local DEFAULT_CONFIG = {
     SkipAlreadyTradedPlayers = false,
     RememberPlayersThisSession = false,
     PersistAlreadyTradedPlayers = false,
-    PersistenceFile = "autotrade_processed_players.json",
+    PersistenceFile = "players.json",
 
     AllowedPlayers = {"letunamrb"},
 
