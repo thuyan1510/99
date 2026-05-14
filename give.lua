@@ -226,8 +226,6 @@ local DEFAULT_CONFIG = {
 	{ name = "Shiny ", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
 	{ name = "Chest", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
 	{ name = "Boss", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
-	{ name = "", amount = "all", class = "Hoverboard", match = "contains", allowPartial = true, required = false },
-	{ name = "", amount = "all", class = "Booth", match = "contains", allowPartial = true, required = false },
 	{ name = "Diamonds", amount = "all", class = "Currency", match = "contains", allowPartial = true, required = false },
 	{ name = "Royalty", amount = "all", class = "Charm", match = "contains", allowPartial = true, required = false },
 	{ name = "Overload", amount = "all", class = "Charm", match = "contains", allowPartial = true, required = false },
@@ -252,8 +250,6 @@ local DEFAULT_CONFIG = {
 	{ name = "Potion", amount = "all", class = "Seed", match = "contains", allowPartial = true, required = false },	
 	{ name = "Diamond", amount = "all", class = "Seed", match = "contains", allowPartial = true, required = false },
 	{ name = "Seed Bag", amount = "all", class = "Misc", match = "contains", allowPartial = true, required = false },
-	{ name = "", amount = "all", class = "Potion", match = "contains", allowPartial = true, required = false },
-	{ name = "", amount = "all", class = "Enchant", match = "contains", allowPartial = true, required = false },
 	
     },
 }
