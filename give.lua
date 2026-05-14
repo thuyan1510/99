@@ -1,3 +1,4 @@
+--all
 local success, env = pcall(function() return getgenv and getgenv() end)
 local injectedEnv = success and env or nil
 local globalEnv = injectedEnv or _G
@@ -165,15 +166,15 @@ local DEFAULT_CONFIG = {
     DebugTradeStateAtConfirm = false,
     ConfirmWithoutOtherReadyDetection = true,
 
-    RejectIfItemListEmpty = true,
-    RejectSkippedRequests = true,
-    DeclineIfPlanFails = true,
-    DeclineIfApplyFails = true,
-    DeclineIfConfirmFails = true,
-    DeclineIfOtherNeverReady = true,
+    RejectIfItemListEmpty = false,
+    RejectSkippedRequests = false,
+    DeclineIfPlanFails = false,
+    DeclineIfApplyFails = false,
+    DeclineIfConfirmFails = false,
+    DeclineIfOtherNeverReady = false,
     MarkPlayerAsTradedAfterConfirmFlow = false,
 
-    SkipAlreadyTradedPlayers = true,
+    SkipAlreadyTradedPlayers = false,
     RememberPlayersThisSession = false,
     PersistAlreadyTradedPlayers = false,
     PersistenceFile = "autotrade_processed_players.json",
