@@ -4,26 +4,44 @@
 if _G.RNGEventStarted then return end
 _G.RNGEventStarted = true
 
+-- ==========================================
+-- 1. CẤU HÌNH NGOẠI VI (FIX LỖI BOOLEAN)
+-- ==========================================
 local UserConfig = getgenv().RNGConfig or {}
+
 local config = {
-    WebhookURL = UserConfig.WebhookURL or "",
-    PingID = UserConfig.PingID or "",
-    Blackout = (UserConfig.Blackout ~= nil) and UserConfig.Blackout or false,
-    AutoUpgrade = (UserConfig.AutoUpgrade ~= nil) and UserConfig.AutoUpgrade or true,
-    AutoMerchant = (UserConfig.AutoMerchant ~= nil) and UserConfig.AutoMerchant or true,
-    AutoCraftDice = (UserConfig.AutoCraftDice ~= nil) and UserConfig.AutoCraftDice or true,
-    AutoSell = (UserConfig.AutoSell ~= nil) and UserConfig.AutoSell or true,
-    BossChestBreak = (UserConfig.BossChestBreak ~= nil) and UserConfig.BossChestBreak or true,
-    AutoUseDice = (UserConfig.AutoUseDice ~= nil) and UserConfig.AutoUseDice or true,
-    AutoUseMegaDice = (UserConfig.AutoUseMegaDice ~= nil) and UserConfig.AutoUseMegaDice or true,
-    AutoUseMegaDiceWeather = (UserConfig.AutoUseMegaDiceWeather ~= nil) and UserConfig.AutoUseMegaDiceWeather or false,
-    MegaDiceMode = UserConfig.MegaDiceMode or 3,
-    MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3,
-    PetsToSell = UserConfig.PetsToSell or {},
-    EventMapID = "RngInstance",
-    MerchantID = "LuckyDiceMerchantV2",
-    CoinID = "RNGCoins2"
+    -- Các cài đặt dạng Chữ (String) / Số (Number) / Bảng (Table)
+    WebhookURL       = UserConfig.WebhookURL or "",
+    PingID           = UserConfig.PingID or "",            
+    MegaDiceMode     = UserConfig.MegaDiceMode or 3,
+    MaxDiceCraftTier = UserConfig.MaxDiceCraftTier or 3, 
+    PetsToSell       = UserConfig.PetsToSell or {},
+    EventMapID       = "RngInstance",   
+    MerchantID       = "LuckyDiceMerchantV2",
+    CoinID           = "RNGCoins2",
+    
+    -- CÀI ĐẶT MẶC ĐỊNH CHO CÁC TÍNH NĂNG BẬT/TẮT (True/False)
+    Blackout               = true,
+    AutoUpgrade            = true,            
+    AutoMerchant           = true,
+    AutoCraftDice          = true,
+    AutoSell               = true,
+    BossChestBreak         = true,
+    AutoUseDice            = true,
+    AutoUseMegaDice        = true,
+    AutoUseMegaDiceWeather = false
 }
+
+-- ÉP NHẬN CẤU HÌNH TỪ NGƯỜI DÙNG (Dù là false cũng tuyệt đối tuân lệnh)
+if UserConfig.Blackout ~= nil then config.Blackout = UserConfig.Blackout end
+if UserConfig.AutoUpgrade ~= nil then config.AutoUpgrade = UserConfig.AutoUpgrade end
+if UserConfig.AutoMerchant ~= nil then config.AutoMerchant = UserConfig.AutoMerchant end
+if UserConfig.AutoCraftDice ~= nil then config.AutoCraftDice = UserConfig.AutoCraftDice end
+if UserConfig.AutoSell ~= nil then config.AutoSell = UserConfig.AutoSell end
+if UserConfig.BossChestBreak ~= nil then config.BossChestBreak = UserConfig.BossChestBreak end
+if UserConfig.AutoUseDice ~= nil then config.AutoUseDice = UserConfig.AutoUseDice end
+if UserConfig.AutoUseMegaDice ~= nil then config.AutoUseMegaDice = UserConfig.AutoUseMegaDice end
+if UserConfig.AutoUseMegaDiceWeather ~= nil then config.AutoUseMegaDiceWeather = UserConfig.AutoUseMegaDiceWeather end
 
 local TargetPetsToSell = {}
 for petName, shouldSell in pairs(config.PetsToSell) do
