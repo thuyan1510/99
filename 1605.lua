@@ -60,6 +60,8 @@ local CraftRecipes = {
     [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
     [2] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice II V2", DiceCost = 30, CoinCost = 100000 },
     [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }
+    --[4] = { Target = "Mega Lucky Dice III V2", Input = "Mega Lucky Dice II V2", DiceCost = 3, CoinCost = 300000 }
+    --[5] = { Target = "Fire Dice", Input = "Mega Lucky Dice III V2", DiceCost = 3, CoinCost = 300000 }	
 }
 
 local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck", "RNGBonusLuck", "RNGHugeLuck"}
@@ -435,6 +437,7 @@ task.spawn(function()
                 end
 
                 for i = math.clamp(config.MaxDiceCraftTier, 1, 3), 1, -1 do
+		--for i = math.clamp(config.MaxDiceCraftTier, 1, 5), 1, -1 do
                     local recipe = CraftRecipes[i]
                     if recipe and not IsHigherTierReady(i) then
                         local craftAmount = math.min(math.floor(GetDiceCount(recipe.Input) / recipe.DiceCost), math.floor(currentCoins / recipe.CoinCost))
@@ -778,6 +781,7 @@ local UI = FarmUI.new({
         ["Rolls"]    = {4, "Total Rolls: 0"},
         ["Dice1"]    = {5, "Lucky Dice: 0 | Lucky II: 0"},
         ["Dice2"]    = {6, "Mega Dice: 0 | Mega II: 0"}
+	--["Dice3"]    = {7, "New Dice 1: 0 | New Dice 2: 0"}
     }
 })
 
@@ -797,6 +801,7 @@ task.spawn(function()
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
         UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
         UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
+	--UI:SetText("Dice3", string.format("New 1: %s | New 2: %s", FormatValue(GetDiceCount("TEN_DICE_MOI_1")), FormatValue(GetDiceCount("TEN_DICE_MOI_2"))))
         frames = 0
     end
 end)
