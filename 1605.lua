@@ -328,47 +328,86 @@ task.spawn(function()
             task.wait(0.5)
         end
         
+        -- ==========================================
+        -- HỆ THỐNG AUTO SELL (TOP 15 & CÔNG THỨC 1.13 / +0.075)
+        -- ==========================================
         if config.AutoSell then
             pcall(function()
                 local save = Save.Get()
                 if save and save.Inventory and save.Inventory.Pet then
+                    local allSellablePets = {}
                     local sellDict = {}
-                    local count = 0
-                    local keptCount = {} -- Bảng ghi nhớ số lượng Pet đã giữ lại
+                    local countSell = 0
 
                     for uid, pet in pairs(save.Inventory.Pet) do
                         if type(pet.id) == "string" then
                             local pId = string.lower(pet.id)
                             
-                            -- Kiểm tra xem Pet có nằm trong danh sách bán và không phải hàng VIP không
+                            -- 1. CHỈ LỌC CÁC PET CÓ TRONG CONFIG (Và không phải VIP/Khóa)
                             if TargetPetsToSell[pId] and not string.find(pId, "huge") and not string.find(pId, "titanic") and not pet._lk and not pet._t then
-                                local amount = pet._am or 1
-                                local alreadyKept = keptCount[pId] or 0
                                 
-                                -- Nếu chưa giữ đủ 15 con cho loại Pet này
-                                if alreadyKept < 15 then
-                                    local needToKeep = 15 - alreadyKept
-                                    
-                                    if amount > needToKeep then
-                                        -- Cục này có nhiều hơn số lượng cần giữ -> Trích ra giữ lại, bán phần thừa
-                                        keptCount[pId] = 15
-                                        sellDict[uid] = amount - needToKeep
-                                        count = count + 1
-                                    else
-                                        -- Cục này ít hơn hoặc bằng số cần giữ -> Cất hết vào túi, không bán con nào
-                                        keptCount[pId] = alreadyKept + amount
+                                local basePower = 1
+                                
+                                -- 2. TỰ LẤY DAMAGE NORMAL GỐC THEO TÊN PET
+                                pcall(function()
+                                    local petInfo = PetsDirectory[pet.id]
+                                    if petInfo then
+                                        if type(petInfo.cachedPower) == "table" and petInfo.cachedPower[1] then
+                                            basePower = tonumber(petInfo.cachedPower[1]) or 1
+                                        elseif petInfo.power then
+                                            basePower = tonumber(petInfo.power) or 1
+                                        end
                                     end
-                                else
-                                    -- Nếu đã giữ đủ 15 con rồi -> Đưa toàn bộ cục này vào danh sách bán
-                                    sellDict[uid] = amount
-                                    count = count + 1
+                                end)
+                                
+                                -- 3. ÁP DỤNG CÔNG THỨC TOÁN HỌC ĐÃ CHỐT
+                                local multi = 1
+                                if pet.pt == 1 then 
+                                    multi = 1.13 -- Golden = 1.13 * Normal
+                                elseif pet.pt == 2 then 
+                                    multi = 1.13 * 1.13 -- Rainbow = 1.13 * Golden
                                 end
+                                
+                                if pet.sh then 
+                                    multi = multi + 0.075 -- Shiny thêm 0.075
+                                end
+                                
+                                local finalPower = basePower * multi
+                                
+                                table.insert(allSellablePets, {
+                                    uid = uid,
+                                    power = finalPower,
+                                    amount = pet._am or 1
+                                })
                             end
                         end
                     end
                     
-                    -- Gửi 1 lệnh duy nhất lên Server để bán toàn bộ số Pet thừa
-                    if count > 0 then 
+                    -- 4. SẮP XẾP TỪ KẺ MẠNH NHẤT ĐẾN KẺ YẾU NHẤT
+                    table.sort(allSellablePets, function(a, b) 
+                        return a.power > b.power 
+                    end)
+
+                    -- 5. GIỮ ĐÚNG 15 CON TRÊN ĐỈNH BẢNG XẾP HẠNG, BÁN SẠCH PHẦN CÒN LẠI
+                    local keptCount = 0
+                    for _, item in ipairs(allSellablePets) do
+                        if keptCount < 15 then
+                            local needToKeep = 15 - keptCount
+                            if item.amount > needToKeep then
+                                keptCount = 15
+                                sellDict[item.uid] = item.amount - needToKeep
+                                countSell = countSell + 1
+                            else
+                                keptCount = keptCount + item.amount
+                            end
+                        else
+                            sellDict[item.uid] = item.amount
+                            countSell = countSell + 1
+                        end
+                    end
+                    
+                    -- 6. GỬI GÓI HÀNG CHO THƯƠNG GIA
+                    if countSell > 0 then 
                         Network.Invoke("RngEventPetMerchant_Activate", sellDict) 
                     end
                 end
