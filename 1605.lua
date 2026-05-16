@@ -332,16 +332,45 @@ task.spawn(function()
             pcall(function()
                 local save = Save.Get()
                 if save and save.Inventory and save.Inventory.Pet then
-                    local sellDict = {}; local count = 0
+                    local sellDict = {}
+                    local count = 0
+                    local keptCount = {} -- Bảng ghi nhớ số lượng Pet đã giữ lại
+
                     for uid, pet in pairs(save.Inventory.Pet) do
                         if type(pet.id) == "string" then
                             local pId = string.lower(pet.id)
+                            
+                            -- Kiểm tra xem Pet có nằm trong danh sách bán và không phải hàng VIP không
                             if TargetPetsToSell[pId] and not string.find(pId, "huge") and not string.find(pId, "titanic") and not pet._lk and not pet._t then
-                                sellDict[uid] = pet._am or 1; count = count + 1
+                                local amount = pet._am or 1
+                                local alreadyKept = keptCount[pId] or 0
+                                
+                                -- Nếu chưa giữ đủ 15 con cho loại Pet này
+                                if alreadyKept < 15 then
+                                    local needToKeep = 15 - alreadyKept
+                                    
+                                    if amount > needToKeep then
+                                        -- Cục này có nhiều hơn số lượng cần giữ -> Trích ra giữ lại, bán phần thừa
+                                        keptCount[pId] = 15
+                                        sellDict[uid] = amount - needToKeep
+                                        count = count + 1
+                                    else
+                                        -- Cục này ít hơn hoặc bằng số cần giữ -> Cất hết vào túi, không bán con nào
+                                        keptCount[pId] = alreadyKept + amount
+                                    end
+                                else
+                                    -- Nếu đã giữ đủ 15 con rồi -> Đưa toàn bộ cục này vào danh sách bán
+                                    sellDict[uid] = amount
+                                    count = count + 1
+                                end
                             end
                         end
                     end
-                    if count > 0 then Network.Invoke("RngEventPetMerchant_Activate", sellDict) end
+                    
+                    -- Gửi 1 lệnh duy nhất lên Server để bán toàn bộ số Pet thừa
+                    if count > 0 then 
+                        Network.Invoke("RngEventPetMerchant_Activate", sellDict) 
+                    end
                 end
             end)
             task.wait(0.5)
