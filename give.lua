@@ -1552,8 +1552,17 @@ local function waitForLocalConfirm(tradeId, otherPlayer)
 end
 
 local function applyTradePlan(plan)
+    local itemsAdded = 0
+    local MAX_TRADE_SLOTS = 99 -- Giới hạn tối đa số slot trong 1 lần trade
+
     for _, entry in ipairs(plan.entries) do
         for _, selection in ipairs(entry.selections) do
+            -- 1. Kiểm tra nếu đã đạt giới hạn 99 vật phẩm
+            if itemsAdded >= MAX_TRADE_SLOTS then
+                log("MAX")
+                return true -- Ngừng vòng lặp và đi thẳng tới bước Confirm
+            end
+
             local state = getTradeState()
             if not state then
                 return false, "trade is no longer active"
@@ -1571,9 +1580,17 @@ local function applyTradePlan(plan)
 
             local okSet, err = callTradingFunction("SetItem", selection.class, selection.uid, selection.amount)
             if not okSet then
+                -- 2. Phòng hờ game đổi giới hạn hoặc server tự động trả về lỗi "đầy" (Full/Limit)
+                local errStr = tostring(err):lower()
+                if errStr:match("full") or errStr:match("limit") then
+                    log("Game thông báo trade đã đầy slot. Chuyển sang Confirm.")
+                    return true 
+                end
+                
                 return false, "SetItem failed: " .. tostring(err)
             end
 
+            itemsAdded = itemsAdded + 1
             task.wait(CONFIG.BetweenSetItemDelay)
         end
     end
