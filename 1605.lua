@@ -581,11 +581,11 @@ local PlayerPet = require(Library.Client.PlayerPet)
 
 -- Tọa độ TÂM CỐ ĐỊNH của 5 Zone (Cao độ Y=2566 để chạm sát mặt đất)
 local ZoneCenters = {
-    [1] = CFrame.new(4420, 2566, -5380), -- Holographic Powerplant
-    [2] = CFrame.new(4650, 2566, -5380), -- Holographic City
-    [3] = CFrame.new(4920, 2566, -5380), -- Holographic Forest
-    [4] = CFrame.new(5180, 2566, -5380), -- Holographic Mine
-    [5] = CFrame.new(5370, 2566, -5377)  -- Glitch Forest (Khu vực Mega Chest)
+    [2] = CFrame.new(4420, 2566, -5380), -- Holographic Powerplant
+    [3] = CFrame.new(4650, 2566, -5380), -- Holographic City
+    [4] = CFrame.new(4920, 2566, -5380), -- Holographic Forest
+    [5] = CFrame.new(5180, 2566, -5380), -- Holographic Mine
+    [6] = CFrame.new(5370, 2566, -5377)  -- Glitch Forest (Khu vực Mega Chest)
 }
 
 -- Gọi trực tiếp Module gốc của game để lấy Zone cao nhất
