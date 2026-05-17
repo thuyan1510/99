@@ -58,10 +58,10 @@ end
 
 local CraftRecipes = {
     [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
-    [2] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice II V2", DiceCost = 30, CoinCost = 100000 },
-    [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 },
-    [4] = { Target = "Lucky Dice III", Input = "Mega Lucky Dice II V2", DiceCost = 5, CoinCost = 1000000 },
-    [5] = { Target = "Fire Dice", Input = "Lucky Dice III", DiceCost = 5, CoinCost = 5000000 }	
+	[2] = { Target = "Lucky Dice III V2", Input = "Lucky Dice II V2", DiceCost = 15, CoinCost = 800000 },
+    [3] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice III V2", DiceCost = 2, CoinCost = 100000 },
+    [4] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }, 
+    [5] = { Target = "Fire Dice V2", Input = "Lucky Dice V2", DiceCost = 100, CoinCost = 3900000 }	
 }
 
 local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck", "RNGBonusLuck", "RNGHugeLuck", "RNGExtraEgg" }
@@ -571,23 +571,32 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V19 - HARDCODED BREAKCOUNT & POSITIONS)
--- Cố định hoàn toàn vị trí và điều kiện nhảy Zone
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V20 - STRICT PROGRESSION & COMET RADAR)
+-- Khóa cứng điều kiện Boss Zone 5 & Lọc giới hạn không gian Comet
 -- ==========================================
 local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
 local PlayerPet = require(game:GetService("ReplicatedStorage").Library.Client.PlayerPet)
 local Network = require(game:GetService("ReplicatedStorage").Library.Client.Network)
 
--- TỌA ĐỘ CỐ ĐỊNH BẠN ĐÃ CUNG CẤP
+-- Tọa độ TÂM CỐ ĐỊNH của bãi farm tĩnh
 local ZoneCenters = {
     [1] = CFrame.new(4410.70, 2564.67, -5378.71),
     [2] = CFrame.new(4674.85, 2567.02, -5380.49),
     [3] = CFrame.new(4935.66, 2567.19, -5380.49),
     [4] = CFrame.new(5184.90, 2567.03, -5380.49),
-    [5] = CFrame.new(5377.90, 2566.00, -5377.40) -- Tọa độ dự phòng cho Mega Chest
+    [5] = CFrame.new(5377.90, 2566.00, -5377.40) -- Vị trí Mega Chest tại Zone 5
 }
 
--- Đọc BreakCount và quyết định vị trí
+-- Ranh giới trục X tối đa được phép di chuyển tương ứng với từng cấp độ mở khóa
+local ZoneMaxX = {
+    [1] = 4550,
+    [2] = 4800,
+    [3] = 5050,
+    [4] = 5300,
+    [5] = 99999 -- Không giới hạn khi đã đạt Zone 5
+}
+
+-- Hàm kiểm tra chính xác cấp độ bãi farm dựa trên BreakCount thực tế
 local function GetHighestUnlockedZone()
     local save = Save.Get()
     local zProgress = save and save.RNGEventZoneProgress or {}
@@ -597,7 +606,6 @@ local function GetHighestUnlockedZone()
         return (type(d) == "table" and tonumber(d.BreakCount)) or 0
     end
 
-    -- KIỂM TRA ĐIỀU KIỆN TỪ CAO XUỐNG THẤP
     if getBreaks(4) >= 10000 then
         return 5
     elseif getBreaks(3) >= 5000 then
@@ -615,6 +623,9 @@ local function GetBestTarget()
     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
     if not breakables then return nil, "None", nil end
     
+    local unlockedZone = GetHighestUnlockedZone()
+    local currentMaxX = ZoneMaxX[unlockedZone] or 4550
+    
     local cometTarget, cometName = nil, nil
     local bossTarget, bossName = nil, nil
     
@@ -627,24 +638,27 @@ local function GetBestTarget()
             if bPos then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
                 
-                -- Lao vào ôm Boss/Comet
-                if string.find(bId, "comet") then
+                -- ☄️ RADAR SAO CHỔI: Tìm thấy chữ "comet" và phải nằm trong tầm X hợp lệ của Zone hiện tại
+                if string.find(bId, "comet") and bPos.X <= currentMaxX then
                     cometTarget = CFrame.new(bPos.X, 2566, bPos.Z)
                     cometName = b.Name
-                elseif string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega") then
-                    bossTarget = CFrame.new(bPos.X, 2566, bPos.Z)
-                    bossName = b.Name
+                
+                -- 👑 KIỂM SOÁT BOSS: Chỉ khóa mục tiêu Boss nếu config bật VÀ hệ thống xác nhận Zone 5 ĐÃ MỞ
+                elseif config.BossChestBreak and (string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega")) then
+                    if unlockedZone == 5 then
+                        bossTarget = CFrame.new(bPos.X, 2566, bPos.Z)
+                        bossName = b.Name
+                    end
                 end
             end
         end
     end
     
-    -- ƯU TIÊN 1 & 2: LAO VÀO CẠNH BOSS / COMET NẾU XUẤT HIỆN
+    -- THỰC THI ĐIỀU HƯỚNG TỐI ƯU
     if cometTarget then return cometTarget, "Boss", cometName end
-    if config.BossChestBreak and bossTarget then return bossTarget, "Boss", bossName end
+    if bossTarget then return bossTarget, "Boss", bossName end
     
-    -- ƯU TIÊN 3: LẤY VỊ TRÍ CỐ ĐỊNH THEO BREAKCOUNT VÀ ĐỨNG IM CẮM TRẠI
-    local unlockedZone = GetHighestUnlockedZone()
+    -- HOÀN TOÀN TRUNG THÀNH: Nếu chưa đủ điều kiện mở Zone 5, đứng im cắm trại cày KPI
     local centerCF = ZoneCenters[unlockedZone] or ZoneCenters[1]
     return centerCF, "Farm", nil
 end
@@ -669,12 +683,10 @@ task.spawn(function()
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- KHÓA CỨNG VỊ TRÍ VÀO CÁC MỐC CỐ ĐỊNH BẠN ĐÃ ĐẶT
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
 
-            -- HỆ THỐNG FAST FARM
             if now - lastFarmTick >= FARM_DELAY then
                 lastFarmTick = now
 
@@ -697,7 +709,6 @@ task.spawn(function()
                     local hrpPos = hrp.Position
                     local targets = {}
                     
-                    -- Quét mọi vật thể trong bán kính 130 stud
                     for _, b in ipairs(breakables:GetChildren()) do
                         if b:IsA("Model") and b.PrimaryPart then
                             if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
