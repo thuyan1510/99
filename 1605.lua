@@ -571,23 +571,21 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V15 - STATIC ZONE AURA FARM)
--- Định vị Zone bằng BreakCount & Đứng yên tại tâm bãi farm
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V16 - PERFECT STATIC ANCHOR)
+-- Đứng im một chỗ, chạm đất, farm tĩnh 100% dựa trên BreakCount
 -- ==========================================
 local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
 
--- Bảng giới hạn ranh giới X (Từ minX đến maxX) cho từng Zone
-local ZoneBoundaries = {
-    [1] = {-99999, 4550},
-    [2] = {4550, 4800},
-    [3] = {4800, 5050},
-    [4] = {5050, 5300},
-    [5] = {5300, 99999}
+-- Tọa độ TÂM CỐ ĐỊNH của 5 Zone (Lấy từ map thực tế, cao độ Y=2566 để chạm sát mặt đất)
+local ZoneCenters = {
+    [1] = CFrame.new(4420, 2566, -5380),
+    [2] = CFrame.new(4650, 2566, -5380),
+    [3] = CFrame.new(4920, 2566, -5380),
+    [4] = CFrame.new(5180, 2566, -5380),
+    [5] = CFrame.new(5370, 2566, -5377) -- Khu vực Mega Chest
 }
 
-local lastZoneCenter = nil
-
--- Đọc trạng thái mở khóa DỰA VÀO BREAKCOUNT
+-- Đọc Zone cao nhất đang có BreakCount > 0 (Như đúng ý bạn)
 local function GetHighestUnlockedZone()
     local save = Save.Get()
     local highest = 1
@@ -607,20 +605,10 @@ local function GetBestTarget()
     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
     if not breakables then return nil, "None", nil end
     
-    local allBlocks = breakables:GetChildren()
-    if #allBlocks == 0 then return nil, "None", nil end
-    
-    local unlockedZone = GetHighestUnlockedZone()
-    local minX = ZoneBoundaries[unlockedZone][1]
-    local maxX = ZoneBoundaries[unlockedZone][2]
-
     local cometTarget, cometName = nil, nil
     local bossTarget, bossName = nil, nil
     
-    local sumPos = Vector3.new(0, 0, 0)
-    local validBlocksInZone = 0
-    
-    for _, b in ipairs(allBlocks) do
+    for _, b in ipairs(breakables:GetChildren()) do
         if b:IsA("Model") or b:IsA("BasePart") then
             local bPos = b:GetAttribute("CFrame") and b:GetAttribute("CFrame").Position 
                          or (b:IsA("Model") and b.PrimaryPart and b.PrimaryPart.Position) 
@@ -629,41 +617,26 @@ local function GetBestTarget()
             if bPos then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
                 
+                -- Khóa cứng Y=2566 để nhân vật luôn đứng dưới mặt đất, không bị bay lên nóc rương
                 if string.find(bId, "comet") then
-                    cometTarget = CFrame.new(bPos + Vector3.new(0, 3, 0))
+                    cometTarget = CFrame.new(bPos.X, 2566, bPos.Z)
                     cometName = b.Name
                 elseif string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega") then
-                    bossTarget = CFrame.new(bPos + Vector3.new(0, 3, 0))
+                    bossTarget = CFrame.new(bPos.X, 2566, bPos.Z)
                     bossName = b.Name
-                else
-                    -- CHỈ TÍNH TÂM CHO CÁC KHỐI NẰM TRONG ZONE HIỆN TẠI
-                    if bPos.X > minX and bPos.X <= maxX then
-                        sumPos = sumPos + bPos
-                        validBlocksInZone = validBlocksInZone + 1
-                    end
                 end
             end
         end
     end
     
-    -- ƯU TIÊN 1: SAO CHỔI (Lao vào ôm sát để đập)
+    -- ƯU TIÊN 1 & 2: LAO VÀO CẠNH BOSS / COMET NẾU CÓ XUẤT HIỆN
     if cometTarget then return cometTarget, "Boss", cometName end
-    
-    -- ƯU TIÊN 2: BOSS / MEGA CHEST (Lao vào ôm sát để đập)
     if config.BossChestBreak and bossTarget then return bossTarget, "Boss", bossName end
     
-    -- ƯU TIÊN 3: ĐỨNG YÊN TẠI TÂM ZONE VÀ XẢ SKILL
-    if config.AutoFarmBlocks and validBlocksInZone > 0 then
-        local centerPos = sumPos / validBlocksInZone
-        -- Đứng lơ lửng cao 10 stud ở giữa map như cách farm cũ
-        lastZoneCenter = CFrame.new(centerPos + Vector3.new(0, 10, 0))
-        return lastZoneCenter, "Farm", nil
-    end
-    
-    -- Nếu Zone bị dọn sạch trong tích tắc, đứng im tại chỗ chờ khối mọc lại
-    if lastZoneCenter then return lastZoneCenter, "Farm", nil end
-    
-    return nil, "None", nil
+    -- ƯU TIÊN 3: NHẢY VÀO CHÍNH GIỮA ZONE ĐÃ MỞ VÀ ĐỨNG IM CẮM TRẠI
+    local unlockedZone = GetHighestUnlockedZone()
+    local centerCF = ZoneCenters[unlockedZone] or ZoneCenters[1]
+    return centerCF, "Farm", nil
 end
 
 -- VÒNG LẶP HÀNH ĐỘNG (ASYNC FAST FARM TĨNH)
@@ -686,11 +659,12 @@ task.spawn(function()
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- KHÓA TỌA ĐỘ CHỐNG TRÔI
+            -- NEO CỨNG NHÂN VẬT VÀO 1 ĐIỂM (Không rung lắc, không lơ lửng)
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
 
+            -- HỆ THỐNG FAST FARM
             if now - lastFarmTick >= FARM_DELAY then
                 lastFarmTick = now
 
@@ -707,13 +681,13 @@ task.spawn(function()
                     end
                     
                 elseif cachedMode == "Farm" then
-                    -- QUÉT AURA XUNG QUANH BÁN KÍNH 130 STUD
                     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
                     if not breakables then return end
                     
                     local hrpPos = hrp.Position
                     local targets = {}
                     
+                    -- Quét mọi thứ xung quanh điểm đứng yên
                     for _, b in ipairs(breakables:GetChildren()) do
                         if b:IsA("Model") and b.PrimaryPart then
                             if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
