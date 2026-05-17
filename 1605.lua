@@ -571,37 +571,44 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V18 - ULTIMATE STATIC ANCHOR)
--- Dựa vào [Unlocked] = true & Tọa độ tâm chuẩn xác
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V19 - HARDCODED BREAKCOUNT & POSITIONS)
+-- Cố định hoàn toàn vị trí và điều kiện nhảy Zone
 -- ==========================================
 local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
 local PlayerPet = require(game:GetService("ReplicatedStorage").Library.Client.PlayerPet)
 local Network = require(game:GetService("ReplicatedStorage").Library.Client.Network)
 
--- Tọa độ TÂM CỐ ĐỊNH theo chuẩn của bạn (Cao độ Y=2566 chạm đất)
+-- TỌA ĐỘ CỐ ĐỊNH BẠN ĐÃ CUNG CẤP
 local ZoneCenters = {
-    [1] = CFrame.new(4300, 2566, -5380), -- Zone 1 (Lùi lại 250 stud so với Zone 2)
-    [2] = CFrame.new(4550, 2566, -5380),
-    [3] = CFrame.new(4800, 2566, -5380),
-    [4] = CFrame.new(5050, 2566, -5380),
-    [5] = CFrame.new(5300, 2566, -5380)
+    [1] = CFrame.new(4410.70, 2564.67, -5378.71),
+    [2] = CFrame.new(4674.85, 2567.02, -5380.49),
+    [3] = CFrame.new(4935.66, 2567.19, -5380.49),
+    [4] = CFrame.new(5184.90, 2567.03, -5380.49),
+    [5] = CFrame.new(5377.90, 2566.00, -5377.40) -- Tọa độ dự phòng cho Mega Chest
 }
 
--- Đọc Zone cao nhất dựa trên [Unlocked] = true
+-- Đọc BreakCount và quyết định vị trí
 local function GetHighestUnlockedZone()
     local save = Save.Get()
-    local highest = 1
-    if save and save.RNGEventZoneProgress then
-        -- Quét từ 5 về 2 (Zone 1 luôn mặc định mở)
-        for i = 5, 2, -1 do
-            local zoneData = save.RNGEventZoneProgress["Zone" .. tostring(i)]
-            if type(zoneData) == "table" and zoneData.Unlocked == true then
-                highest = i
-                break
-            end
-        end
+    local zProgress = save and save.RNGEventZoneProgress or {}
+    
+    local function getBreaks(zNum)
+        local d = zProgress["Zone" .. zNum]
+        return (type(d) == "table" and tonumber(d.BreakCount)) or 0
     end
-    return highest
+
+    -- KIỂM TRA ĐIỀU KIỆN TỪ CAO XUỐNG THẤP
+    if getBreaks(4) >= 10000 then
+        return 5
+    elseif getBreaks(3) >= 5000 then
+        return 4
+    elseif getBreaks(2) >= 2000 then
+        return 3
+    elseif getBreaks(1) >= 1000 then
+        return 2
+    else
+        return 1
+    end
 end
 
 local function GetBestTarget()
@@ -620,6 +627,7 @@ local function GetBestTarget()
             if bPos then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
                 
+                -- Lao vào ôm Boss/Comet
                 if string.find(bId, "comet") then
                     cometTarget = CFrame.new(bPos.X, 2566, bPos.Z)
                     cometName = b.Name
@@ -631,11 +639,11 @@ local function GetBestTarget()
         end
     end
     
-    -- ƯU TIÊN 1 & 2: LAO VÀO CẠNH BOSS / COMET 
+    -- ƯU TIÊN 1 & 2: LAO VÀO CẠNH BOSS / COMET NẾU XUẤT HIỆN
     if cometTarget then return cometTarget, "Boss", cometName end
     if config.BossChestBreak and bossTarget then return bossTarget, "Boss", bossName end
     
-    -- ƯU TIÊN 3: NHẢY VÀO TÂM TỌA ĐỘ BẠN ĐÃ CẤU HÌNH VÀ ĐỨNG IM
+    -- ƯU TIÊN 3: LẤY VỊ TRÍ CỐ ĐỊNH THEO BREAKCOUNT VÀ ĐỨNG IM CẮM TRẠI
     local unlockedZone = GetHighestUnlockedZone()
     local centerCF = ZoneCenters[unlockedZone] or ZoneCenters[1]
     return centerCF, "Farm", nil
@@ -661,7 +669,7 @@ task.spawn(function()
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- KHÓA CHẶT NHÂN VẬT TẠI 1 ĐIỂM
+            -- KHÓA CỨNG VỊ TRÍ VÀO CÁC MỐC CỐ ĐỊNH BẠN ĐÃ ĐẶT
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
@@ -689,7 +697,7 @@ task.spawn(function()
                     local hrpPos = hrp.Position
                     local targets = {}
                     
-                    -- Quét Aura bán kính 130 stud
+                    -- Quét mọi vật thể trong bán kính 130 stud
                     for _, b in ipairs(breakables:GetChildren()) do
                         if b:IsA("Model") and b.PrimaryPart then
                             if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
