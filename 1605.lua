@@ -571,7 +571,8 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V13 - TARGET LOCK-ON & TRUE PROGRESSION)
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V14 - BREAKCOUNT PROGRESSION)
+-- Đọc tiến trình thực tế thông qua số khối đã đập
 -- ==========================================
 local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
 
@@ -584,19 +585,18 @@ local ZoneMaxX = {
     [5] = 99999 
 }
 
--- Khai báo biến Khóa Mục Tiêu toàn cục
 local lockedTarget = nil
 local lockedType = "None"
 
--- Đọc trạng thái Unlocked thực sự từ dữ liệu game
+-- Đọc trạng thái mở khóa DỰA VÀO BREAKCOUNT (Tiến trình thực)
 local function GetHighestUnlockedZone()
     local save = Save.Get()
     local highest = 1
     if save and save.RNGEventZoneProgress then
+        -- Quét ngược từ 5 về 1, Zone nào có BreakCount > 0 chính là Best Zone
         for i = 5, 1, -1 do
             local zoneData = save.RNGEventZoneProgress["Zone" .. tostring(i)]
-            -- Phải có chữ Unlocked = true mới được tính là đã mở cổng
-            if type(zoneData) == "table" and zoneData.Unlocked == true then
+            if type(zoneData) == "table" and (tonumber(zoneData.BreakCount) or 0) > 0 then
                 highest = i
                 break
             end
@@ -624,7 +624,7 @@ local function GetBestTarget()
                          or (b:IsA("Model") and b.PrimaryPart and b.PrimaryPart.Position) 
                          or (b:IsA("BasePart") and b.Position)
                          
-            -- CHỈ QUÉT CÁC KHỐI TRONG ZONE ĐÃ MỞ (Chống đập mặt vào tường)
+            -- CHỈ QUÉT CÁC KHỐI TRONG ZONE AN TOÀN (Ngăn kẹt tường)
             if bPos and bPos.X <= safeMaxX then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
                 local targetData = {obj = b, cf = CFrame.new(bPos + Vector3.new(0, 3, 0)), name = b.Name, x = bPos.X}
@@ -641,7 +641,7 @@ local function GetBestTarget()
         end
     end
     
-    -- HÀM KIỂM TRA KHÓA (Kiểm tra xem khối đang nhắm tới có bị vỡ hoặc biến mất chưa)
+    -- HÀM KIỂM TRA KHÓA MỤC TIÊU (Chống giật lag)
     local function isTargetValid(list, targetObj)
         if not targetObj or targetObj.Parent ~= breakables then return false end
         for _, item in ipairs(list) do
@@ -650,7 +650,7 @@ local function GetBestTarget()
         return false
     end
 
-    -- 🚀 ƯU TIÊN 1: SAO CHỔI (COMET)
+    -- ƯU TIÊN 1: SAO CHỔI (COMET)
     if #comets > 0 then
         if lockedType ~= "Comet" or not isTargetValid(comets, lockedTarget) then
             lockedTarget = comets[1].obj
@@ -660,7 +660,7 @@ local function GetBestTarget()
         return CFrame.new(bPos + Vector3.new(0, 3, 0)), "Boss", lockedTarget.Name
     end
     
-    -- 🚀 ƯU TIÊN 2: BOSS / MEGA CHEST
+    -- ƯU TIÊN 2: BOSS / MEGA CHEST
     if config.BossChestBreak and #bosses > 0 then
         if lockedType ~= "Boss" or not isTargetValid(bosses, lockedTarget) then
             lockedTarget = bosses[1].obj
@@ -670,7 +670,7 @@ local function GetBestTarget()
         return CFrame.new(bPos + Vector3.new(0, 3, 0)), "Boss", lockedTarget.Name
     end
     
-    -- 🚀 ƯU TIÊN 3: FARM KHỐI GẦN CỔNG NHẤT
+    -- ƯU TIÊN 3: FARM KHỐI GẦN CỔNG NHẤT ĐỂ ĐẨY TIẾN TRÌNH
     if config.AutoFarmBlocks and #farmBlocks > 0 then
         local highestZoneBlocks = {}
         for _, data in ipairs(farmBlocks) do
@@ -680,7 +680,6 @@ local function GetBestTarget()
         end
         
         if #highestZoneBlocks > 0 then
-            -- Nếu đang đập dở 1 khối và nó chưa vỡ, kiên quyết KHÔNG nhảy sang khối khác!
             if lockedType ~= "Farm" or not isTargetValid(highestZoneBlocks, lockedTarget) then
                 local randomFarm = highestZoneBlocks[math.random(1, #highestZoneBlocks)]
                 lockedTarget = randomFarm.obj
@@ -691,13 +690,13 @@ local function GetBestTarget()
         end
     end
     
-    -- RESET KHÓA NẾU KHÔNG CÒN GÌ ĐỂ ĐẬP
+    -- XÓA KHÓA NẾU MỤC TIÊU BIẾN MẤT
     lockedTarget = nil
     lockedType = "None"
     return nil, "None", nil
 end
 
--- VÒNG LẶP HÀNH ĐỘNG (ASYNC FAST FARM V13)
+-- VÒNG LẶP HÀNH ĐỘNG (ASYNC FAST FARM)
 local lastScanTick = 0
 local lastFarmTick = 0
 local FARM_DELAY = 0.2 
@@ -717,7 +716,7 @@ task.spawn(function()
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- KHÓA CỨNG VỊ TRÍ, NHÂN VẬT ĐỨNG IM PHĂNG PHẮC GÕ KHỐI
+            -- Khóa tọa độ tránh trượt chân
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
