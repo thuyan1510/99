@@ -571,32 +571,23 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V20 - STRICT PROGRESSION & COMET RADAR)
--- Khóa cứng điều kiện Boss Zone 5 & Lọc giới hạn không gian Comet
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V21 - SMART PRIORITY TARGETING)
+-- Ưu tiên Comet > Normal Chest > Mega Chest (Nếu Zone 5 mở) > Farm tĩnh
 -- ==========================================
 local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
 local PlayerPet = require(game:GetService("ReplicatedStorage").Library.Client.PlayerPet)
 local Network = require(game:GetService("ReplicatedStorage").Library.Client.Network)
 
--- Tọa độ TÂM CỐ ĐỊNH của bãi farm tĩnh
+-- TỌA ĐỘ CỐ ĐỊNH CHUẨN XÁC TỪ BẠN (Ghim Y=2566 để đứng trên mặt đất)
 local ZoneCenters = {
-    [1] = CFrame.new(4410.70, 2564.67, -5378.71),
-    [2] = CFrame.new(4674.85, 2567.02, -5380.49),
-    [3] = CFrame.new(4935.66, 2567.19, -5380.49),
-    [4] = CFrame.new(5184.90, 2567.03, -5380.49),
-    [5] = CFrame.new(5377.90, 2566.00, -5377.40) -- Vị trí Mega Chest tại Zone 5
+    [1] = CFrame.new(4410.70, 2566, -5378.71),
+    [2] = CFrame.new(4674.85, 2566, -5380.49),
+    [3] = CFrame.new(4935.66, 2566, -5380.49),
+    [4] = CFrame.new(5184.90, 2566, -5380.49),
+    [5] = CFrame.new(5377.90, 2566, -5377.40) -- Khu vực Mega Chest
 }
 
--- Ranh giới trục X tối đa được phép di chuyển tương ứng với từng cấp độ mở khóa
-local ZoneMaxX = {
-    [1] = 4550,
-    [2] = 4800,
-    [3] = 5050,
-    [4] = 5300,
-    [5] = 99999 -- Không giới hạn khi đã đạt Zone 5
-}
-
--- Hàm kiểm tra chính xác cấp độ bãi farm dựa trên BreakCount thực tế
+-- Đọc BreakCount thực tế để xác định Zone hiện tại
 local function GetHighestUnlockedZone()
     local save = Save.Get()
     local zProgress = save and save.RNGEventZoneProgress or {}
@@ -608,7 +599,7 @@ local function GetHighestUnlockedZone()
 
     if getBreaks(4) >= 10000 then
         return 5
-    elseif getBreaks(3) >= 5000 then
+    elseif getBreaks(3) >= 4000 then
         return 4
     elseif getBreaks(2) >= 2000 then
         return 3
@@ -623,11 +614,9 @@ local function GetBestTarget()
     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
     if not breakables then return nil, "None", nil end
     
-    local unlockedZone = GetHighestUnlockedZone()
-    local currentMaxX = ZoneMaxX[unlockedZone] or 4550
-    
     local cometTarget, cometName = nil, nil
-    local bossTarget, bossName = nil, nil
+    local normalChestTarget, normalChestName = nil, nil
+    local megaChestTarget, megaChestName = nil, nil
     
     for _, b in ipairs(breakables:GetChildren()) do
         if b:IsA("Model") or b:IsA("BasePart") then
@@ -637,28 +626,44 @@ local function GetBestTarget()
                          
             if bPos then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
-                
-                -- ☄️ RADAR SAO CHỔI: Tìm thấy chữ "comet" và phải nằm trong tầm X hợp lệ của Zone hiện tại
-                if string.find(bId, "comet") and bPos.X <= currentMaxX then
-                    cometTarget = CFrame.new(bPos.X, 2566, bPos.Z)
+                local cframeTarget = CFrame.new(bPos.X, 2566, bPos.Z)
+
+                -- 1. LỌC SAO CHỔI
+                if string.find(bId, "comet") then
+                    cometTarget = cframeTarget
                     cometName = b.Name
-                
-                -- 👑 KIỂM SOÁT BOSS: Chỉ khóa mục tiêu Boss nếu config bật VÀ hệ thống xác nhận Zone 5 ĐÃ MỞ
-                elseif config.BossChestBreak and (string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega")) then
-                    if unlockedZone == 5 then
-                        bossTarget = CFrame.new(bPos.X, 2566, bPos.Z)
-                        bossName = b.Name
+                    
+                -- 2. LỌC CÁC LOẠI RƯƠNG
+                elseif string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega") then
+                    -- Tách biệt Mega Chest ra khỏi rương thường (RNG, Super RNG, Ultra RNG)
+                    if string.find(bId, "mega") then
+                        megaChestTarget = cframeTarget
+                        megaChestName = b.Name
+                    else
+                        normalChestTarget = cframeTarget
+                        normalChestName = b.Name
                     end
                 end
             end
         end
     end
     
-    -- THỰC THI ĐIỀU HƯỚNG TỐI ƯU
+    -- 🚀 QUYẾT ĐỊNH XUẤT KÍCH THEO MỨC ĐỘ ƯU TIÊN 🚀
+
+    -- [ƯU TIÊN 1]: SAO CHỔI (Luôn cắn ngay lập tức)
     if cometTarget then return cometTarget, "Boss", cometName end
-    if bossTarget then return bossTarget, "Boss", bossName end
     
-    -- HOÀN TOÀN TRUNG THÀNH: Nếu chưa đủ điều kiện mở Zone 5, đứng im cắm trại cày KPI
+    -- [ƯU TIÊN 2]: RƯƠNG THƯỜNG Ở ZONE 2, 3, 4 (Phá nhanh để lấy Buff)
+    if config.BossChestBreak and normalChestTarget then return normalChestTarget, "Boss", normalChestName end
+    
+    local unlockedZone = GetHighestUnlockedZone()
+
+    -- [ƯU TIÊN 3]: MEGA CHEST ZONE 5 (CHỈ ĐẬP KHI ZONE 5 ĐÃ MỞ KHÓA BẰNG BREAKCOUNT)
+    if config.BossChestBreak and unlockedZone == 5 and megaChestTarget then 
+        return megaChestTarget, "Boss", megaChestName 
+    end
+    
+    -- [ƯU TIÊN 4]: KHÔNG CÓ RƯƠNG -> NHẢY VÀO ZONE CỐ ĐỊNH ĐỨNG IM VÀ XẢ SKILL
     local centerCF = ZoneCenters[unlockedZone] or ZoneCenters[1]
     return centerCF, "Farm", nil
 end
@@ -683,10 +688,12 @@ task.spawn(function()
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
+            -- KHÓA CHẶT TỌA ĐỘ VÀO ĐIỂM NEO CỐ ĐỊNH
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
 
+            -- HỆ THỐNG FAST FARM
             if now - lastFarmTick >= FARM_DELAY then
                 lastFarmTick = now
 
@@ -709,6 +716,7 @@ task.spawn(function()
                     local hrpPos = hrp.Position
                     local targets = {}
                     
+                    -- QUÉT SÁT THƯƠNG ĐA MỤC TIÊU BÁN KÍNH 130 STUD TỪ TÂM
                     for _, b in ipairs(breakables:GetChildren()) do
                         if b:IsA("Model") and b.PrimaryPart then
                             if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
