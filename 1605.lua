@@ -59,12 +59,12 @@ end
 local CraftRecipes = {
     [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
     [2] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice II V2", DiceCost = 30, CoinCost = 100000 },
-    [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }
-    --[4] = { Target = "Mega Lucky Dice III V2", Input = "Mega Lucky Dice II V2", DiceCost = 3, CoinCost = 300000 }
-    --[5] = { Target = "Fire Dice", Input = "Mega Lucky Dice III V2", DiceCost = 3, CoinCost = 300000 }	
+    [3] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 },
+    [4] = { Target = "Lucky Dice III", Input = "Mega Lucky Dice II V2", DiceCost = 5, CoinCost = 1000000 },
+    [5] = { Target = "Fire Dice", Input = "Lucky Dice III", DiceCost = 5, CoinCost = 5000000 }	
 }
 
-local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck", "RNGBonusLuck", "RNGHugeLuck"}
+local RNG_UPGRADES = { "RNGHatchSpeed", "RNGEggLuck", "RNGBonusLuck", "RNGHugeLuck", "RNGExtraEgg" }
 
 local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
 local activeWebhook = ""
@@ -436,8 +436,8 @@ task.spawn(function()
                     return false
                 end
 
-                for i = math.clamp(config.MaxDiceCraftTier, 1, 3), 1, -1 do
-		--for i = math.clamp(config.MaxDiceCraftTier, 1, 5), 1, -1 do
+               
+		for i = math.clamp(config.MaxDiceCraftTier, 1, 5), 1, -1 do
                     local recipe = CraftRecipes[i]
                     if recipe and not IsHigherTierReady(i) then
                         local craftAmount = math.min(math.floor(GetDiceCount(recipe.Input) / recipe.DiceCost), math.floor(currentCoins / recipe.CoinCost))
@@ -573,11 +573,11 @@ end)
 -- ==========================================
 -- BỘ ĐIỀU PHỐI EVENT-DRIVEN (BOSS & FARM)
 -- ==========================================
-local bossPos = CFrame.new(4279.34, 2569.27, -5370.22)
 local isBossAlive = false
 local currentBossChest = nil
+local bossTargetCFrame = nil
 
--- 1. Bắt sóng Boss
+-- 1. AI Bắt sóng Mọi loại Rương/Boss trên Map
 task.spawn(function()
     local things = Workspace:WaitForChild("__THINGS")
     local breakables = things:WaitForChild("Breakables")
@@ -589,10 +589,13 @@ task.spawn(function()
             local breakableID = b:GetAttribute("BreakableID") or ""
             local lowerID = string.lower(tostring(breakableID))
             
-            if bPos and (bPos - bossPos.Position).Magnitude < 30 then
+            if bPos then
+                -- Nhận diện Luck Chests và Mega Chest ở tất cả các Zone
                 if string.find(lowerID, "chest") or string.find(lowerID, "boss") or string.find(lowerID, "mega") then
                     currentBossChest = b
                     isBossAlive = true
+                    -- Tính toán chỗ đứng cách rương 15 studs để đập
+                    bossTargetCFrame = CFrame.new(bPos + Vector3.new(0, 10, 15))
                 end
             end
         end)
@@ -604,22 +607,53 @@ task.spawn(function()
         if b == currentBossChest then
             currentBossChest = nil
             isBossAlive = false
+            bossTargetCFrame = nil
         end
     end)
 end)
 
--- 2. Tìm tâm bãi Farm
+-- 2. AI TÌM BÃI FARM (ƯU TIÊN BEST ZONE ĐỂ MỞ CỔNG)
+local ZonesDirectory = require(game:GetService("ReplicatedStorage").Library.Directory.Zones)
+
 local function GetFarmCenterCFrame()
     if config.BackupFarmCFrame then return config.BackupFarmCFrame end
     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+    
     if breakables then
-        local sumPos = Vector3.new(0, 0, 0)
-        local validBlocks = 0
-        for _, b in ipairs(breakables:GetChildren()) do
-            local bPos = b:GetAttribute("CFrame") and b:GetAttribute("CFrame").Position or (b.PrimaryPart and b.PrimaryPart.Position)
-            if bPos then sumPos = sumPos + bPos; validBlocks = validBlocks + 1 end
+        local allBlocks = breakables:GetChildren()
+        if #allBlocks > 0 then
+            local highestZoneNum = -1
+            local bestBlocks = {}
+
+            -- Đọc ID Zone của từng khối để tìm ra Zone cao nhất đang mở
+            for _, b in ipairs(allBlocks) do
+                local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
+                
+                -- Tra cứu số thứ tự của Zone từ thư viện gốc của game
+                if zoneId and ZonesDirectory[zoneId] then
+                    local zNum = ZonesDirectory[zoneId].ZoneNumber or 0
+                    
+                    if zNum > highestZoneNum then
+                        highestZoneNum = zNum
+                        bestBlocks = {b} -- Xóa cũ, tạo danh sách mới cho Zone cao hơn
+                    elseif zNum == highestZoneNum then
+                        table.insert(bestBlocks, b) -- Nạp thêm khối cùng cấp
+                    end
+                end
+            end
+
+            -- Nếu vì lý do nào đó game lỗi không gán ZoneID, lấy toàn bộ khối làm dự phòng
+            if #bestBlocks == 0 then bestBlocks = allBlocks end
+
+            -- Chọn ngẫu nhiên 1 khối trong Best Zone để nhảy tới đập
+            local targetBlock = bestBlocks[math.random(1, #bestBlocks)]
+            local bPos = targetBlock:GetAttribute("CFrame") and targetBlock:GetAttribute("CFrame").Position or (targetBlock.PrimaryPart and targetBlock.PrimaryPart.Position)
+            
+            if bPos then 
+                -- Đứng cao hơn khối 7 stud để có tầm nhìn đập diện rộng bằng Click Aura
+                return CFrame.new(bPos + Vector3.new(0, 7, 0)) 
+            end
         end
-        if validBlocks > 0 then return CFrame.new((sumPos / validBlocks) + Vector3.new(0, 10, 0)) end
     end
     return nil
 end
@@ -643,14 +677,14 @@ task.spawn(function()
             -- XỬ LÝ LOGIC ĐIỀU HƯỚNG
             if config.BossChestBreak and config.AutoFarmBlocks then
                 if isBossAlive and currentBossChest then
-                    targetCFrame = bossPos
+                    targetCFrame = bossTargetCFrame
                     targetMode = "Boss"
                 else
                     targetCFrame = GetFarmCenterCFrame()
                     targetMode = "Farm"
                 end
             elseif config.BossChestBreak then
-                targetCFrame = bossPos
+                targetCFrame = bossTargetCFrame
                 targetMode = "Boss"
             elseif config.AutoFarmBlocks then
                 targetCFrame = GetFarmCenterCFrame()
@@ -780,8 +814,8 @@ local UI = FarmUI.new({
         ["RNGCoins"] = {3, "RNG Coins: 0"},
         ["Rolls"]    = {4, "Total Rolls: 0"},
         ["Dice1"]    = {5, "Lucky Dice: 0 | Lucky II: 0"},
-        ["Dice2"]    = {6, "Mega Dice: 0 | Mega II: 0"}
-	--["Dice3"]    = {7, "New Dice 1: 0 | New Dice 2: 0"}
+        ["Dice2"]    = {6, "Mega Dice: 0 | Mega II: 0"},
+		["Dice3"]    = {7, "Lucky III: 0 | Fire: 0"}
     }
 })
 
@@ -801,7 +835,7 @@ task.spawn(function()
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
         UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
         UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
-	--UI:SetText("Dice3", string.format("New 1: %s | New 2: %s", FormatValue(GetDiceCount("TEN_DICE_MOI_1")), FormatValue(GetDiceCount("TEN_DICE_MOI_2"))))
+	UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(GetDiceCount("Lucky Dice III")), FormatValue(GetDiceCount("Fire Dice"))))
         frames = 0
     end
 end)
