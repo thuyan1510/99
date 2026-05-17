@@ -571,34 +571,39 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V16 - PERFECT STATIC ANCHOR)
--- Đứng im một chỗ, chạm đất, farm tĩnh 100% dựa trên BreakCount
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V17 - NATIVE ZONE ANCHOR)nam
+-- Đọc Max Zone bằng module gốc của game & Farm Tĩnh 100%
 -- ==========================================
-local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Library = ReplicatedStorage:WaitForChild("Library")
+local ZoneCmds = require(Library.Client.ZoneCmds)
+local PlayerPet = require(Library.Client.PlayerPet)
 
--- Tọa độ TÂM CỐ ĐỊNH của 5 Zone (Lấy từ map thực tế, cao độ Y=2566 để chạm sát mặt đất)
+-- Tọa độ TÂM CỐ ĐỊNH của 5 Zone (Cao độ Y=2566 để chạm sát mặt đất)
 local ZoneCenters = {
-    [1] = CFrame.new(4420, 2566, -5380),
-    [2] = CFrame.new(4650, 2566, -5380),
-    [3] = CFrame.new(4920, 2566, -5380),
-    [4] = CFrame.new(5180, 2566, -5380),
-    [5] = CFrame.new(5370, 2566, -5377) -- Khu vực Mega Chest
+    [1] = CFrame.new(4420, 2566, -5380), -- Holographic Powerplant
+    [2] = CFrame.new(4650, 2566, -5380), -- Holographic City
+    [3] = CFrame.new(4920, 2566, -5380), -- Holographic Forest
+    [4] = CFrame.new(5180, 2566, -5380), -- Holographic Mine
+    [5] = CFrame.new(5370, 2566, -5377)  -- Glitch Forest (Khu vực Mega Chest)
 }
 
--- Đọc Zone cao nhất đang có BreakCount > 0 (Như đúng ý bạn)
+-- Gọi trực tiếp Module gốc của game để lấy Zone cao nhất
 local function GetHighestUnlockedZone()
-    local save = Save.Get()
-    local highest = 1
-    if save and save.RNGEventZoneProgress then
-        for i = 5, 1, -1 do
-            local zoneData = save.RNGEventZoneProgress["Zone" .. tostring(i)]
-            if type(zoneData) == "table" and (tonumber(zoneData.BreakCount) or 0) > 0 then
-                highest = i
-                break
-            end
-        end
+    local success, maxZoneId = pcall(function() return ZoneCmds.GetMaxOwnedZone() end)
+    
+    if success and maxZoneId then
+        local zId = string.lower(tostring(maxZoneId))
+        -- Ánh xạ ID gốc của game ra số thứ tự Zone tương ứng
+        if string.find(zId, "powerplant") then return 1 end
+        if string.find(zId, "city") and not string.find(zId, "glitch") then return 2 end
+        if string.find(zId, "holographic forest") then return 3 end
+        if string.find(zId, "mine") then return 4 end
+        if string.find(zId, "glitch") then return 5 end
     end
-    return highest
+    
+    -- Mặc định rơi về Zone 1 nếu game chưa tải kịp dữ liệu
+    return 1
 end
 
 local function GetBestTarget()
@@ -617,7 +622,7 @@ local function GetBestTarget()
             if bPos then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
                 
-                -- Khóa cứng Y=2566 để nhân vật luôn đứng dưới mặt đất, không bị bay lên nóc rương
+                -- Khóa Y=2566 để nhân vật luôn đứng dưới đất ôm Boss
                 if string.find(bId, "comet") then
                     cometTarget = CFrame.new(bPos.X, 2566, bPos.Z)
                     cometName = b.Name
@@ -629,11 +634,11 @@ local function GetBestTarget()
         end
     end
     
-    -- ƯU TIÊN 1 & 2: LAO VÀO CẠNH BOSS / COMET NẾU CÓ XUẤT HIỆN
+    -- ƯU TIÊN 1 & 2: LAO VÀO CẠNH BOSS / COMET NẾU XUẤT HIỆN
     if cometTarget then return cometTarget, "Boss", cometName end
     if config.BossChestBreak and bossTarget then return bossTarget, "Boss", bossName end
     
-    -- ƯU TIÊN 3: NHẢY VÀO CHÍNH GIỮA ZONE ĐÃ MỞ VÀ ĐỨNG IM CẮM TRẠI
+    -- ƯU TIÊN 3: LẤY MAX ZONE TỪ GAME, NHẢY VÀO CHÍNH GIỮA VÀ CẮM TRẠI
     local unlockedZone = GetHighestUnlockedZone()
     local centerCF = ZoneCenters[unlockedZone] or ZoneCenters[1]
     return centerCF, "Farm", nil
@@ -654,17 +659,18 @@ task.spawn(function()
 
             local now = os.clock()
             
+            -- Cập nhật não bộ AI mỗi 0.1 giây
             if now - lastScanTick >= 0.1 then
                 lastScanTick = now
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- NEO CỨNG NHÂN VẬT VÀO 1 ĐIỂM (Không rung lắc, không lơ lửng)
+            -- NEO CỨNG NHÂN VẬT VÀO TỌA ĐỘ (Không rung lắc, chạm sát đất)
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
 
-            -- HỆ THỐNG FAST FARM
+            -- HỆ THỐNG PHÓNG AURA CHUẨN XÁC
             if now - lastFarmTick >= FARM_DELAY then
                 lastFarmTick = now
 
@@ -687,7 +693,7 @@ task.spawn(function()
                     local hrpPos = hrp.Position
                     local targets = {}
                     
-                    -- Quét mọi thứ xung quanh điểm đứng yên
+                    -- Đứng im quét sát thương mọi vật thể trong bán kính 130 stud
                     for _, b in ipairs(breakables:GetChildren()) do
                         if b:IsA("Model") and b.PrimaryPart then
                             if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
