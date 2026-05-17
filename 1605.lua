@@ -577,7 +577,7 @@ local isBossAlive = false
 local currentBossChest = nil
 local bossTargetCFrame = nil
 
--- 1. AI Bắt sóng Mọi loại Rương/Boss trên Map
+-- 1. AI Bắt sóng Mọi loại Rương/Boss/Comet (Ôm sát mục tiêu)
 task.spawn(function()
     local things = Workspace:WaitForChild("__THINGS")
     local breakables = things:WaitForChild("Breakables")
@@ -590,12 +590,12 @@ task.spawn(function()
             local lowerID = string.lower(tostring(breakableID))
             
             if bPos then
-                -- Nhận diện Luck Chests và Mega Chest ở tất cả các Zone
-                if string.find(lowerID, "chest") or string.find(lowerID, "boss") or string.find(lowerID, "mega") then
+                -- Nhận diện Luck Chests, Mega Chest VÀ CẢ SAO CHỔI (COMET)
+                if string.find(lowerID, "chest") or string.find(lowerID, "boss") or string.find(lowerID, "mega") or string.find(lowerID, "comet") then
                     currentBossChest = b
                     isBossAlive = true
-                    -- Tính toán chỗ đứng cách rương 15 studs để đập
-                    bossTargetCFrame = CFrame.new(bPos + Vector3.new(0, 10, 15))
+                    -- Đứng ôm sát mục tiêu, chỉ cộng nhẹ 3 stud trục Y để không rớt xuống gầm bản đồ
+                    bossTargetCFrame = CFrame.new(bPos + Vector3.new(0, 3, 0))
                 end
             end
         end)
@@ -611,9 +611,9 @@ task.spawn(function()
         end
     end)
 end)
-
--- 2. AI TÌM BÃI FARM (ƯU TIÊN BEST ZONE ĐỂ MỞ CỔNG)
+-- 2. AI TÌM BÃI FARM (V9 - CHỐNG GIẬT CỤC & TẬP TRUNG BOSS)
 local ZonesDirectory = require(game:GetService("ReplicatedStorage").Library.Directory.Zones)
+local highestZoneReached = 1
 
 local function GetFarmCenterCFrame()
     if config.BackupFarmCFrame then return config.BackupFarmCFrame end
@@ -622,42 +622,57 @@ local function GetFarmCenterCFrame()
     if breakables then
         local allBlocks = breakables:GetChildren()
         if #allBlocks > 0 then
-            local highestZoneNum = -1
-            local bestBlocks = {}
-
-            -- Đọc ID Zone của từng khối để tìm ra Zone cao nhất đang mở
+            
+            -- Bước 1: Quét xem chúng ta đã mở đến Zone nào rồi
             for _, b in ipairs(allBlocks) do
                 local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
-                
-                -- Tra cứu số thứ tự của Zone từ thư viện gốc của game
                 if zoneId and ZonesDirectory[zoneId] then
                     local zNum = ZonesDirectory[zoneId].ZoneNumber or 0
-                    
-                    if zNum > highestZoneNum then
-                        highestZoneNum = zNum
-                        bestBlocks = {b} -- Xóa cũ, tạo danh sách mới cho Zone cao hơn
-                    elseif zNum == highestZoneNum then
-                        table.insert(bestBlocks, b) -- Nạp thêm khối cùng cấp
+                    if zNum > highestZoneReached then
+                        highestZoneReached = zNum -- Cập nhật kỷ lục Zone, không bao giờ tụt lùi
                     end
                 end
             end
 
-            -- Nếu vì lý do nào đó game lỗi không gán ZoneID, lấy toàn bộ khối làm dự phòng
-            if #bestBlocks == 0 then bestBlocks = allBlocks end
-
-            -- Chọn ngẫu nhiên 1 khối trong Best Zone để nhảy tới đập
-            local targetBlock = bestBlocks[math.random(1, #bestBlocks)]
-            local bPos = targetBlock:GetAttribute("CFrame") and targetBlock:GetAttribute("CFrame").Position or (targetBlock.PrimaryPart and targetBlock.PrimaryPart.Position)
-            
-            if bPos then 
-                -- Đứng cao hơn khối 7 stud để có tầm nhìn đập diện rộng bằng Click Aura
-                return CFrame.new(bPos + Vector3.new(0, 7, 0)) 
+            -- Bước 2: Xử lý chiến thuật nếu đã đạt Zone 5 (Max Zone hiện tại của update)
+            if highestZoneReached >= 5 then
+                -- Tìm 1 khối ngẫu nhiên ở Zone 5 để nhảy đến chờ, và KHÔNG làm gì thêm.
+                -- (Vì khối rác không ra xu, ta chỉ chờ Boss/Comet từ bước 1 gọi)
+                for _, b in ipairs(allBlocks) do
+                    local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
+                    if zoneId and ZonesDirectory[zoneId] and ZonesDirectory[zoneId].ZoneNumber == highestZoneReached then
+                        local bPos = b:GetAttribute("CFrame") and b:GetAttribute("CFrame").Position or (b.PrimaryPart and b.PrimaryPart.Position)
+                        if bPos then return CFrame.new(bPos + Vector3.new(0, 3, 0)) end
+                    end
+                end
+                return nil
             end
+
+            -- Bước 3: Nếu chưa tới Zone 5, bắt buộc phải đập khối để mở cổng
+            local bestBlocks = {}
+            for _, b in ipairs(allBlocks) do
+                local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
+                if zoneId and ZonesDirectory[zoneId] then
+                    local zNum = ZonesDirectory[zoneId].ZoneNumber or 0
+                    -- CHỈ lấy các khối ở Zone cao nhất để tập trung phá cổng
+                    if zNum == highestZoneReached then
+                        table.insert(bestBlocks, b)
+                    end
+                end
+            end
+
+            if #bestBlocks > 0 then
+                local targetBlock = bestBlocks[math.random(1, #bestBlocks)]
+                local bPos = targetBlock:GetAttribute("CFrame") and targetBlock:GetAttribute("CFrame").Position or (targetBlock.PrimaryPart and targetBlock.PrimaryPart.Position)
+                if bPos then 
+                    return CFrame.new(bPos + Vector3.new(0, 3, 0)) 
+                end
+            end
+            
         end
     end
     return nil
 end
-
 -- 3. Quyết định Điều Hướng & Đập Phá (V8 ASYNC FAST FARM TÍCH HỢP)
 local lastFarmTick = 0
 local FARM_DELAY = 0.2 
