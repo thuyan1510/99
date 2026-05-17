@@ -571,29 +571,27 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V14 - BREAKCOUNT PROGRESSION)
--- Đọc tiến trình thực tế thông qua số khối đã đập
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (V15 - STATIC ZONE AURA FARM)
+-- Định vị Zone bằng BreakCount & Đứng yên tại tâm bãi farm
 -- ==========================================
 local Save = require(game:GetService("ReplicatedStorage").Library.Client.Save)
 
--- Bảng giới hạn ranh giới X tuyệt đối cho từng Zone
-local ZoneMaxX = {
-    [1] = 4550, 
-    [2] = 4800, 
-    [3] = 5050, 
-    [4] = 5300, 
-    [5] = 99999 
+-- Bảng giới hạn ranh giới X (Từ minX đến maxX) cho từng Zone
+local ZoneBoundaries = {
+    [1] = {-99999, 4550},
+    [2] = {4550, 4800},
+    [3] = {4800, 5050},
+    [4] = {5050, 5300},
+    [5] = {5300, 99999}
 }
 
-local lockedTarget = nil
-local lockedType = "None"
+local lastZoneCenter = nil
 
--- Đọc trạng thái mở khóa DỰA VÀO BREAKCOUNT (Tiến trình thực)
+-- Đọc trạng thái mở khóa DỰA VÀO BREAKCOUNT
 local function GetHighestUnlockedZone()
     local save = Save.Get()
     local highest = 1
     if save and save.RNGEventZoneProgress then
-        -- Quét ngược từ 5 về 1, Zone nào có BreakCount > 0 chính là Best Zone
         for i = 5, 1, -1 do
             local zoneData = save.RNGEventZoneProgress["Zone" .. tostring(i)]
             if type(zoneData) == "table" and (tonumber(zoneData.BreakCount) or 0) > 0 then
@@ -613,10 +611,14 @@ local function GetBestTarget()
     if #allBlocks == 0 then return nil, "None", nil end
     
     local unlockedZone = GetHighestUnlockedZone()
-    local safeMaxX = ZoneMaxX[unlockedZone] or 4550
+    local minX = ZoneBoundaries[unlockedZone][1]
+    local maxX = ZoneBoundaries[unlockedZone][2]
 
-    local comets, bosses, farmBlocks = {}, {}, {}
-    local maxXInSafeZone = -999999 
+    local cometTarget, cometName = nil, nil
+    local bossTarget, bossName = nil, nil
+    
+    local sumPos = Vector3.new(0, 0, 0)
+    local validBlocksInZone = 0
     
     for _, b in ipairs(allBlocks) do
         if b:IsA("Model") or b:IsA("BasePart") then
@@ -624,79 +626,47 @@ local function GetBestTarget()
                          or (b:IsA("Model") and b.PrimaryPart and b.PrimaryPart.Position) 
                          or (b:IsA("BasePart") and b.Position)
                          
-            -- CHỈ QUÉT CÁC KHỐI TRONG ZONE AN TOÀN (Ngăn kẹt tường)
-            if bPos and bPos.X <= safeMaxX then
+            if bPos then
                 local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
-                local targetData = {obj = b, cf = CFrame.new(bPos + Vector3.new(0, 3, 0)), name = b.Name, x = bPos.X}
                 
                 if string.find(bId, "comet") then
-                    table.insert(comets, targetData)
+                    cometTarget = CFrame.new(bPos + Vector3.new(0, 3, 0))
+                    cometName = b.Name
                 elseif string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega") then
-                    table.insert(bosses, targetData)
+                    bossTarget = CFrame.new(bPos + Vector3.new(0, 3, 0))
+                    bossName = b.Name
                 else
-                    if bPos.X > maxXInSafeZone then maxXInSafeZone = bPos.X end
-                    table.insert(farmBlocks, targetData)
+                    -- CHỈ TÍNH TÂM CHO CÁC KHỐI NẰM TRONG ZONE HIỆN TẠI
+                    if bPos.X > minX and bPos.X <= maxX then
+                        sumPos = sumPos + bPos
+                        validBlocksInZone = validBlocksInZone + 1
+                    end
                 end
             end
         end
     end
     
-    -- HÀM KIỂM TRA KHÓA MỤC TIÊU (Chống giật lag)
-    local function isTargetValid(list, targetObj)
-        if not targetObj or targetObj.Parent ~= breakables then return false end
-        for _, item in ipairs(list) do
-            if item.obj == targetObj then return true end
-        end
-        return false
-    end
-
-    -- ƯU TIÊN 1: SAO CHỔI (COMET)
-    if #comets > 0 then
-        if lockedType ~= "Comet" or not isTargetValid(comets, lockedTarget) then
-            lockedTarget = comets[1].obj
-            lockedType = "Comet"
-        end
-        local bPos = lockedTarget:GetAttribute("CFrame") and lockedTarget:GetAttribute("CFrame").Position or (lockedTarget:IsA("Model") and lockedTarget.PrimaryPart and lockedTarget.PrimaryPart.Position) or (lockedTarget:IsA("BasePart") and lockedTarget.Position)
-        return CFrame.new(bPos + Vector3.new(0, 3, 0)), "Boss", lockedTarget.Name
+    -- ƯU TIÊN 1: SAO CHỔI (Lao vào ôm sát để đập)
+    if cometTarget then return cometTarget, "Boss", cometName end
+    
+    -- ƯU TIÊN 2: BOSS / MEGA CHEST (Lao vào ôm sát để đập)
+    if config.BossChestBreak and bossTarget then return bossTarget, "Boss", bossName end
+    
+    -- ƯU TIÊN 3: ĐỨNG YÊN TẠI TÂM ZONE VÀ XẢ SKILL
+    if config.AutoFarmBlocks and validBlocksInZone > 0 then
+        local centerPos = sumPos / validBlocksInZone
+        -- Đứng lơ lửng cao 10 stud ở giữa map như cách farm cũ
+        lastZoneCenter = CFrame.new(centerPos + Vector3.new(0, 10, 0))
+        return lastZoneCenter, "Farm", nil
     end
     
-    -- ƯU TIÊN 2: BOSS / MEGA CHEST
-    if config.BossChestBreak and #bosses > 0 then
-        if lockedType ~= "Boss" or not isTargetValid(bosses, lockedTarget) then
-            lockedTarget = bosses[1].obj
-            lockedType = "Boss"
-        end
-        local bPos = lockedTarget:GetAttribute("CFrame") and lockedTarget:GetAttribute("CFrame").Position or (lockedTarget:IsA("Model") and lockedTarget.PrimaryPart and lockedTarget.PrimaryPart.Position) or (lockedTarget:IsA("BasePart") and lockedTarget.Position)
-        return CFrame.new(bPos + Vector3.new(0, 3, 0)), "Boss", lockedTarget.Name
-    end
+    -- Nếu Zone bị dọn sạch trong tích tắc, đứng im tại chỗ chờ khối mọc lại
+    if lastZoneCenter then return lastZoneCenter, "Farm", nil end
     
-    -- ƯU TIÊN 3: FARM KHỐI GẦN CỔNG NHẤT ĐỂ ĐẨY TIẾN TRÌNH
-    if config.AutoFarmBlocks and #farmBlocks > 0 then
-        local highestZoneBlocks = {}
-        for _, data in ipairs(farmBlocks) do
-            if data.x >= (maxXInSafeZone - 100) then
-                table.insert(highestZoneBlocks, data)
-            end
-        end
-        
-        if #highestZoneBlocks > 0 then
-            if lockedType ~= "Farm" or not isTargetValid(highestZoneBlocks, lockedTarget) then
-                local randomFarm = highestZoneBlocks[math.random(1, #highestZoneBlocks)]
-                lockedTarget = randomFarm.obj
-                lockedType = "Farm"
-            end
-            local bPos = lockedTarget:GetAttribute("CFrame") and lockedTarget:GetAttribute("CFrame").Position or (lockedTarget:IsA("Model") and lockedTarget.PrimaryPart and lockedTarget.PrimaryPart.Position) or (lockedTarget:IsA("BasePart") and lockedTarget.Position)
-            return CFrame.new(bPos + Vector3.new(0, 3, 0)), "Farm", lockedTarget.Name
-        end
-    end
-    
-    -- XÓA KHÓA NẾU MỤC TIÊU BIẾN MẤT
-    lockedTarget = nil
-    lockedType = "None"
     return nil, "None", nil
 end
 
--- VÒNG LẶP HÀNH ĐỘNG (ASYNC FAST FARM)
+-- VÒNG LẶP HÀNH ĐỘNG (ASYNC FAST FARM TĨNH)
 local lastScanTick = 0
 local lastFarmTick = 0
 local FARM_DELAY = 0.2 
@@ -716,7 +686,7 @@ task.spawn(function()
                 cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- Khóa tọa độ tránh trượt chân
+            -- KHÓA TỌA ĐỘ CHỐNG TRÔI
             if cachedCF then 
                 hrp.CFrame = cachedCF 
             end
@@ -737,6 +707,7 @@ task.spawn(function()
                     end
                     
                 elseif cachedMode == "Farm" then
+                    -- QUÉT AURA XUNG QUANH BÁN KÍNH 130 STUD
                     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
                     if not breakables then return end
                     
