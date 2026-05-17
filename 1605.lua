@@ -571,219 +571,158 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- BỘ ĐIỀU PHỐI EVENT-DRIVEN (BOSS & FARM)
+-- BỘ ĐIỀU PHỐI EVENT-DRIVEN (BOSS & FARM) V10
 -- ==========================================
-local isBossAlive = false
-local currentBossChest = nil
-local bossTargetCFrame = nil
-
--- 1. AI Bắt sóng Mọi loại Rương/Boss/Comet (Ôm sát mục tiêu)
-task.spawn(function()
-    local things = Workspace:WaitForChild("__THINGS")
-    local breakables = things:WaitForChild("Breakables")
-
-    local function CheckIfBoss(b)
-        task.wait(0.1)
-        pcall(function()
-            local bPos = b:GetAttribute("CFrame") and b:GetAttribute("CFrame").Position or (b.PrimaryPart and b.PrimaryPart.Position)
-            local breakableID = b:GetAttribute("BreakableID") or ""
-            local lowerID = string.lower(tostring(breakableID))
-            
-            if bPos then
-                -- Nhận diện Luck Chests, Mega Chest VÀ CẢ SAO CHỔI (COMET)
-                if string.find(lowerID, "chest") or string.find(lowerID, "boss") or string.find(lowerID, "mega") or string.find(lowerID, "comet") then
-                    currentBossChest = b
-                    isBossAlive = true
-                    -- Đứng ôm sát mục tiêu, chỉ cộng nhẹ 3 stud trục Y để không rớt xuống gầm bản đồ
-                    bossTargetCFrame = CFrame.new(bPos + Vector3.new(0, 3, 0))
-                end
-            end
-        end)
-    end
-
-    for _, b in ipairs(breakables:GetChildren()) do CheckIfBoss(b) end
-    breakables.ChildAdded:Connect(CheckIfBoss)
-    breakables.ChildRemoved:Connect(function(b)
-        if b == currentBossChest then
-            currentBossChest = nil
-            isBossAlive = false
-            bossTargetCFrame = nil
-        end
-    end)
-end)
--- 2. AI TÌM BÃI FARM (V9 - CHỐNG GIẬT CỤC & TẬP TRUNG BOSS)
 local ZonesDirectory = require(game:GetService("ReplicatedStorage").Library.Directory.Zones)
-local highestZoneReached = 1
 
-local function GetFarmCenterCFrame()
-    if config.BackupFarmCFrame then return config.BackupFarmCFrame end
+-- HÀM QUÉT MỤC TIÊU THÔNG MINH (10 lần/giây - Chống lag và mất trí nhớ)
+local function GetBestTarget()
     local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+    if not breakables then return nil, "None", nil end
     
-    if breakables then
-        local allBlocks = breakables:GetChildren()
-        if #allBlocks > 0 then
+    local allBlocks = breakables:GetChildren()
+    if #allBlocks == 0 then return nil, "None", nil end
+    
+    local cometTarget, cometName = nil, nil
+    local bossTarget, bossName = nil, nil
+    local highestZoneNum = -1
+    local bestFarmBlocks = {}
+    
+    -- Quét toàn bộ khối đang tồn tại xung quanh người chơi
+    for _, b in ipairs(allBlocks) do
+        local bPos = b:GetAttribute("CFrame") and b:GetAttribute("CFrame").Position or (b.PrimaryPart and b.PrimaryPart.Position)
+        if bPos then
+            local bId = string.lower(tostring(b:GetAttribute("BreakableID") or b.Name or ""))
             
-            -- Bước 1: Quét xem chúng ta đã mở đến Zone nào rồi
-            for _, b in ipairs(allBlocks) do
-                local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
-                if zoneId and ZonesDirectory[zoneId] then
-                    local zNum = ZonesDirectory[zoneId].ZoneNumber or 0
-                    if zNum > highestZoneReached then
-                        highestZoneReached = zNum -- Cập nhật kỷ lục Zone, không bao giờ tụt lùi
-                    end
-                end
-            end
-
-            -- Bước 2: Xử lý chiến thuật nếu đã đạt Zone 5 (Max Zone hiện tại của update)
-            if highestZoneReached >= 5 then
-                -- Tìm 1 khối ngẫu nhiên ở Zone 5 để nhảy đến chờ, và KHÔNG làm gì thêm.
-                -- (Vì khối rác không ra xu, ta chỉ chờ Boss/Comet từ bước 1 gọi)
-                for _, b in ipairs(allBlocks) do
-                    local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
-                    if zoneId and ZonesDirectory[zoneId] and ZonesDirectory[zoneId].ZoneNumber == highestZoneReached then
-                        local bPos = b:GetAttribute("CFrame") and b:GetAttribute("CFrame").Position or (b.PrimaryPart and b.PrimaryPart.Position)
-                        if bPos then return CFrame.new(bPos + Vector3.new(0, 3, 0)) end
-                    end
-                end
-                return nil
-            end
-
-            -- Bước 3: Nếu chưa tới Zone 5, bắt buộc phải đập khối để mở cổng
-            local bestBlocks = {}
-            for _, b in ipairs(allBlocks) do
-                local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
-                if zoneId and ZonesDirectory[zoneId] then
-                    local zNum = ZonesDirectory[zoneId].ZoneNumber or 0
-                    -- CHỈ lấy các khối ở Zone cao nhất để tập trung phá cổng
-                    if zNum == highestZoneReached then
-                        table.insert(bestBlocks, b)
-                    end
-                end
-            end
-
-            if #bestBlocks > 0 then
-                local targetBlock = bestBlocks[math.random(1, #bestBlocks)]
-                local bPos = targetBlock:GetAttribute("CFrame") and targetBlock:GetAttribute("CFrame").Position or (targetBlock.PrimaryPart and targetBlock.PrimaryPart.Position)
-                if bPos then 
-                    return CFrame.new(bPos + Vector3.new(0, 3, 0)) 
-                end
+            -- Ưu tiên 1: SAO CHỔI (COMET)
+            if string.find(bId, "comet") then
+                cometTarget = CFrame.new(bPos + Vector3.new(0, 3, 0))
+                cometName = b.Name
             end
             
+            -- Ưu tiên 2: RƯƠNG BOSS / LUCK CHEST / MEGA
+            if string.find(bId, "chest") or string.find(bId, "boss") or string.find(bId, "mega") then
+                bossTarget = CFrame.new(bPos + Vector3.new(0, 3, 0))
+                bossName = b.Name
+            end
+            
+            -- Ưu tiên 3: Farm khối rác ở Zone cao nhất hiện tại để mở cổng
+            local zoneId = b:GetAttribute("ZoneID") or b:GetAttribute("ZoneId")
+            local zNum = 1
+            if zoneId and ZonesDirectory[zoneId] then
+                zNum = ZonesDirectory[zoneId].ZoneNumber or 1
+            end
+            
+            if zNum > highestZoneNum then
+                highestZoneNum = zNum
+                bestFarmBlocks = {{cf = CFrame.new(bPos + Vector3.new(0, 3, 0)), name = b.Name}}
+            elseif zNum == highestZoneNum then
+                table.insert(bestFarmBlocks, {cf = CFrame.new(bPos + Vector3.new(0, 3, 0)), name = b.Name})
+            end
         end
     end
-    return nil
+    
+    -- Quyết định xuất kích theo mức độ ưu tiên tuyệt đối
+    if cometTarget then return cometTarget, "Boss", cometName end
+    if config.BossChestBreak and bossTarget then return bossTarget, "Boss", bossName end
+    if config.AutoFarmBlocks and #bestFarmBlocks > 0 then
+        local randomFarm = bestFarmBlocks[math.random(1, #bestFarmBlocks)]
+        return randomFarm.cf, "Farm", randomFarm.name
+    end
+    
+    return nil, "None", nil
 end
--- 3. Quyết định Điều Hướng & Đập Phá (V8 ASYNC FAST FARM TÍCH HỢP)
+
+-- VÒNG LẶP HÀNH ĐỘNG (ASYNC FAST FARM)
+local lastScanTick = 0
 local lastFarmTick = 0
 local FARM_DELAY = 0.2 
+local cachedCF, cachedMode, cachedName = nil, "None", nil
 
 task.spawn(function()
     RunService.Heartbeat:Connect(function()
         pcall(function()
             local char = LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+            if not hrp then return end
+
+            local now = os.clock()
             
-            if not hrp or not breakables then return end
-
-            local targetCFrame = nil
-            local targetMode = "None"
-
-            -- XỬ LÝ LOGIC ĐIỀU HƯỚNG
-            if config.BossChestBreak and config.AutoFarmBlocks then
-                if isBossAlive and currentBossChest then
-                    targetCFrame = bossTargetCFrame
-                    targetMode = "Boss"
-                else
-                    targetCFrame = GetFarmCenterCFrame()
-                    targetMode = "Farm"
-                end
-            elseif config.BossChestBreak then
-                targetCFrame = bossTargetCFrame
-                targetMode = "Boss"
-            elseif config.AutoFarmBlocks then
-                targetCFrame = GetFarmCenterCFrame()
-                targetMode = "Farm"
+            -- Cập nhật Rada dò tìm mục tiêu mỗi 0.1 giây (Tránh tụt FPS)
+            if now - lastScanTick >= 0.1 then
+                lastScanTick = now
+                cachedCF, cachedMode, cachedName = GetBestTarget()
             end
 
-            -- ÁP DỤNG DỊCH CHUYỂN
-            if targetCFrame then hrp.CFrame = targetCFrame end
+            -- KHÓA VỊ TRÍ LIÊN TỤC (Chống văng ra ngoài)
+            if cachedCF then 
+                hrp.CFrame = cachedCF 
+            end
 
-            -- ÁP DỤNG TẤN CÔNG (ASYNC FAST FARM)
-            if targetMode == "Boss" then
-                if isBossAlive and currentBossChest then
-                    local bPos = currentBossChest:GetAttribute("CFrame") and currentBossChest:GetAttribute("CFrame").Position or (currentBossChest.PrimaryPart and currentBossChest.PrimaryPart.Position)
-                    if bPos and (bPos - hrp.Position).Magnitude < 50 then 
-                        -- Boss chỉ đập 1 mục tiêu nên dùng Fire thường
-                        Network.Fire("Breakables_PlayerDealDamage", currentBossChest.Name) 
-                        
-                        -- Gọi Pet đánh Boss
-                        local myPets = {}
-                        for euid, pet in pairs(PlayerPet.GetAll()) do
-                            if pet.owner == LocalPlayer then table.insert(myPets, euid) end
-                        end
-                        if #myPets > 0 then
-                            local bulkAssignments = {}
-                            for i = 1, #myPets do bulkAssignments[myPets[i]] = currentBossChest.Name end
-                            task.defer(function() Network.Fire("Breakables_JoinPetBulk", bulkAssignments) end)
-                        end
-                    end
-                end
-                
-            elseif targetMode == "Farm" then
-                -- THUẬT TOÁN DELAY 0.2s CHỐNG LAG
-                local now = os.clock()
-                if now - lastFarmTick < FARM_DELAY then return end
+            -- HỆ THỐNG ĐẠP PHÁ XẢ SKILL
+            if now - lastFarmTick >= FARM_DELAY then
                 lastFarmTick = now
 
-                local hrpPos = hrp.Position
-                local targets = {}
-                
-                -- Quét mục tiêu siêu tốc (Bán kính 130 stud, lấy max 50 mục tiêu)
-                for _, b in ipairs(breakables:GetChildren()) do
-                    if b:IsA("Model") and b.PrimaryPart then
-                        if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
-                            table.insert(targets, b.Name)
-                            if #targets >= 50 then break end
-                        end
-                    end
-                end
-
-                local numTargets = #targets
-                if numTargets > 0 then
-                    -- 1. CLICK AURA (Gây sát thương người chơi)
-                    local auraLimit = math.min(numTargets, config.AutoTapMultiple and 30 or 1)
-                    for i = 1, auraLimit do
-                        Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i])
-                    end
-
-                    -- 2. GỌI PET HÀNG LOẠT (Chia đều Pet cho các khối)
+                if cachedMode == "Boss" and cachedName then
+                    -- Dồn 100% hỏa lực vào 1 Boss/Comet
+                    Network.UnreliableFire("Breakables_PlayerDealDamage", cachedName)
+                    
                     local myPets = {}
                     for euid, pet in pairs(PlayerPet.GetAll()) do
                         if pet.owner == LocalPlayer then table.insert(myPets, euid) end
                     end
-
-                    local numPets = #myPets
-                    if numPets > 0 then
+                    if #myPets > 0 then
                         local bulkAssignments = {}
-                        for i = 1, numPets do
-                            local targetIndex = ((i - 1) % numTargets) + 1
-                            bulkAssignments[myPets[i]] = targets[targetIndex]
+                        for i = 1, #myPets do bulkAssignments[myPets[i]] = cachedName end
+                        task.defer(function() Network.Fire("Breakables_JoinPetBulk", bulkAssignments) end)
+                    end
+                    
+                elseif cachedMode == "Farm" then
+                    -- Aura đập nát toàn bộ khối xung quanh 130 studs
+                    local breakables = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+                    if not breakables then return end
+                    
+                    local hrpPos = hrp.Position
+                    local targets = {}
+                    
+                    for _, b in ipairs(breakables:GetChildren()) do
+                        if b:IsA("Model") and b.PrimaryPart then
+                            if (b.PrimaryPart.Position - hrpPos).Magnitude < 130 then 
+                                table.insert(targets, b.Name)
+                                if #targets >= 50 then break end
+                            end
+                        end
+                    end
+
+                    local numTargets = #targets
+                    if numTargets > 0 then
+                        local auraLimit = math.min(numTargets, config.AutoTapMultiple and 30 or 1)
+                        for i = 1, auraLimit do
+                            Network.UnreliableFire("Breakables_PlayerDealDamage", targets[i])
                         end
 
-                        if next(bulkAssignments) then
-                            task.defer(function()
-                                Network.Fire("Breakables_JoinPetBulk", bulkAssignments)
-                            end)
+                        local myPets = {}
+                        for euid, pet in pairs(PlayerPet.GetAll()) do
+                            if pet.owner == LocalPlayer then table.insert(myPets, euid) end
+                        end
+
+                        local numPets = #myPets
+                        if numPets > 0 then
+                            local bulkAssignments = {}
+                            for i = 1, numPets do
+                                local targetIndex = ((i - 1) % numTargets) + 1
+                                bulkAssignments[myPets[i]] = targets[targetIndex]
+                            end
+                            if next(bulkAssignments) then
+                                task.defer(function() Network.Fire("Breakables_JoinPetBulk", bulkAssignments) end)
+                            end
                         end
                     end
                 end
             end
-            
         end)
     end)
 end)
-
 -- GIAO DIỆN
 local FarmUI = {}; FarmUI.__index = FarmUI
 function FarmUI.new(Config)
