@@ -374,6 +374,24 @@ CreateSmartToggle(TabPet, "Auto Craft Gold Pets", "AutoGold")
 CreateSmartToggle(TabPet, "Auto Craft Rainbow Pets", "AutoRainbow")
 
 -- ==============================================================
+-- 🔍 HÀM QUÉT VÉ VÒNG QUAY (WHEEL TICKETS SCANNER)
+-- ==============================================================
+local function GetAvailableWheels()
+    local list = {}
+    local inv = Save.Get().Inventory.Misc or {}
+    
+    for _, item in pairs(inv) do
+        -- Lọc các vật phẩm có chữ "Wheel Ticket" trong ID
+        if item.id and type(item.id) == "string" and item.id:match("Wheel Ticket") then
+            if not table.find(list, item.id) then
+                table.insert(list, item.id)
+            end
+        end
+    end
+    return #list > 0 and list or {"No Wheel Tickets Found"}
+end
+
+-- ==============================================================
 -- 📦 Tab 3: Open Lootboxes
 -- ==============================================================
 local TabOpen = Window:CreateTab("Open Lootboxes", "package")
@@ -410,22 +428,13 @@ TabOpen:CreateToggle({
     Callback = function(state) getgenv().v_settings.functionToggles.AutoOpenGift = state end
 })
 
-TabOpen:CreateButton({
-    Name = "🔄 Refresh Inventory", 
-    Callback = function() 
-        DL:Refresh(GetAvailableLootboxes(), true)
-        DG:Refresh(GetAvailableGifts(), true) 
-    end
-})
-
 TabOpen:CreateSection("Spinny Wheels")
--- Khởi tạo biến cho Spinny Wheel
-getgenv().v_settings.functionToggles.SelectedWheel = getgenv().v_settings.functionToggles.SelectedWheel or "StarterWheel"
+getgenv().v_settings.functionToggles.SelectedWheel = getgenv().v_settings.functionToggles.SelectedWheel or "No Wheel Tickets Found"
 getgenv().v_settings.functionToggles.AutoSpinWheel = getgenv().v_settings.functionToggles.AutoSpinWheel or false
 
-TabOpen:CreateDropdown({
-    Name = "Select Wheel",
-    Options = {"StarterWheel", "TechWheel", "VoidWheel"}, -- Các loại vòng quay trong game
+local DW = TabOpen:CreateDropdown({
+    Name = "Select Wheel Ticket",
+    Options = {"Loading..."}, 
     CurrentOption = {getgenv().v_settings.functionToggles.SelectedWheel},
     Flag = "DropWheel",
     Callback = function(Option) getgenv().v_settings.functionToggles.SelectedWheel = Option[1] end
@@ -438,38 +447,71 @@ TabOpen:CreateToggle({
     Callback = function(state) getgenv().v_settings.functionToggles.AutoSpinWheel = state end
 })
 
+TabOpen:CreateButton({
+    Name = "🔄 Refresh All Inventory (Lootboxes, Gifts, Wheels)", 
+    Callback = function() 
+        DL:Refresh(GetAvailableLootboxes(), true)
+        DG:Refresh(GetAvailableGifts(), true) 
+        DW:Refresh(GetAvailableWheels(), true)
+    end
+})
+
+-- Tự động Refresh danh sách vé vòng quay khi load script
+task.delay(2.5, function()
+    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
+end)
+
 -- ==============================================================
 -- 🔄 VÒNG LẶP CHẠY NGẦM: AUTO SPIN WHEEL
 -- ==============================================================
+-- Bảng quy đổi (Mapping) từ tên Vé trong kho sang Mã Remote của Game
+local WheelMap = {
+    ["Spinny Wheel Ticket"] = "StarterWheel",
+    ["Tech Spinny Wheel Ticket"] = "TechWheel",
+    ["Void Spinny Wheel Ticket"] = "VoidWheel"
+}
+
 task.spawn(function()
-    while task.wait(2.5) do
+    while task.wait(3) do
         if getgenv().v_settings.functionToggles.AutoSpinWheel then
             local sW = getgenv().v_settings.functionToggles.SelectedWheel
-            if sW then
+            if sW and sW ~= "No Wheel Tickets Found" then
+                -- Chuyển đổi tên Vé thành mã Wheel ID để gửi lên server
+                local wheelID = WheelMap[sW] or "StarterWheel"
                 pcall(function()
-                    -- Gửi lệnh quay tương ứng với vòng quay đã chọn
-                    Network.Invoke("Spinny Wheel: Request Spin", sW)
+                    Network.Invoke("Spinny Wheel: Request Spin", wheelID)
                 end)
             end
         end
     end
 end)
 -- ==============================================================
--- 🔍 HÀM QUÉT CHÌA KHÓA (KEYS SCANNER)
+-- 🔍 HÀM QUÉT VÀ TÍNH TOÁN CHÌA KHÓA
 -- ==============================================================
 local function GetAvailableKeys()
     local list = {"All"}
     local inv = Save.Get().Inventory.Misc or {}
     for _, item in pairs(inv) do
-        if item.id and type(item.id) == "string" and item.id:match("Key") and item.id:match("Half") then
-            -- Cắt bỏ chữ "Lower Half" hoặc "Upper Half" để lấy tên gốc (VD: "Crystal Key")
+        if type(item.id) == "string" and item.id:match("Key") and item.id:match("Half") then
+            -- Lấy tên gốc của chìa khóa (VD: "Crystal Key")
             local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
-            if not table.find(list, baseName) then
-                table.insert(list, baseName)
-            end
+            if not table.find(list, baseName) then table.insert(list, baseName) end
         end
     end
     return #list > 1 and list or {"All", "No Keys Found"}
+end
+
+local function GetKeyCraftAmount(baseKeyName)
+    local inv = Save.Get().Inventory.Misc or {}
+    local upper = 0
+    local lower = 0
+    -- Đếm số lượng nửa trên và nửa dưới
+    for _, item in pairs(inv) do
+        if item.id == baseKeyName .. " Upper Half" then upper = upper + (item._am or 1) end
+        if item.id == baseKeyName .. " Lower Half" then lower = lower + (item._am or 1) end
+    end
+    -- Số lượng chìa có thể ghép là số nhỏ hơn giữa 2 nửa
+    return math.min(upper, lower)
 end
 
 -- ==============================================================
@@ -481,8 +523,7 @@ TabItem:CreateSection("Auto Items")
 CreateSmartToggle(TabItem, "Smart Auto Fruit (Maintain Max Buffs)", "AutoFruit")
 CreateSmartToggle(TabItem, "Auto Combine Fantasy Presents", "AutoCombine")
 
-TabItem:CreateSection("Auto Combine Keys")
--- Thiết lập giá trị mặc định cho Keys
+TabItem:CreateSection("Auto Combine Keys (Batch Mode)")
 getgenv().v_settings.functionToggles.SelectedKey = getgenv().v_settings.functionToggles.SelectedKey or "All"
 getgenv().v_settings.functionToggles.AutoCombineKeys = getgenv().v_settings.functionToggles.AutoCombineKeys or false
 
@@ -495,7 +536,7 @@ local DK = TabItem:CreateDropdown({
 })
 
 TabItem:CreateToggle({
-    Name = "Auto Combine Keys", 
+    Name = "Auto Combine Keys (Max Speed)", 
     CurrentValue = getgenv().v_settings.functionToggles.AutoCombineKeys, 
     Flag = "ToggleCombineKeys", 
     Callback = function(state) getgenv().v_settings.functionToggles.AutoCombineKeys = state end
@@ -515,8 +556,7 @@ local DF = TabItem:CreateDropdown({
 })
 TabItem:CreateButton({Name = "🔄 Refresh Flags", Callback = function() DF:Refresh(GetAvailableFlags(), true) end})
 
--- Cập nhật đồng loạt các Dropdown sau 2 giây (Khởi động xong)
-task.delay(2, function() 
+task.delay(2.5, function() 
     if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
     if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
     if DF then pcall(function() DF:Refresh(GetAvailableFlags(), true) end) end
@@ -529,7 +569,7 @@ CreateSmartToggle(TabItem, "Auto Claim Free Gifts & Mailbox", "AutoMisc")
 CreateSmartToggle(TabItem, "Auto Claim Rank Rewards", "ClaimRank")
 
 -- ==============================================================
--- 🔄 VÒNG LẶP CHẠY NGẦM: AUTO COMBINE KEYS
+-- 🔄 VÒNG LẶP CHẠY NGẦM: BATCH COMBINE KEYS
 -- ==============================================================
 task.spawn(function()
     while task.wait(1.5) do
@@ -538,7 +578,6 @@ task.spawn(function()
             if sK and sK ~= "No Keys Found" then
                 local keysToProcess = {}
                 
-                -- Nếu chọn All, lấy toàn bộ danh sách chìa khóa đang có
                 if sK == "All" then
                     local availKeys = GetAvailableKeys()
                     for _, k in ipairs(availKeys) do
@@ -550,14 +589,17 @@ task.spawn(function()
                     table.insert(keysToProcess, sK)
                 end
                 
-                -- Gửi lệnh ghép lên Server cho từng loại chìa khóa
                 for _, keyName in ipairs(keysToProcess) do
-                    -- Định dạng lại tên: Xóa dấu cách và thêm chữ _Combine 
-                    -- (Ví dụ: "Crystal Key" thành "CrystalKey_Combine")
-                    local remoteName = keyName:gsub(" ", "") .. "_Combine"
-                    pcall(function()
-                        Network.Invoke(remoteName, 1)
-                    end)
+                    -- Tính toán chính xác số lượng có thể ghép dựa trên túi đồ hiện tại
+                    local craftAmount = GetKeyCraftAmount(keyName)
+                    
+                    if craftAmount > 0 then
+                        local remoteName = keyName:gsub(" ", "") .. "_Combine"
+                        pcall(function()
+                            -- Gửi chính xác số lượng tối đa lên Server (Server sẽ tự điều chỉnh theo Mastery)
+                            Network.Invoke(remoteName, craftAmount)
+                        end)
+                    end
                 end
             end
         end
