@@ -101,42 +101,7 @@ local function GetAvailableGifts()
     Scan(invL); Scan(invM)
     return #list > 0 and list or {"No Gifts/Bundles Found"}
 end
--- ==============================================================
--- 🔍 KEY SCANNERS & MATH
--- ==============================================================
-local function GetAvailableKeys()
-    local list = {"All"}
-    local inv = Save.Get().Inventory.Misc or {}
-    
-    for _, item in pairs(inv) do
-        -- Tìm các mảnh ghép có chữ "Half"
-        if item.id and type(item.id) == "string" and item.id:match("Half") then
-            -- Lọc ra tên gốc của Key (vd: "Crystal Key" từ "Crystal Key Lower Half")
-            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
-            if not table.find(list, baseName) then
-                table.insert(list, baseName)
-            end
-        end
-    end
-    return #list > 1 and list or {"No Keys Found"}
-end
 
-local function GetKeyCraftAmount(baseKeyName)
-    local inv = Save.Get().Inventory.Misc or {}
-    local lowerCount = 0
-    local upperCount = 0
-    
-    for _, item in pairs(inv) do
-        if item.id == baseKeyName .. " Lower Half" then
-            lowerCount = lowerCount + (item._am or 1)
-        elseif item.id == baseKeyName .. " Upper Half" then
-            upperCount = upperCount + (item._am or 1)
-        end
-    end
-    
-    -- Số lượng craft được phụ thuộc vào mảnh có số lượng ít nhất
-    return math.min(lowerCount, upperCount)
-end
 -- ==============================================================
 -- ⚙️ GLOBAL SETTINGS & FUNCTIONS
 -- ==============================================================
@@ -522,6 +487,43 @@ task.spawn(function()
 end)
 
 -- ==============================================================
+-- 🔍 KEY SCANNERS & MATH (Bổ sung cho hệ thống ghép Key)
+-- ==============================================================
+local function GetAvailableKeys()
+    local list = {"All"}
+    local inv = Save.Get().Inventory.Misc or {}
+    
+    for _, item in pairs(inv) do
+        -- Tìm các mảnh ghép có chữ "Half" (ví dụ: Crystal Key Lower Half)
+        if item.id and type(item.id) == "string" and item.id:match("Half") then
+            -- Cắt bỏ chữ " Lower Half" hoặc " Upper Half" để lấy tên gốc "Crystal Key"
+            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
+            if not table.find(list, baseName) then
+                table.insert(list, baseName)
+            end
+        end
+    end
+    return #list > 1 and list or {"No Keys Found"}
+end
+
+local function GetKeyCraftAmount(baseKeyName)
+    local inv = Save.Get().Inventory.Misc or {}
+    local lowerCount = 0
+    local upperCount = 0
+    
+    for _, item in pairs(inv) do
+        if item.id == baseKeyName .. " Lower Half" then
+            lowerCount = lowerCount + (item._am or 1)
+        elseif item.id == baseKeyName .. " Upper Half" then
+            upperCount = upperCount + (item._am or 1)
+        end
+    end
+    
+    -- Số lượng key ghép được tối đa phụ thuộc vào mảnh có số lượng ít nhất
+    return math.min(lowerCount, upperCount)
+end
+
+-- ==============================================================
 -- 🎒 Tab 4: Items & Events
 -- ==============================================================
 local TabItem = Window:CreateTab("Items & Events", "backpack")
@@ -551,7 +553,9 @@ TabItem:CreateToggle({
 
 TabItem:CreateButton({
     Name = "🔄 Refresh Keys", 
-    Callback = function() DK:Refresh(GetAvailableKeys(), true) end
+    Callback = function() 
+        pcall(function() DK:Refresh(GetAvailableKeys(), true) end) 
+    end
 })
 
 TabItem:CreateSection("Flags & Events")
@@ -561,8 +565,14 @@ local DF = TabItem:CreateDropdown({
     CurrentOption = {getgenv().v_settings.functionToggles.SelectedFlag},
     Callback = function(Option) getgenv().v_settings.functionToggles.SelectedFlag = Option[1] end
 })
-TabItem:CreateButton({Name = "🔄 Refresh Flags", Callback = function() DF:Refresh(GetAvailableFlags(), true) end})
+TabItem:CreateButton({
+    Name = "🔄 Refresh Flags", 
+    Callback = function() 
+        pcall(function() DF:Refresh(GetAvailableFlags(), true) end) 
+    end
+})
 
+-- Tự động làm mới danh sách khi Script vừa load xong
 task.delay(2.5, function() 
     if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
     if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
@@ -597,13 +607,15 @@ task.spawn(function()
                 end
                 
                 for _, keyName in ipairs(keysToProcess) do
-                    -- Tính toán chính xác số lượng có thể ghép dựa trên túi đồ hiện tại
+                    -- Tính toán chính xác số lượng có thể ghép
                     local craftAmount = GetKeyCraftAmount(keyName)
                     
                     if craftAmount > 0 then
+                        -- Format chuẩn "CrystalKey_Combine" dựa theo log của Spy
                         local remoteName = keyName:gsub(" ", "") .. "_Combine"
+                        
                         pcall(function()
-                            -- Gửi chính xác số lượng tối đa lên Server (Server sẽ tự điều chỉnh theo Mastery)
+                            -- Gửi Invoke với RemoteName và Argument [1] là craftAmount
                             Network.Invoke(remoteName, craftAmount)
                         end)
                     end
