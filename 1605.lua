@@ -58,7 +58,7 @@ end
 
 local CraftRecipes = {
     [1] = { Target = "Lucky Dice II V2", Input = "Lucky Dice V2", DiceCost = 5, CoinCost = 100 },
-	[2] = { Target = "Lucky Dice III V2", Input = "Lucky Dice II V2", DiceCost = 15, CoinCost = 800000 },
+    [2] = { Target = "Lucky Dice III V2", Input = "Lucky Dice II V2", DiceCost = 15, CoinCost = 800000 },
     [3] = { Target = "Mega Lucky Dice V2", Input = "Lucky Dice III V2", DiceCost = 2, CoinCost = 100000 },
     [4] = { Target = "Mega Lucky Dice II V2", Input = "Mega Lucky Dice V2", DiceCost = 3, CoinCost = 300000 }, 
     [5] = { Target = "Fire Dice V2", Input = "Lucky Dice V2", DiceCost = 100, CoinCost = 3900000 }	
@@ -468,6 +468,10 @@ task.spawn(function()
                 if (not dice2 or (dice2.remaining and tonumber(dice2.remaining) < 3)) and GetDiceCount("Lucky Dice II V2") > 0 then
                     Network.Invoke("LuckyDice_Consume", "Lucky Dice II V2", 1); task.wait(0.5)
                 end
+		local dice3 = buffs["Lucky Dice III V2"]
+                if (not dice3 or (dice3.remaining and tonumber(dice3.remaining) < 3)) and GetDiceCount("Lucky Dice III V2") > 0 then
+                    Network.Invoke("LuckyDice_Consume", "Lucky Dice III V2", 1); task.wait(0.5)
+                end
             end)
         end
     end
@@ -801,7 +805,7 @@ local UI = FarmUI.new({
         ["Rolls"]    = {4, "Total Rolls: 0"},
         ["Dice1"]    = {5, "Lucky Dice: 0 | Lucky II: 0"},
         ["Dice2"]    = {6, "Mega Dice: 0 | Mega II: 0"},
-		["Dice3"]    = {7, "Lucky III: 0 | Fire: 0"}
+	["Dice3"]    = {7, "Lucky III: 0 | Fire: 0"}
     }
 })
 
@@ -821,7 +825,7 @@ task.spawn(function()
         UI:SetText("Rolls", "Total Rolls: " .. FormatValue(currentRolls))
         UI:SetText("Dice1", string.format("Lucky: %s | Lucky II: %s", FormatValue(GetDiceCount("Lucky Dice V2")), FormatValue(GetDiceCount("Lucky Dice II V2"))))
         UI:SetText("Dice2", string.format("Mega: %s | Mega II: %s", FormatValue(GetDiceCount("Mega Lucky Dice V2")), FormatValue(GetDiceCount("Mega Lucky Dice II V2"))))
-	UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(GetDiceCount("Lucky Dice III")), FormatValue(GetDiceCount("Fire Dice"))))
+	UI:SetText("Dice3", string.format("Lucky III: %s | Fire: %s", FormatValue(GetDiceCount("Lucky Dice III V2")), FormatValue(GetDiceCount("Fire Dice V2"))))
         frames = 0
     end
 end)
