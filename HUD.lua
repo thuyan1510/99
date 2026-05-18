@@ -101,7 +101,42 @@ local function GetAvailableGifts()
     Scan(invL); Scan(invM)
     return #list > 0 and list or {"No Gifts/Bundles Found"}
 end
+-- ==============================================================
+-- 🔍 KEY SCANNERS & MATH
+-- ==============================================================
+local function GetAvailableKeys()
+    local list = {"All"}
+    local inv = Save.Get().Inventory.Misc or {}
+    
+    for _, item in pairs(inv) do
+        -- Tìm các mảnh ghép có chữ "Half"
+        if item.id and type(item.id) == "string" and item.id:match("Half") then
+            -- Lọc ra tên gốc của Key (vd: "Crystal Key" từ "Crystal Key Lower Half")
+            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
+            if not table.find(list, baseName) then
+                table.insert(list, baseName)
+            end
+        end
+    end
+    return #list > 1 and list or {"No Keys Found"}
+end
 
+local function GetKeyCraftAmount(baseKeyName)
+    local inv = Save.Get().Inventory.Misc or {}
+    local lowerCount = 0
+    local upperCount = 0
+    
+    for _, item in pairs(inv) do
+        if item.id == baseKeyName .. " Lower Half" then
+            lowerCount = lowerCount + (item._am or 1)
+        elseif item.id == baseKeyName .. " Upper Half" then
+            upperCount = upperCount + (item._am or 1)
+        end
+    end
+    
+    -- Số lượng craft được phụ thuộc vào mảnh có số lượng ít nhất
+    return math.min(lowerCount, upperCount)
+end
 -- ==============================================================
 -- ⚙️ GLOBAL SETTINGS & FUNCTIONS
 -- ==============================================================
@@ -485,34 +520,6 @@ task.spawn(function()
         end
     end
 end)
--- ==============================================================
--- 🔍 HÀM QUÉT VÀ TÍNH TOÁN CHÌA KHÓA
--- ==============================================================
-local function GetAvailableKeys()
-    local list = {"All"}
-    local inv = Save.Get().Inventory.Misc or {}
-    for _, item in pairs(inv) do
-        if type(item.id) == "string" and item.id:match("Key") and item.id:match("Half") then
-            -- Lấy tên gốc của chìa khóa (VD: "Crystal Key")
-            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
-            if not table.find(list, baseName) then table.insert(list, baseName) end
-        end
-    end
-    return #list > 1 and list or {"All", "No Keys Found"}
-end
-
-local function GetKeyCraftAmount(baseKeyName)
-    local inv = Save.Get().Inventory.Misc or {}
-    local upper = 0
-    local lower = 0
-    -- Đếm số lượng nửa trên và nửa dưới
-    for _, item in pairs(inv) do
-        if item.id == baseKeyName .. " Upper Half" then upper = upper + (item._am or 1) end
-        if item.id == baseKeyName .. " Lower Half" then lower = lower + (item._am or 1) end
-    end
-    -- Số lượng chìa có thể ghép là số nhỏ hơn giữa 2 nửa
-    return math.min(upper, lower)
-end
 
 -- ==============================================================
 -- 🎒 Tab 4: Items & Events
