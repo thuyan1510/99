@@ -180,13 +180,12 @@ local function ClaimAllReadyPets()
         if remaining <= 0 then
             warn("[POODLE DAYCARE] 🟢 Phát hiện Pet hết thời gian chờ, tiến hành Claim UID: " .. tostring(uid))
             local success, err = pcall(function()
-                return Network.Invoke("Daycare: Claim", uid)
+                return Network.Invoke("Daycare: Claim")
             end)
             if success then
-                print("[POODLE DAYCARE] ✅ Đã nhận thành công vật phẩm từ Pet UID: " .. tostring(uid))
                 task.wait(0.5)
             else
-                warn("[POODLE DAYCARE] ❌ Lỗi Claim: " .. tostring(err))
+                warn("[POODLE DAYCARE] ❌ Error Claim: " .. tostring(err))
             end
         end
     end
@@ -245,19 +244,18 @@ local function EnrollBestPets()
         if takeAmount > 0 then
             petsToEnroll[petData.uid] = takeAmount
             slotsFilled = slotsFilled + takeAmount
-            print("[POODLE DAYCARE] 📋 Lựa chọn phu: " .. tostring(petData.name) .. " x" .. tostring(takeAmount) .. " [Score: " .. tostring(petData.score) .. "]")
-        end
+         end
     end
 
     if slotsFilled > 0 then
-        warn("[POODLE DAYCARE] 🚀 Đang gửi gói tin gửi " .. slotsFilled .. " Pet vào Daycare...")
+        warn("[POODLE DAYCARE] 🚀 " .. slotsFilled ..")
         local success, err = pcall(function()
             return Network.Invoke("Daycare: Enroll", petsToEnroll)
         end)
         if success then
-            print("[POODLE DAYCARE] ✅ Gửi Pet vào nhà trẻ thành công!")
+            print("[POODLE DAYCARE] ✅!")
         else
-            warn("[POODLE DAYCARE] ❌ Gửi Thất Bại: " .. tostring(err))
+            warn("[POODLE DAYCARE] ❌ " .. tostring(err))
         end
     end
 end
