@@ -240,7 +240,7 @@ vm:Add("TargetZoneId", nil, "string"); vm:Add("FlagZoneOffset", 0, "number"); vm
 -- ==========================================
 pcall(function()
     PlayerPet.CalculateSpeedMultiplier = function() return math.huge end
-    if PlayerPet.SetTarget then PlayerPet.SetTarget = function()end end
+    if PlayerPet.SetTarget then PlayerPet.SetTarget = function() return end end
 end)
 
 task.spawn(function()
@@ -351,7 +351,7 @@ local OriginalPlayEggAnimation = EggFrontend and EggFrontend.PlayEggAnimation or
 local function ToggleEggAnimation()
     if not EggFrontend then return end
     if getgenv().HideEggAnimation then
-        EggFrontend.PlayEggAnimation = function() end; EggFrontend.PlayCustom = function() return end
+        EggFrontend.PlayEggAnimation = function() return end; EggFrontend.PlayCustom = function() return end
     else EggFrontend.PlayEggAnimation = OriginalPlayEggAnimation end
 end
 
@@ -563,16 +563,22 @@ task.spawn(function()
                 else
                     if dist > 45 then
                         if vm:Get("IsPetQuestActive") then 
+                            -- SỬA Ở ĐÂY: Gắn cờ True để cho phép Fast Farm đánh quái ở khu vực ấp trứng
                             vm:Set("IsReadyToFarm", true) 
-                            vm:Set("OutZoneTime", os.clock() - 2) -- Đổi thành 2 giây
+                            
+                            -- SỬA Ở ĐÂY: Lùi thời gian OutZoneTime lại 5 giây. 
+                            -- Để ngay khi nhiệm vụ xong, nó thỏa mãn điều kiện và DỊCH CHUYỂN VỀ NGAY LẬP TỨC
+                            vm:Set("OutZoneTime", os.clock() - 5) 
                         else
                             local outTime = vm:Get("OutZoneTime")
                             if outTime == 0 then vm:Set("OutZoneTime", os.clock())
-                            elseif os.clock() - outTime >= 2 then -- Quay về sau 2 giây
+                            elseif os.clock() - outTime >= 5 then 
                                 vm:Set("IsReadyToFarm", false); hrp.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0); task.wait(0.5); vm:Set("OutZoneTime", 0) 
                             end
                         end
                     else vm:Set("OutZoneTime", 0); vm:Set("IsReadyToFarm", true); vm:Set("current_zone", maxZoneId) end
+                end
+            else vm:Set("IsReadyToFarm", false) end
 	end
     end
 end)
@@ -599,7 +605,7 @@ table.insert(_G.AutoRankConnections, RunService.Heartbeat:Connect(function()
         if b:IsA("Model") and b.PrimaryPart then
             if (b.PrimaryPart.Position - rootPos).Magnitude < 130 then
                 table.insert(targets, b.Name)
-                if #targets >= 40 then break end
+                if #targets >= 50 then break end
             end
         end
     end
@@ -697,8 +703,7 @@ end)
 task.spawn(function()
     while task.wait(5) do
         pcall(function()
-            local saveCache = GetCachedSave()
-            local currentEquips = (saveCache and saveCache.PetSlotsPurchased) or 0
+            local currentEquips = (GetCachedSave() and GetCachedSave()["PetSlotsPurchased"]) or 0
             if currentEquips < RankCmds.GetMaxPurchasableEquipSlots() then Network.Invoke("EquipSlotsMachine_RequestPurchase", currentEquips + 1) end
         end)
     end
