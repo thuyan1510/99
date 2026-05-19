@@ -586,10 +586,10 @@ CreateSmartToggle(TabItem, "Auto Claim Free Gifts & Mailbox", "AutoMisc")
 CreateSmartToggle(TabItem, "Auto Claim Rank Rewards", "ClaimRank")
 
 -- ==============================================================
--- 🔄 VÒNG LẶP CHẠY NGẦM: BATCH COMBINE KEYS
+-- 🔄 VÒNG LẶP CHẠY NGẦM: BATCH COMBINE KEYS (FIXED SPAM BATCH)
 -- ==============================================================
 task.spawn(function()
-    while task.wait(1.5) do
+    while task.wait(0.5) do -- Chạy siêu nhanh mỗi 0.5 giây
         if getgenv().v_settings.functionToggles.AutoCombineKeys then
             local sK = getgenv().v_settings.functionToggles.SelectedKey
             if sK and sK ~= "No Keys Found" then
@@ -607,17 +607,20 @@ task.spawn(function()
                 end
                 
                 for _, keyName in ipairs(keysToProcess) do
-                    -- Tính toán chính xác số lượng có thể ghép
                     local craftAmount = GetKeyCraftAmount(keyName)
                     
                     if craftAmount > 0 then
-                        -- Format chuẩn "CrystalKey_Combine" dựa theo log của Spy
                         local remoteName = keyName:gsub(" ", "") .. "_Combine"
                         
-                        pcall(function()
-                            -- Gửi Invoke với RemoteName và Argument [1] là craftAmount
-                            Network.Invoke(remoteName, craftAmount)
-                        end)
+                        -- Giới hạn ghép tối đa 25 lần mỗi chu kỳ để tránh bị server kick vì spam (Rate Limit)
+                        local loops = math.min(craftAmount, 25) 
+                        
+                        for i = 1, loops do
+                            pcall(function()
+                                -- Bắn chính xác Argument là 1 theo đúng chuẩn của Game
+                                Network.Invoke(remoteName, 1)
+                            end)
+                        end
                     end
                 end
             end
