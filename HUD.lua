@@ -20,7 +20,7 @@ local InstancingCmds = require(Lib.Client.InstancingCmds)
 local UltimateCmds = require(Lib.Client.UltimateCmds)
 local NotificationCmds = require(Lib.Client.NotificationCmds)
 local FruitCmds = require(Lib.Client.FruitCmds)
-local DaycareCmds = require(Lib.Client.DaycareCmds) -- Thêm module Daycare
+local DaycareCmds = require(Lib.Client.DaycareCmds)
 local WorldsUtil = require(Lib.Util.WorldsUtil)
 local EggsDirectory = require(Lib.Directory.Eggs)
 local FreeGiftsDirectory = require(Lib.Directory.FreeGifts)
@@ -50,7 +50,7 @@ local defaultToggles = {
     AutoFruit = false, AutoCombine = false, AutoFlag = false, AutoUltimate = false, AutoMisc = false, ClaimRank = false,
     Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
     OptimizeBreakables = false, OptimizePets = false, AutoSpinWheel = false, AutoCombineKeys = false,
-    AutoDaycare = false -- Thêm trạng thái lưu của Daycare
+    AutoDaycare = false
 }
 
 local savedConfig = { Toggles = {}, Dropdowns = { SelectedLootbox = "None", SelectedGift = "None", SelectedFlag = "None", SelectedWheel = "No Wheel Tickets Found", SelectedKey = "All" } }
@@ -86,7 +86,7 @@ end
 -- ==============================================================
 local function OptimizeVisual(child)
     task.spawn(function()
-        task.wait(0.05) -- Chờ hoãn nhẹ để module của game khởi tạo xong trạng thái vật thể
+        task.wait(0.05)
         pcall(function()
             for _, v in ipairs(child:GetDescendants()) do
                 if v:IsA("BasePart") then
@@ -168,23 +168,44 @@ local function GetKeyCraftAmount(baseKeyName)
 end
 
 -- ==============================================================
--- 🏫 HỆ THỐNG LOGIC DAYCARE CORE (ĐÃ XÓA LOG & FIX CLAIM ALL)
+-- 🏫 HỆ THỐNG LOGIC DAYCARE CORE (HOÀN THIỆN TỐI ƯU)
 -- ==============================================================
+local function FakeMachineInteraction()
+    pcall(function()
+        Network.Fire("Machines: Mark Approached", "SuperMachine")
+        task.wait(0.1)
+        Network.Fire("EventLog_Once", "OpenTab", "SuperMachine")
+        task.wait(0.1)
+        Network.Fire("EventLog_Once", "CloseTab", "SuperMachine")
+        task.wait(0.1)
+        Network.Fire("EventLog_Once", "OpenTab", "DaycareMachine")
+        task.wait(0.2)
+    end)
+end
+
+local function CloseFakeMachine()
+    pcall(function()
+        Network.Fire("EventLog_Once", "CloseTab", "DaycareMachine")
+    end)
+end
+
 local function ClaimAllReadyPets()
     local data = Save.Get()
     if not data then return end
-    local daycareActive = data.DaycareActive or {}
     
-    for uid, petData in pairs(daycareActive) do
-        local remaining = DaycareCmds.ComputeRemainingTime(petData, workspace:GetServerTimeNow())
-        if remaining <= 0 then
-            pcall(function()
-                -- Gửi lệnh Claim trống không cần truyền UID (Nhận tất cả)
-                Network.Invoke("Daycare: Claim")
-            end)
-            task.wait(0.5)
-            break -- Đã Claim All nên chỉ cần gọi 1 lần là đủ, thoát vòng lặp
-        end
+    local daycareActive = data.DaycareActive or {}
+    local hasPets = false
+    for _, _ in pairs(daycareActive) do 
+        hasPets = true 
+        break 
+    end
+
+    if hasPets then
+        pcall(function()
+            FakeMachineInteraction()
+            Network.Invoke("Daycare: Claim")
+            CloseFakeMachine()
+        end)
     end
 end
 
@@ -246,7 +267,9 @@ local function EnrollBestPets()
 
     if slotsFilled > 0 then
         pcall(function()
+            FakeMachineInteraction()
             Network.Invoke("Daycare: Enroll", petsToEnroll)
+            CloseFakeMachine()
         end)
     end
 end
@@ -567,7 +590,6 @@ TabFarm:CreateToggle({
 })
 CreateSmartToggle(TabFarm, "Optimize Pets (Static/No Render)", "OptimizePets")
 
--- [ĐÃ DI CHUYỂN VÀO TAB 1]
 TabFarm:CreateSection("Auto Rewards & Ultimate")
 CreateSmartToggle(TabFarm, "Auto Use Ultimate", "AutoUltimate")
 CreateSmartToggle(TabFarm, "Auto Claim Free Gifts & Mailbox", "AutoMisc")
@@ -585,7 +607,6 @@ CreateSmartToggle(TabPet, "Hook Egg Animation (Notify)", "HookEgg")
 CreateSmartToggle(TabPet, "Auto Craft Gold Pets", "AutoGold")
 CreateSmartToggle(TabPet, "Auto Craft Rainbow Pets", "AutoRainbow")
 
--- [ĐÃ DI CHUYỂN VÀO TAB 2]
 TabPet:CreateSection("Mastery & Slots")
 TabPet:CreateButton({ Name = "Buy Pet Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyPetSlots() end })
 TabPet:CreateButton({ Name = "Buy Egg Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyEggSlots() end })
@@ -652,7 +673,6 @@ TabOpen:CreateButton({
     end
 })
 
--- [ĐÃ DI CHUYỂN VÀO TAB 3]
 TabOpen:CreateSection("Auto Combine Keys (Batch Mode)")
 local DK = TabOpen:CreateDropdown({
     Name = "Select Key to Combine",
