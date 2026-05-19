@@ -20,6 +20,7 @@ local InstancingCmds = require(Lib.Client.InstancingCmds)
 local UltimateCmds = require(Lib.Client.UltimateCmds)
 local NotificationCmds = require(Lib.Client.NotificationCmds)
 local FruitCmds = require(Lib.Client.FruitCmds)
+local DaycareCmds = require(Lib.Client.DaycareCmds) -- Thêm module Daycare
 local WorldsUtil = require(Lib.Util.WorldsUtil)
 local EggsDirectory = require(Lib.Directory.Eggs)
 local FreeGiftsDirectory = require(Lib.Directory.FreeGifts)
@@ -47,11 +48,12 @@ local defaultToggles = {
     FastFarm = false, AutoTimeTrial = false, AutoUnlock = false, BestZone = false, AutoLoot = false,
     AutoHatch = false, HideEgg = false, HookEgg = false, AutoGold = false, AutoRainbow = false,
     AutoFruit = false, AutoCombine = false, AutoFlag = false, AutoUltimate = false, AutoMisc = false, ClaimRank = false,
-    Blackout = false, AntiAFK = true, AutoOpenLootbox = false, AutoOpenGift = false,
-    OptimizeBreakables = false, OptimizePets = false
+    Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
+    OptimizeBreakables = false, OptimizePets = false, AutoSpinWheel = false, AutoCombineKeys = false,
+    AutoDaycare = false -- Thêm trạng thái lưu của Daycare
 }
 
-local savedConfig = { Toggles = {}, Dropdowns = { SelectedLootbox = "None", SelectedGift = "None", SelectedFlag = "None" } }
+local savedConfig = { Toggles = {}, Dropdowns = { SelectedLootbox = "None", SelectedGift = "None", SelectedFlag = "None", SelectedWheel = "No Wheel Tickets Found", SelectedKey = "All" } }
 
 for k, v in pairs(defaultToggles) do savedConfig.Toggles[k] = v end
 
@@ -71,10 +73,34 @@ local function SaveCurrentConfig()
         Dropdowns = {
             SelectedLootbox = getgenv().v_settings.functionToggles.SelectedLootbox or "None",
             SelectedGift = getgenv().v_settings.functionToggles.SelectedGift or "None",
-            SelectedFlag = getgenv().v_settings.functionToggles.SelectedFlag or "None"
+            SelectedFlag = getgenv().v_settings.functionToggles.SelectedFlag or "None",
+            SelectedWheel = getgenv().v_settings.functionToggles.SelectedWheel or "No Wheel Tickets Found",
+            SelectedKey = getgenv().v_settings.functionToggles.SelectedKey or "All"
         }
     }
     if writefile then pcall(function() writefile(configFileName, HttpService:JSONEncode(dataToSave)) end) end
+end
+
+-- ==============================================================
+-- 🛠️ HÀM TỐI ƯU HÓA ĐỆ QUY (FIX LỖI MEMORY LEAK & LOCKED PARENT)
+-- ==============================================================
+local function OptimizeVisual(child)
+    task.spawn(function()
+        task.wait(0.05) -- Chờ hoãn nhẹ để module của game khởi tạo xong trạng thái vật thể
+        pcall(function()
+            for _, v in ipairs(child:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Transparency = 1
+                    v.CanCollide = false
+                    v.CastShadow = false
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then
+                    v.Enabled = false
+                elseif v:IsA("Decal") or v:IsA("Texture") then
+                    v.Transparency = 1
+                end
+            end
+        end)
+    end)
 end
 
 -- ==============================================================
@@ -96,10 +122,144 @@ end
 
 local function GetAvailableGifts()
     local list = {}
-    local invL = Save.Get().Inventory.Lootbox or {}; local invM = Save.Get().Inventory.Misc or {}
+    local invL = Save.Get().Inventory.Lootbox or {}
+    local invM = Save.Get().Inventory.Misc or {}
     local function Scan(inventory) for _, item in pairs(inventory) do if item.id and (item.id:match("Gift") or item.id:match("Bundle") or item.id:match("Bag") or item.id:match("Present")) then if not table.find(list, item.id) then table.insert(list, item.id) end end end end
-    Scan(invL); Scan(invM)
+    Scan(invL)
+    Scan(invM)
     return #list > 0 and list or {"No Gifts/Bundles Found"}
+end
+
+local function GetAvailableWheels()
+    local list = {}
+    local inv = Save.Get().Inventory.Misc or {}
+    for _, item in pairs(inv) do
+        if item.id and type(item.id) == "string" and item.id:match("Wheel Ticket") then
+            if not table.find(list, item.id) then table.insert(list, item.id) end
+        end
+    end
+    return #list > 0 and list or {"No Wheel Tickets Found"}
+end
+
+local function GetAvailableKeys()
+    local list = {"All"}
+    local inv = Save.Get().Inventory.Misc or {}
+    for _, item in pairs(inv) do
+        if item.id and type(item.id) == "string" and item.id:match("Half") then
+            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
+            if not table.find(list, baseName) then table.insert(list, baseName) end
+        end
+    end
+    return #list > 1 and list or {"No Keys Found"}
+end
+
+local function GetKeyCraftAmount(baseKeyName)
+    local inv = Save.Get().Inventory.Misc or {}
+    local lowerCount = 0
+    local upperCount = 0
+    for _, item in pairs(inv) do
+        if item.id == baseKeyName .. " Lower Half" then
+            lowerCount = lowerCount + (item._am or 1)
+        elseif item.id == baseKeyName .. " Upper Half" then
+            upperCount = upperCount + (item._am or 1)
+        end
+    end
+    return math.min(lowerCount, upperCount)
+end
+
+-- ==============================================================
+-- 🏫 HỆ THỐNG LOGIC DAYCARE CORE & LOGGING
+-- ==============================================================
+local function ClaimAllReadyPets()
+    local data = Save.Get()
+    if not data then return end
+    local daycareActive = data.DaycareActive or {}
+    
+    for uid, petData in pairs(daycareActive) do
+        local remaining = DaycareCmds.ComputeRemainingTime(petData, workspace:GetServerTimeNow())
+        if remaining <= 0 then
+            warn("[POODLE DAYCARE] 🟢 Phát hiện Pet hết thời gian chờ, tiến hành Claim UID: " .. tostring(uid))
+            local success, err = pcall(function()
+                return Network.Invoke("Daycare: Claim", uid)
+            end)
+            if success then
+                print("[POODLE DAYCARE] ✅ Đã nhận thành công vật phẩm từ Pet UID: " .. tostring(uid))
+                task.wait(0.5)
+            else
+                warn("[POODLE DAYCARE] ❌ Lỗi Claim: " .. tostring(err))
+            end
+        end
+    end
+end
+
+local function EnrollBestPets()
+    local data = Save.Get()
+    if not data then return end
+    
+    local maxSlots = DaycareCmds.GetMaxSlots()
+    local usedSlots = DaycareCmds.GetUsedSlots()
+    local freeSlots = maxSlots - usedSlots
+
+    if freeSlots <= 0 then return end
+
+    local invPets = data.Inventory.Pet or {}
+    local equippedPets = {}
+    pcall(function()
+        local savedEquip = data.EquippedPets or {}
+        for _, uid in ipairs(savedEquip) do equippedPets[uid] = true end
+    end)
+    
+    local validPetsList = {}
+    for uid, pet in pairs(invPets) do
+        if not equippedPets[uid] and not pet.id:match("Huge") and not pet.id:match("Titanic") and not pet.l then
+            local score = 0
+            local hasRealMultiplier = false
+            
+            pcall(function()
+                local petObj = require(Lib.Directory.Pets)(pet.id)
+                local _, lootMultiplier = require(Lib.Balancing.DaycareLoot).ComputePetLootPool(game.Players.LocalPlayer, petObj)
+                if lootMultiplier then
+                    score = lootMultiplier
+                    hasRealMultiplier = true
+                end
+            end)
+            
+            if not hasRealMultiplier then
+                local rarityBonus = (pet.pt == 2 and 50) or (pet.pt == 1 and 20) or 0
+                local shinyBonus = pet.sh and 30 or 0
+                score = rarityBonus + shinyBonus + (pet.dmg or 0)
+            end
+            
+            table.insert(validPetsList, { uid = uid, amount = pet._am or 1, score = score, name = pet.id })
+        end
+    end
+
+    table.sort(validPetsList, function(a, b) return a.score > b.score end)
+
+    local petsToEnroll = {}
+    local slotsFilled = 0
+
+    for _, petData in ipairs(validPetsList) do
+        if slotsFilled >= freeSlots then break end
+        local takeAmount = math.min(petData.amount, freeSlots - slotsFilled)
+        if takeAmount > 0 then
+            petsToEnroll[petData.uid] = takeAmount
+            slotsFilled = slotsFilled + takeAmount
+            print("[POODLE DAYCARE] 📋 Lựa chọn phu: " .. tostring(petData.name) .. " x" .. tostring(takeAmount) .. " [Score: " .. tostring(petData.score) .. "]")
+        end
+    end
+
+    if slotsFilled > 0 then
+        warn("[POODLE DAYCARE] 🚀 Đang gửi gói tin gửi " .. slotsFilled .. " Pet vào Daycare...")
+        local success, err = pcall(function()
+            return Network.Invoke("Daycare: Enroll", petsToEnroll)
+        end)
+        if success then
+            print("[POODLE DAYCARE] ✅ Gửi Pet vào nhà trẻ thành công!")
+        else
+            warn("[POODLE DAYCARE] ❌ Gửi Thất Bại: " .. tostring(err))
+        end
+    end
 end
 
 -- ==============================================================
@@ -124,7 +284,8 @@ getgenv().v_settings = {
 
         AutoHatch = function()
             local mz = ZoneCmds.GetMaximumOverallZone()
-            if not mz then return end; local be = nil
+            if not mz then return end
+            local be = nil
             for _,e in pairs(EggsDirectory) do if e.eggNumber == mz.MaximumAvailableEgg then be = e._id break end end
             if be then Network.Invoke('Eggs_RequestPurchase', be, EggCmds.GetMaxHatch()) end
         end,
@@ -137,26 +298,32 @@ getgenv().v_settings = {
         end,
 
         AutoFruit = function()
-            local sv = Save.Get(); if not sv or not sv.Inventory.Fruit then return end
-            local ts = 20; pcall(function() local ml=FruitCmds.ComputeFruitQueueLimit(); if ml>0 then ts=ml end end)
-            local bf = {}; for u,d in pairs(sv.Inventory.Fruit) do if d.id and d.id~="Candycane" then local bi=d.id; if not bf[bi] then bf[bi]=u else local cd=sv.Inventory.Fruit[bf[bi]] if d.sh and not cd.sh then bf[bi]=u elseif d.sh==cd.sh and (d._am or 1)>(cd._am or 1) then bf[bi]=u end end end end
-            local af = {}; pcall(function() af=FruitCmds.GetActiveFruits() end)
+            local sv = Save.Get()
+            if not sv or not sv.Inventory.Fruit then return end
+            local ts = 20
+            pcall(function() local ml=FruitCmds.ComputeFruitQueueLimit(); if ml>0 then ts=ml end end)
+            local bf = {}
+            for u,d in pairs(sv.Inventory.Fruit) do if d.id and d.id~="Candycane" then local bi=d.id; if not bf[bi] then bf[bi]=u else local cd=sv.Inventory.Fruit[bf[bi]] if d.sh and not cd.sh then bf[bi]=u elseif d.sh==cd.sh and (d._am or 1)>(cd._am or 1) then bf[bi]=u end end end end
+            local af = {}
+            pcall(function() af=FruitCmds.GetActiveFruits() end)
             for fn,u in pairs(bf) do local c=0; local d=af and af[fn] if type(d)=="table" then if type(d.Normal)=="table" then for _ in pairs(d.Normal) do c=c+1 end end if type(d.Shiny)=="table" then for _ in pairs(d.Shiny) do c=c+1 end end end if c<ts then local ca=math.min(ts-c, sv.Inventory.Fruit[u]._am or 1) if ca>0 then pcall(function() Network.Fire("Fruits: Consume",u,ca) end); task.wait(0.2) end end end
         end,
 
         FastFarm = function()
             if InstancingCmds.GetInstanceID()=="TimeTrial" then return end
             local r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not r then return end; local t={}
+            if not r then return end
+            local t={}
             for _,b in ipairs(THINGS.Breakables:GetChildren()) do if b:IsA("Model") and b.PrimaryPart and (b.PrimaryPart.Position-r.Position).Magnitude<100 then table.insert(t,b.Name); if #t>=25 then break end end end
-            if #t>0 then for i=1,math.min(#t,8) do Network.UnreliableFire("Breakables_PlayerDealDamage",t[i]) end local m={}; for e,p in pairs(PlayerPet.GetAll()) do if p.owner==LocalPlayer then table.insert(m,e) end end if #m>0 then local bk={}; for i=1,#m do bk[m[i]]=t[((i-1)%#t)+1] end; Network.Fire("Breakables_JoinPetBulk",bk) end end
+            if #t>0 then for i=1,math.min(#t,8) do Network.UnreliableFire("Breakables_PlayerDealDamage",t[i]) end local m={} for e,p in pairs(PlayerPet.GetAll()) do if p.owner==LocalPlayer then table.insert(m,e) end end if #m>0 then local bk={} for i=1,#m do bk[m[i]]=t[((i-1)%#t)+1] end; Network.Fire("Breakables_JoinPetBulk",bk) end end
         end,
         
         AutoTimeTrial = function()
             if InstancingCmds.GetInstanceID() ~= "TimeTrial" then InstancingCmds.Enter("TimeTrial") else
                 local tiles = {Vector3.new(-18358.97,16.49,-557.41), Vector3.new(-18302.69,16.49,-699.98), Vector3.new(-18219.80,16.49,-601.27), Vector3.new(-18213.07,16.49,-453.58), Vector3.new(-18081.36,16.49,-482.34)}
                 local boss = Vector3.new(-18097.52,16.49,-659.96)
-                local hrp = LocalPlayer.Character.HumanoidRootPart; local cTile = 1
+                local hrp = LocalPlayer.Character.HumanoidRootPart
+                local cTile = 1
                 for i, pos in ipairs(tiles) do local c = 0; for _, b in ipairs(THINGS.Breakables:GetChildren()) do if b.PrimaryPart and (b.PrimaryPart.Position - pos).Magnitude <= 70 then c = c + 1 end end if c > 0 then cTile = i; break end end
                 if cTile <= #tiles then hrp.CFrame = CFrame.new(tiles[cTile]) + Vector3.new(0,3,0) else hrp.CFrame = CFrame.new(boss) + Vector3.new(0,3,0) end
             end
@@ -168,14 +335,12 @@ getgenv().v_settings = {
             local _, mx = ZoneCmds.GetMaxOwnedZone()
             local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if not mx or not hrp then return end
-            
             local currentWorld = WorldsUtil.GetWorld()
             if mx.WorldNumber and currentWorld and mx.WorldNumber ~= currentWorld.WorldNumber then
                 pcall(function() Network.Invoke("World" .. mx.WorldNumber .. "Teleport") end)
                 task.wait(4)
                 return
             end
-
             local zf = mx.ZoneFolder; local tp = nil
             if zf and zf:FindFirstChild("INTERACT") and zf.INTERACT:FindFirstChild("BREAKABLE_SPAWNS") then
                 local ms = zf.INTERACT.BREAKABLE_SPAWNS:FindFirstChild("Main") or zf.INTERACT.BREAKABLE_SPAWNS:GetChildren()[1]
@@ -186,7 +351,8 @@ getgenv().v_settings = {
         end,
 
         AutoLoot = function()
-            local bags = {}; for _,v in ipairs(THINGS.Lootbags:GetChildren()) do table.insert(bags, v.Name); v:Destroy() end
+            local bags = {}
+            for _,v in ipairs(THINGS.Lootbags:GetChildren()) do table.insert(bags, v.Name); v:Destroy() end
             if #bags > 0 then Network.Fire("Lootbags_Claim", bags) end
             for _,v in ipairs(THINGS.Orbs:GetChildren()) do Network.Fire("Orbs: Collect", {tonumber(v.Name)}); v:Destroy() end
         end,
@@ -203,15 +369,15 @@ getgenv().v_settings = {
     }
 }
 
--- Khôi phục cấu hình từ file
 getgenv().v_settings.functionToggles.SelectedLootbox = savedConfig.Dropdowns.SelectedLootbox
 getgenv().v_settings.functionToggles.SelectedGift = savedConfig.Dropdowns.SelectedGift
 getgenv().v_settings.functionToggles.SelectedFlag = savedConfig.Dropdowns.SelectedFlag
+getgenv().v_settings.functionToggles.SelectedWheel = savedConfig.Dropdowns.SelectedWheel or "No Wheel Tickets Found"
+getgenv().v_settings.functionToggles.SelectedKey = savedConfig.Dropdowns.SelectedKey or "All"
 
 -- ==============================================================
--- 🔄 AUTO START BACKGROUND LOOPS
+-- 🔄 KHỞI CHẠY VÒNG LẶP CHẠY NGẦM
 -- ==============================================================
-
 local LoopsToStart = {
     {Flag = "AutoTimeTrial", Func = getgenv().v_settings.functions.AutoTimeTrial, Wait = 1},
     {Flag = "AutoUnlock", Func = getgenv().v_settings.functions.AutoUnlock, Wait = 2},
@@ -238,111 +404,8 @@ for _, lData in ipairs(LoopsToStart) do
         end
     end)
 end
--- ==============================================================
--- 🔄 VÒNG LẶP CHẠY NGẦM: AUTO SPIN WHEEL
--- ==============================================================
--- Bảng quy đổi (Mapping) từ tên Vé trong kho sang Mã Remote của Game
-local WheelMap = {
-    ["Spinny Wheel Ticket"] = "StarterWheel",
-    ["Tech Spinny Wheel Ticket"] = "TechWheel",
-    ["Void Spinny Wheel Ticket"] = "VoidWheel",
-    ["Fantasy Spinny Wheel Ticket"] = "FantasyWheel"
-}
 
-task.spawn(function()
-    while task.wait(3) do
-        if getgenv().v_settings.functionToggles.AutoSpinWheel then
-            local sW = getgenv().v_settings.functionToggles.SelectedWheel
-            if sW and sW ~= "No Wheel Tickets Found" then
-                -- Chuyển đổi tên Vé thành mã Wheel ID để gửi lên server
-                local wheelID = WheelMap[sW] or "StarterWheel"
-                pcall(function()
-                    Network.Invoke("Spinny Wheel: Request Spin", wheelID)
-                end)
-            end
-        end
-    end
-end)
--- ==============================================================
--- 🔍 KEY SCANNERS & MATH (Bổ sung cho hệ thống ghép Key)
--- ==============================================================
-local function GetAvailableKeys()
-    local list = {"All"}
-    local inv = Save.Get().Inventory.Misc or {}
-    
-    for _, item in pairs(inv) do
-        -- Tìm các mảnh ghép có chữ "Half" (ví dụ: Crystal Key Lower Half)
-        if item.id and type(item.id) == "string" and item.id:match("Half") then
-            -- Cắt bỏ chữ " Lower Half" hoặc " Upper Half" để lấy tên gốc "Crystal Key"
-            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
-            if not table.find(list, baseName) then
-                table.insert(list, baseName)
-            end
-        end
-    end
-    return #list > 1 and list or {"No Keys Found"}
-end
-
-local function GetKeyCraftAmount(baseKeyName)
-    local inv = Save.Get().Inventory.Misc or {}
-    local lowerCount = 0
-    local upperCount = 0
-    
-    for _, item in pairs(inv) do
-        if item.id == baseKeyName .. " Lower Half" then
-            lowerCount = lowerCount + (item._am or 1)
-        elseif item.id == baseKeyName .. " Upper Half" then
-            upperCount = upperCount + (item._am or 1)
-        end
-    end
-    
-    -- Số lượng key ghép được tối đa phụ thuộc vào mảnh có số lượng ít nhất
-    return math.min(lowerCount, upperCount)
-end
-
-
--- ==============================================================
--- 🔍 HÀM QUÉT VÉ VÒNG QUAY (WHEEL TICKETS SCANNER)
--- ==============================================================
-local function GetAvailableWheels()
-    local list = {}
-    local inv = Save.Get().Inventory.Misc or {}
-    
-    for _, item in pairs(inv) do
-        -- Lọc các vật phẩm có chữ "Wheel Ticket" trong ID
-        if item.id and type(item.id) == "string" and item.id:match("Wheel Ticket") then
-            if not table.find(list, item.id) then
-                table.insert(list, item.id)
-            end
-        end
-    end
-    return #list > 0 and list or {"No Wheel Tickets Found"}
-end
-
--- ==============================================================
--- Hàm ẩn Object an toàn không gây lỗi Locked Parent
--- ==============================================================
-local function OptimizeVisual(child)
-    task.spawn(function()
-        -- Đợi 0.05s để game khởi tạo xong, tránh xung đột module Interact
-        task.wait(0.05)
-        pcall(function()
-            for _, v in ipairs(child:GetDescendants()) do
-                if v:IsA("BasePart") then
-                    v.Transparency = 1
-                    v.CanCollide = false
-                    v.CastShadow = false
-                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then
-                    v.Enabled = false
-                elseif v:IsA("Decal") or v:IsA("Texture") then
-                    v.Transparency = 1
-                end
-            end
-        end)
-    end)
-end
-
--- Khởi động VRT Optimize Breakables (Auto Load)
+-- Khởi động VRT Optimize Breakables (Auto Load - SAFE MODE)
 if getgenv().v_settings.functionToggles.OptimizeBreakables then
     getgenv().v_settings.OptimizeBreakablesConn = DEBRIS_FOLDER.ChildAdded:Connect(OptimizeVisual)
 end
@@ -374,6 +437,7 @@ task.spawn(function()
     end
 end)
 
+-- Vòng lặp mở Quà
 task.spawn(function()
     while task.wait(1.5) do
         if getgenv().v_settings.functionToggles.AutoOpenGift then
@@ -389,52 +453,61 @@ task.spawn(function()
     end
 end)
 
-if getgenv().v_settings.functionToggles.HideEgg or getgenv().v_settings.functionToggles.HookEgg then
-    pcall(getgenv().v_settings.functions.HandleEggAnimation)
-end
-
--- ==============================================================
--- 🔄 VÒNG LẶP CHẠY NGẦM: BATCH COMBINE KEYS (FIXED SPAM BATCH)
--- ==============================================================
+-- Vòng lặp Spin Wheel
+local WheelMap = { ["Spinny Wheel Ticket"] = "StarterWheel", ["Tech Spinny Wheel Ticket"] = "TechWheel", ["Void Spinny Wheel Ticket"] = "VoidWheel" }
 task.spawn(function()
-    while task.wait(0.5) do -- Chạy siêu nhanh mỗi 0.5 giây
+    while task.wait(3) do
+        if getgenv().v_settings.functionToggles.AutoSpinWheel then
+            local sW = getgenv().v_settings.functionToggles.SelectedWheel
+            if sW and sW ~= "No Wheel Tickets Found" then
+                local wheelID = WheelMap[sW] or "StarterWheel"
+                pcall(function() Network.Invoke("Spinny Wheel: Request Spin", wheelID) end)
+            end
+        end
+    end
+end)
+
+-- Vòng lặp Combine Key
+task.spawn(function()
+    while task.wait(0.5) do
         if getgenv().v_settings.functionToggles.AutoCombineKeys then
             local sK = getgenv().v_settings.functionToggles.SelectedKey
             if sK and sK ~= "No Keys Found" then
                 local keysToProcess = {}
-                
                 if sK == "All" then
                     local availKeys = GetAvailableKeys()
-                    for _, k in ipairs(availKeys) do
-                        if k ~= "All" and k ~= "No Keys Found" then
-                            table.insert(keysToProcess, k)
-                        end
-                    end
+                    for _, k in ipairs(availKeys) do if k ~= "All" and k ~= "No Keys Found" then table.insert(keysToProcess, k) end end
                 else
                     table.insert(keysToProcess, sK)
                 end
-                
                 for _, keyName in ipairs(keysToProcess) do
                     local craftAmount = GetKeyCraftAmount(keyName)
-                    
                     if craftAmount > 0 then
                         local remoteName = keyName:gsub(" ", "") .. "_Combine"
-                        
-                        -- Giới hạn ghép tối đa 25 lần mỗi chu kỳ để tránh bị server kick vì spam (Rate Limit)
                         local loops = math.min(craftAmount, 25) 
-                        
-                        for i = 1, loops do
-                            pcall(function()
-                                -- Bắn chính xác Argument là 1 theo đúng chuẩn của Game
-                                Network.Invoke(remoteName, 1)
-                            end)
-                        end
+                        for i = 1, loops do pcall(function() Network.Invoke(remoteName, 1) end) end
                     end
                 end
             end
         end
     end
 end)
+
+-- Vòng lặp Auto Daycare Ngầm
+task.spawn(function()
+    while task.wait(5) do
+        if getgenv().v_settings.functionToggles.AutoDaycare then
+            pcall(ClaimAllReadyPets)
+            task.wait(1)
+            pcall(EnrollBestPets)
+        end
+    end
+end)
+
+if getgenv().v_settings.functionToggles.HideEgg or getgenv().v_settings.functionToggles.HookEgg then
+    pcall(getgenv().v_settings.functions.HandleEggAnimation)
+end
+
 -- ==============================================================
 -- 🎨 RAYFIELD UI SETUP 
 -- ==============================================================
@@ -443,7 +516,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = 'Poodle Hub V3',
     LoadingTitle = 'Poodle Hub',
-    LoadingSubtitle = 'Debris Optimization Applied',
+    LoadingSubtitle = 'Memory & Layout Optimized',
     ConfigurationSaving = { Enabled = false }, 
     KeySystem = false
 })
@@ -566,9 +639,6 @@ TabOpen:CreateToggle({
 })
 
 TabOpen:CreateSection("Spinny Wheels")
-getgenv().v_settings.functionToggles.SelectedWheel = getgenv().v_settings.functionToggles.SelectedWheel or "No Wheel Tickets Found"
-getgenv().v_settings.functionToggles.AutoSpinWheel = getgenv().v_settings.functionToggles.AutoSpinWheel or false
-
 local DW = TabOpen:CreateDropdown({
     Name = "Select Wheel Ticket",
     Options = {"Loading..."}, 
@@ -595,9 +665,6 @@ TabOpen:CreateButton({
 
 -- [ĐÃ DI CHUYỂN VÀO TAB 3]
 TabOpen:CreateSection("Auto Combine Keys (Batch Mode)")
-getgenv().v_settings.functionToggles.SelectedKey = getgenv().v_settings.functionToggles.SelectedKey or "All"
-getgenv().v_settings.functionToggles.AutoCombineKeys = getgenv().v_settings.functionToggles.AutoCombineKeys or false
-
 local DK = TabOpen:CreateDropdown({
     Name = "Select Key to Combine",
     Options = {"Loading..."}, 
@@ -643,21 +710,28 @@ TabItem:CreateButton({
         pcall(function() DF:Refresh(GetAvailableFlags(), true) end) 
     end
 })
-
 CreateSmartToggle(TabItem, "Auto Place Flag", "AutoFlag")
 
--- ==============================================================
--- 🔄 Tự động làm mới danh sách UI khi Script vừa load xong
--- ==============================================================
-task.delay(2.5, function() 
-    if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
-    if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
-    if DF then pcall(function() DF:Refresh(GetAvailableFlags(), true) end) end
-    if DK then pcall(function() DK:Refresh(GetAvailableKeys(), true) end) end
-    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
-end)
+-- [TÍCH HỢP AUTO DAYCARE MỚI VÀO TAB 4]
+TabItem:CreateSection("Auto Daycare (Smart Selection)")
+TabItem:CreateButton({
+    Name = "📥 Claim All Ready Pets (Nhận tất cả)",
+    Callback = function() ClaimAllReadyPets() end
+})
+TabItem:CreateButton({
+    Name = "📤 Enroll Best Pets (Đưa pet tốt nhất vào)",
+    Callback = function() EnrollBestPets() end
+})
+TabItem:CreateToggle({
+    Name = "Auto Daycare System (Chạy ngầm liên tục)", 
+    CurrentValue = getgenv().v_settings.functionToggles.AutoDaycare, 
+    Flag = "ToggleAutoDaycare", 
+    Callback = function(state) getgenv().v_settings.functionToggles.AutoDaycare = state end
+})
 
+-- ==============================================================
 -- ⚙️ Tab 5: Settings
+-- ==============================================================
 local TabSet = Window:CreateTab("Settings", "settings")
 
 TabSet:CreateSection("Config Management")
@@ -671,63 +745,57 @@ TabSet:CreateButton({
 TabSet:CreateLabel("💡 The system will automatically start the saved features upon runtime..")
 
 TabSet:CreateSection("Player Controls")
-
--- Trượt Tốc Độ (Walk Speed)
 TabSet:CreateSlider({
     Name = "🏃 Walk Speed",
-    Range = {16, 150}, -- Tốc độ từ mặc định (16) đến 150
+    Range = {16, 150},
     Increment = 1,
     Suffix = "Speed",
     CurrentValue = 16,
     Flag = "WalkSpeedSlider",
     Callback = function(Value)
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.WalkSpeed = Value
-        end
+        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end
     end
 })
 
--- Xuyên Tường (Noclip)
 local NoclipConnection = nil
 TabSet:CreateToggle({
-    Name = "👻 Noclip", 
+    Name = "Ghost Noclip", 
     CurrentValue = false, 
     Flag = "NoclipToggle",
     Callback = function(state)
         if state then
-            -- Chạy liên tục mỗi khung hình để ép các bộ phận cơ thể không va chạm
             NoclipConnection = RunService.Stepped:Connect(function()
                 local char = LocalPlayer.Character
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then
-                            part.CanCollide = false
-                        end
+                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
                     end
                 end
             end)
         else
-            -- Tắt Noclip
-            if NoclipConnection then
-                NoclipConnection:Disconnect()
-                NoclipConnection = nil
-            end
+            if NoclipConnection then NoclipConnection:Disconnect(); NoclipConnection = nil end
         end
     end
 })
 
 TabSet:CreateSection("System")
-
--- Nút Rejoin Server
 TabSet:CreateButton({
     Name = "🔄 Rejoin Server",
     Callback = function()
-        local TeleportService = game:GetService("TeleportService")
-        -- Tự động tham gia lại chính xác server hiện tại
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end
 })
-
 CreateSmartToggle(TabSet, "Blackout Mode (FPS Boost)", "Blackout")
 CreateSmartToggle(TabSet, "Anti-AFK", "AntiAFK")
+
+-- ==============================================================
+-- 🔄 TỰ ĐỘNG KHỞI TẠO REFRESH DANH SÁCH DROPDOWN KHI VỪA LOAD SCRIPTS
+-- ==============================================================
+task.delay(2.5, function() 
+    if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
+    if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
+    if DF then pcall(function() DF:Refresh(GetAvailableFlags(), true) end) end
+    if DK then pcall(function() DK:Refresh(GetAvailableKeys(), true) end) end
+    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
+end)
