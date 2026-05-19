@@ -168,7 +168,7 @@ local function GetKeyCraftAmount(baseKeyName)
 end
 
 -- ==============================================================
--- 🏫 HỆ THỐNG LOGIC DAYCARE CORE & LOGGING
+-- 🏫 HỆ THỐNG LOGIC DAYCARE CORE (ĐÃ XÓA LOG & FIX CLAIM ALL)
 -- ==============================================================
 local function ClaimAllReadyPets()
     local data = Save.Get()
@@ -178,15 +178,12 @@ local function ClaimAllReadyPets()
     for uid, petData in pairs(daycareActive) do
         local remaining = DaycareCmds.ComputeRemainingTime(petData, workspace:GetServerTimeNow())
         if remaining <= 0 then
-            warn("[POODLE DAYCARE] 🟢 Phát hiện Pet hết thời gian chờ, tiến hành Claim UID: " .. tostring(uid))
-            local success, err = pcall(function()
-                return Network.Invoke("Daycare: Claim")
+            pcall(function()
+                -- Gửi lệnh Claim trống không cần truyền UID (Nhận tất cả)
+                Network.Invoke("Daycare: Claim")
             end)
-            if success then
-                task.wait(0.5)
-            else
-                warn("[POODLE DAYCARE] ❌ Error Claim: " .. tostring(err))
-            end
+            task.wait(0.5)
+            break -- Đã Claim All nên chỉ cần gọi 1 lần là đủ, thoát vòng lặp
         end
     end
 end
@@ -229,7 +226,7 @@ local function EnrollBestPets()
                 score = rarityBonus + shinyBonus + (pet.dmg or 0)
             end
             
-            table.insert(validPetsList, { uid = uid, amount = pet._am or 1, score = score, name = pet.id })
+            table.insert(validPetsList, { uid = uid, amount = pet._am or 1, score = score })
         end
     end
 
@@ -244,19 +241,13 @@ local function EnrollBestPets()
         if takeAmount > 0 then
             petsToEnroll[petData.uid] = takeAmount
             slotsFilled = slotsFilled + takeAmount
-         end
+        end
     end
 
     if slotsFilled > 0 then
-        warn("[POODLE DAYCARE] 🚀 " .. slotsFilled ..")
-        local success, err = pcall(function()
-            return Network.Invoke("Daycare: Enroll", petsToEnroll)
+        pcall(function()
+            Network.Invoke("Daycare: Enroll", petsToEnroll)
         end)
-        if success then
-            print("[POODLE DAYCARE] ✅!")
-        else
-            warn("[POODLE DAYCARE] ❌ " .. tostring(err))
-        end
     end
 end
 
