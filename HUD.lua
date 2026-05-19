@@ -47,7 +47,7 @@ local defaultToggles = {
     FastFarm = false, AutoTimeTrial = false, AutoUnlock = false, BestZone = false, AutoLoot = false,
     AutoHatch = false, HideEgg = false, HookEgg = false, AutoGold = false, AutoRainbow = false,
     AutoFruit = false, AutoCombine = false, AutoFlag = false, AutoUltimate = false, AutoMisc = false, ClaimRank = false,
-    Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
+    Blackout = false, AntiAFK = true, AutoOpenLootbox = false, AutoOpenGift = false,
     OptimizeBreakables = false, OptimizePets = false
 }
 
@@ -238,12 +238,113 @@ for _, lData in ipairs(LoopsToStart) do
         end
     end)
 end
+-- ==============================================================
+-- 🔄 VÒNG LẶP CHẠY NGẦM: AUTO SPIN WHEEL
+-- ==============================================================
+-- Bảng quy đổi (Mapping) từ tên Vé trong kho sang Mã Remote của Game
+local WheelMap = {
+    ["Spinny Wheel Ticket"] = "StarterWheel",
+    ["Tech Spinny Wheel Ticket"] = "TechWheel",
+    ["Void Spinny Wheel Ticket"] = "VoidWheel",
+    ["Fantasy Spinny Wheel Ticket"] = "FantasyWheel"
+}
+
+task.spawn(function()
+    while task.wait(3) do
+        if getgenv().v_settings.functionToggles.AutoSpinWheel then
+            local sW = getgenv().v_settings.functionToggles.SelectedWheel
+            if sW and sW ~= "No Wheel Tickets Found" then
+                -- Chuyển đổi tên Vé thành mã Wheel ID để gửi lên server
+                local wheelID = WheelMap[sW] or "StarterWheel"
+                pcall(function()
+                    Network.Invoke("Spinny Wheel: Request Spin", wheelID)
+                end)
+            end
+        end
+    end
+end)
+-- ==============================================================
+-- 🔍 KEY SCANNERS & MATH (Bổ sung cho hệ thống ghép Key)
+-- ==============================================================
+local function GetAvailableKeys()
+    local list = {"All"}
+    local inv = Save.Get().Inventory.Misc or {}
+    
+    for _, item in pairs(inv) do
+        -- Tìm các mảnh ghép có chữ "Half" (ví dụ: Crystal Key Lower Half)
+        if item.id and type(item.id) == "string" and item.id:match("Half") then
+            -- Cắt bỏ chữ " Lower Half" hoặc " Upper Half" để lấy tên gốc "Crystal Key"
+            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
+            if not table.find(list, baseName) then
+                table.insert(list, baseName)
+            end
+        end
+    end
+    return #list > 1 and list or {"No Keys Found"}
+end
+
+local function GetKeyCraftAmount(baseKeyName)
+    local inv = Save.Get().Inventory.Misc or {}
+    local lowerCount = 0
+    local upperCount = 0
+    
+    for _, item in pairs(inv) do
+        if item.id == baseKeyName .. " Lower Half" then
+            lowerCount = lowerCount + (item._am or 1)
+        elseif item.id == baseKeyName .. " Upper Half" then
+            upperCount = upperCount + (item._am or 1)
+        end
+    end
+    
+    -- Số lượng key ghép được tối đa phụ thuộc vào mảnh có số lượng ít nhất
+    return math.min(lowerCount, upperCount)
+end
+
+
+-- ==============================================================
+-- 🔍 HÀM QUÉT VÉ VÒNG QUAY (WHEEL TICKETS SCANNER)
+-- ==============================================================
+local function GetAvailableWheels()
+    local list = {}
+    local inv = Save.Get().Inventory.Misc or {}
+    
+    for _, item in pairs(inv) do
+        -- Lọc các vật phẩm có chữ "Wheel Ticket" trong ID
+        if item.id and type(item.id) == "string" and item.id:match("Wheel Ticket") then
+            if not table.find(list, item.id) then
+                table.insert(list, item.id)
+            end
+        end
+    end
+    return #list > 0 and list or {"No Wheel Tickets Found"}
+end
+
+-- ==============================================================
+-- Hàm ẩn Object an toàn không gây lỗi Locked Parent
+-- ==============================================================
+local function OptimizeVisual(child)
+    task.spawn(function()
+        -- Đợi 0.05s để game khởi tạo xong, tránh xung đột module Interact
+        task.wait(0.05)
+        pcall(function()
+            for _, v in ipairs(child:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Transparency = 1
+                    v.CanCollide = false
+                    v.CastShadow = false
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Fire") or v:IsA("Smoke") then
+                    v.Enabled = false
+                elseif v:IsA("Decal") or v:IsA("Texture") then
+                    v.Transparency = 1
+                end
+            end
+        end)
+    end)
+end
 
 -- Khởi động VRT Optimize Breakables (Auto Load)
 if getgenv().v_settings.functionToggles.OptimizeBreakables then
-    getgenv().v_settings.OptimizeBreakablesConn = DEBRIS_FOLDER.ChildAdded:Connect(function(child)
-        pcall(function() Debris:AddItem(child, 0) end)
-    end)
+    getgenv().v_settings.OptimizeBreakablesConn = DEBRIS_FOLDER.ChildAdded:Connect(OptimizeVisual)
 end
 
 -- Vòng lặp FastFarm
@@ -293,6 +394,48 @@ if getgenv().v_settings.functionToggles.HideEgg or getgenv().v_settings.function
 end
 
 -- ==============================================================
+-- 🔄 VÒNG LẶP CHẠY NGẦM: BATCH COMBINE KEYS (FIXED SPAM BATCH)
+-- ==============================================================
+task.spawn(function()
+    while task.wait(0.5) do -- Chạy siêu nhanh mỗi 0.5 giây
+        if getgenv().v_settings.functionToggles.AutoCombineKeys then
+            local sK = getgenv().v_settings.functionToggles.SelectedKey
+            if sK and sK ~= "No Keys Found" then
+                local keysToProcess = {}
+                
+                if sK == "All" then
+                    local availKeys = GetAvailableKeys()
+                    for _, k in ipairs(availKeys) do
+                        if k ~= "All" and k ~= "No Keys Found" then
+                            table.insert(keysToProcess, k)
+                        end
+                    end
+                else
+                    table.insert(keysToProcess, sK)
+                end
+                
+                for _, keyName in ipairs(keysToProcess) do
+                    local craftAmount = GetKeyCraftAmount(keyName)
+                    
+                    if craftAmount > 0 then
+                        local remoteName = keyName:gsub(" ", "") .. "_Combine"
+                        
+                        -- Giới hạn ghép tối đa 25 lần mỗi chu kỳ để tránh bị server kick vì spam (Rate Limit)
+                        local loops = math.min(craftAmount, 25) 
+                        
+                        for i = 1, loops do
+                            pcall(function()
+                                -- Bắn chính xác Argument là 1 theo đúng chuẩn của Game
+                                Network.Invoke(remoteName, 1)
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+-- ==============================================================
 -- 🎨 RAYFIELD UI SETUP 
 -- ==============================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -323,8 +466,11 @@ local function CreateSmartToggle(TabObj, ToggleName, FlagName)
     })
 end
 
+-- ==============================================================
 -- ⚔️ Tab 1: Main Farm
+-- ==============================================================
 local TabFarm = Window:CreateTab("Main Farm", "swords")
+
 TabFarm:CreateSection("Farming Controls")
 TabFarm:CreateToggle({
     Name = "Fast Farm (V8 Async)", 
@@ -339,17 +485,15 @@ CreateSmartToggle(TabFarm, "Auto Collect Lootbags & Orbs", "AutoLoot")
 
 TabFarm:CreateSection("Optimization")
 TabFarm:CreateToggle({
-    Name = "Optimize Breakables", 
+    Name = "Optimize Breakables (Safe Mode)", 
     CurrentValue = getgenv().v_settings.functionToggles["OptimizeBreakables"] or false, 
     Flag = "OptimizeBreakables",
     Callback = function(state) 
         getgenv().v_settings.functionToggles.OptimizeBreakables = state 
         if state then
             if not getgenv().v_settings.OptimizeBreakablesConn then
-                getgenv().v_settings.OptimizeBreakablesConn = DEBRIS_FOLDER.ChildAdded:Connect(function(child)
-                    pcall(function() Debris:AddItem(child, 0) end)
-                end)
-                for _, v in pairs(DEBRIS_FOLDER:GetChildren()) do pcall(function() v:Destroy() end) end
+                getgenv().v_settings.OptimizeBreakablesConn = DEBRIS_FOLDER.ChildAdded:Connect(OptimizeVisual)
+                for _, v in pairs(DEBRIS_FOLDER:GetChildren()) do OptimizeVisual(v) end
             end
         else
             if getgenv().v_settings.OptimizeBreakablesConn then
@@ -361,35 +505,28 @@ TabFarm:CreateToggle({
 })
 CreateSmartToggle(TabFarm, "Optimize Pets (Static/No Render)", "OptimizePets")
 
-TabFarm:CreateSection("Mastery & Slots")
-TabFarm:CreateButton({ Name = "Buy Pet Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyPetSlots() end })
-TabFarm:CreateButton({ Name = "Buy Egg Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyEggSlots() end })
+-- [ĐÃ DI CHUYỂN VÀO TAB 1]
+TabFarm:CreateSection("Auto Rewards & Ultimate")
+CreateSmartToggle(TabFarm, "Auto Use Ultimate", "AutoUltimate")
+CreateSmartToggle(TabFarm, "Auto Claim Free Gifts & Mailbox", "AutoMisc")
+CreateSmartToggle(TabFarm, "Auto Claim Rank Rewards", "ClaimRank")
 
+-- ==============================================================
 -- 🐾 Tab 2: Pets & Eggs
+-- ==============================================================
 local TabPet = Window:CreateTab("Pets & Eggs", "egg")
+
+TabPet:CreateSection("Hatching & Crafting")
 CreateSmartToggle(TabPet, "Auto Hatch Best Egg (Remote)", "AutoHatch")
 CreateSmartToggle(TabPet, "Hide Egg Animation", "HideEgg")
 CreateSmartToggle(TabPet, "Hook Egg Animation (Notify)", "HookEgg")
 CreateSmartToggle(TabPet, "Auto Craft Gold Pets", "AutoGold")
 CreateSmartToggle(TabPet, "Auto Craft Rainbow Pets", "AutoRainbow")
 
--- ==============================================================
--- 🔍 HÀM QUÉT VÉ VÒNG QUAY (WHEEL TICKETS SCANNER)
--- ==============================================================
-local function GetAvailableWheels()
-    local list = {}
-    local inv = Save.Get().Inventory.Misc or {}
-    
-    for _, item in pairs(inv) do
-        -- Lọc các vật phẩm có chữ "Wheel Ticket" trong ID
-        if item.id and type(item.id) == "string" and item.id:match("Wheel Ticket") then
-            if not table.find(list, item.id) then
-                table.insert(list, item.id)
-            end
-        end
-    end
-    return #list > 0 and list or {"No Wheel Tickets Found"}
-end
+-- [ĐÃ DI CHUYỂN VÀO TAB 2]
+TabPet:CreateSection("Mastery & Slots")
+TabPet:CreateButton({ Name = "Buy Pet Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyPetSlots() end })
+TabPet:CreateButton({ Name = "Buy Egg Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyEggSlots() end })
 
 -- ==============================================================
 -- 📦 Tab 3: Open Lootboxes
@@ -448,80 +585,40 @@ TabOpen:CreateToggle({
 })
 
 TabOpen:CreateButton({
-    Name = "🔄 Refresh All Inventory (Lootboxes, Gifts, Wheels)", 
+    Name = "🔄 Refresh Wheel/Lootbox Inventory", 
     Callback = function() 
-        DL:Refresh(GetAvailableLootboxes(), true)
-        DG:Refresh(GetAvailableGifts(), true) 
-        DW:Refresh(GetAvailableWheels(), true)
+        pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end)
+        pcall(function() DG:Refresh(GetAvailableGifts(), true) end) 
+        pcall(function() DW:Refresh(GetAvailableWheels(), true) end)
     end
 })
 
--- Tự động Refresh danh sách vé vòng quay khi load script
-task.delay(2.5, function()
-    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
-end)
+-- [ĐÃ DI CHUYỂN VÀO TAB 3]
+TabOpen:CreateSection("Auto Combine Keys (Batch Mode)")
+getgenv().v_settings.functionToggles.SelectedKey = getgenv().v_settings.functionToggles.SelectedKey or "All"
+getgenv().v_settings.functionToggles.AutoCombineKeys = getgenv().v_settings.functionToggles.AutoCombineKeys or false
 
--- ==============================================================
--- 🔄 VÒNG LẶP CHẠY NGẦM: AUTO SPIN WHEEL
--- ==============================================================
--- Bảng quy đổi (Mapping) từ tên Vé trong kho sang Mã Remote của Game
-local WheelMap = {
-    ["Spinny Wheel Ticket"] = "StarterWheel",
-    ["Tech Spinny Wheel Ticket"] = "TechWheel",
-    ["Void Spinny Wheel Ticket"] = "VoidWheel"
-}
+local DK = TabOpen:CreateDropdown({
+    Name = "Select Key to Combine",
+    Options = {"Loading..."}, 
+    CurrentOption = {getgenv().v_settings.functionToggles.SelectedKey},
+    Flag = "DropKey",
+    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedKey = Option[1] end
+})
 
-task.spawn(function()
-    while task.wait(3) do
-        if getgenv().v_settings.functionToggles.AutoSpinWheel then
-            local sW = getgenv().v_settings.functionToggles.SelectedWheel
-            if sW and sW ~= "No Wheel Tickets Found" then
-                -- Chuyển đổi tên Vé thành mã Wheel ID để gửi lên server
-                local wheelID = WheelMap[sW] or "StarterWheel"
-                pcall(function()
-                    Network.Invoke("Spinny Wheel: Request Spin", wheelID)
-                end)
-            end
-        end
+TabOpen:CreateToggle({
+    Name = "Auto Combine Keys (Max Speed)", 
+    CurrentValue = getgenv().v_settings.functionToggles.AutoCombineKeys, 
+    Flag = "ToggleCombineKeys", 
+    Callback = function(state) getgenv().v_settings.functionToggles.AutoCombineKeys = state end
+})
+
+TabOpen:CreateButton({
+    Name = "🔄 Refresh Keys", 
+    Callback = function() 
+        pcall(function() DK:Refresh(GetAvailableKeys(), true) end) 
     end
-end)
-
--- ==============================================================
--- 🔍 KEY SCANNERS & MATH (Bổ sung cho hệ thống ghép Key)
--- ==============================================================
-local function GetAvailableKeys()
-    local list = {"All"}
-    local inv = Save.Get().Inventory.Misc or {}
-    
-    for _, item in pairs(inv) do
-        -- Tìm các mảnh ghép có chữ "Half" (ví dụ: Crystal Key Lower Half)
-        if item.id and type(item.id) == "string" and item.id:match("Half") then
-            -- Cắt bỏ chữ " Lower Half" hoặc " Upper Half" để lấy tên gốc "Crystal Key"
-            local baseName = item.id:gsub(" Lower Half", ""):gsub(" Upper Half", "")
-            if not table.find(list, baseName) then
-                table.insert(list, baseName)
-            end
-        end
-    end
-    return #list > 1 and list or {"No Keys Found"}
-end
-
-local function GetKeyCraftAmount(baseKeyName)
-    local inv = Save.Get().Inventory.Misc or {}
-    local lowerCount = 0
-    local upperCount = 0
-    
-    for _, item in pairs(inv) do
-        if item.id == baseKeyName .. " Lower Half" then
-            lowerCount = lowerCount + (item._am or 1)
-        elseif item.id == baseKeyName .. " Upper Half" then
-            upperCount = upperCount + (item._am or 1)
-        end
-    end
-    
-    -- Số lượng key ghép được tối đa phụ thuộc vào mảnh có số lượng ít nhất
-    return math.min(lowerCount, upperCount)
-end
+})
 
 -- ==============================================================
 -- 🎒 Tab 4: Items & Events
@@ -532,32 +629,6 @@ TabItem:CreateSection("Auto Items")
 CreateSmartToggle(TabItem, "Smart Auto Fruit (Maintain Max Buffs)", "AutoFruit")
 CreateSmartToggle(TabItem, "Auto Combine Fantasy Presents", "AutoCombine")
 
-TabItem:CreateSection("Auto Combine Keys (Batch Mode)")
-getgenv().v_settings.functionToggles.SelectedKey = getgenv().v_settings.functionToggles.SelectedKey or "All"
-getgenv().v_settings.functionToggles.AutoCombineKeys = getgenv().v_settings.functionToggles.AutoCombineKeys or false
-
-local DK = TabItem:CreateDropdown({
-    Name = "Select Key to Combine",
-    Options = {"Loading..."}, 
-    CurrentOption = {getgenv().v_settings.functionToggles.SelectedKey},
-    Flag = "DropKey",
-    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedKey = Option[1] end
-})
-
-TabItem:CreateToggle({
-    Name = "Auto Combine Keys (Max Speed)", 
-    CurrentValue = getgenv().v_settings.functionToggles.AutoCombineKeys, 
-    Flag = "ToggleCombineKeys", 
-    Callback = function(state) getgenv().v_settings.functionToggles.AutoCombineKeys = state end
-})
-
-TabItem:CreateButton({
-    Name = "🔄 Refresh Keys", 
-    Callback = function() 
-        pcall(function() DK:Refresh(GetAvailableKeys(), true) end) 
-    end
-})
-
 TabItem:CreateSection("Flags & Events")
 local DF = TabItem:CreateDropdown({
     Name = "Select Flag", 
@@ -565,6 +636,7 @@ local DF = TabItem:CreateDropdown({
     CurrentOption = {getgenv().v_settings.functionToggles.SelectedFlag},
     Callback = function(Option) getgenv().v_settings.functionToggles.SelectedFlag = Option[1] end
 })
+
 TabItem:CreateButton({
     Name = "🔄 Refresh Flags", 
     Callback = function() 
@@ -572,61 +644,19 @@ TabItem:CreateButton({
     end
 })
 
--- Tự động làm mới danh sách khi Script vừa load xong
+CreateSmartToggle(TabItem, "Auto Place Flag", "AutoFlag")
+
+-- ==============================================================
+-- 🔄 Tự động làm mới danh sách UI khi Script vừa load xong
+-- ==============================================================
 task.delay(2.5, function() 
     if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
     if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
     if DF then pcall(function() DF:Refresh(GetAvailableFlags(), true) end) end
     if DK then pcall(function() DK:Refresh(GetAvailableKeys(), true) end) end
+    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
 end)
 
-CreateSmartToggle(TabItem, "Auto Place Flag", "AutoFlag")
-CreateSmartToggle(TabItem, "Auto Use Ultimate", "AutoUltimate")
-CreateSmartToggle(TabItem, "Auto Claim Free Gifts & Mailbox", "AutoMisc")
-CreateSmartToggle(TabItem, "Auto Claim Rank Rewards", "ClaimRank")
-
--- ==============================================================
--- 🔄 VÒNG LẶP CHẠY NGẦM: BATCH COMBINE KEYS (FIXED SPAM BATCH)
--- ==============================================================
-task.spawn(function()
-    while task.wait(0.5) do -- Chạy siêu nhanh mỗi 0.5 giây
-        if getgenv().v_settings.functionToggles.AutoCombineKeys then
-            local sK = getgenv().v_settings.functionToggles.SelectedKey
-            if sK and sK ~= "No Keys Found" then
-                local keysToProcess = {}
-                
-                if sK == "All" then
-                    local availKeys = GetAvailableKeys()
-                    for _, k in ipairs(availKeys) do
-                        if k ~= "All" and k ~= "No Keys Found" then
-                            table.insert(keysToProcess, k)
-                        end
-                    end
-                else
-                    table.insert(keysToProcess, sK)
-                end
-                
-                for _, keyName in ipairs(keysToProcess) do
-                    local craftAmount = GetKeyCraftAmount(keyName)
-                    
-                    if craftAmount > 0 then
-                        local remoteName = keyName:gsub(" ", "") .. "_Combine"
-                        
-                        -- Giới hạn ghép tối đa 25 lần mỗi chu kỳ để tránh bị server kick vì spam (Rate Limit)
-                        local loops = math.min(craftAmount, 25) 
-                        
-                        for i = 1, loops do
-                            pcall(function()
-                                -- Bắn chính xác Argument là 1 theo đúng chuẩn của Game
-                                Network.Invoke(remoteName, 1)
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
 -- ⚙️ Tab 5: Settings
 local TabSet = Window:CreateTab("Settings", "settings")
 
