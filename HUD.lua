@@ -21,7 +21,7 @@ local UltimateCmds = require(Lib.Client.UltimateCmds)
 local NotificationCmds = require(Lib.Client.NotificationCmds)
 local FruitCmds = require(Lib.Client.FruitCmds)
 local DaycareCmds = require(Lib.Client.DaycareCmds)
-local InventorySelect = require(Lib.Client.UI.InventorySelect) -- Khởi tạo Module UI
+local InventorySelect = require(Lib.Client.UI.InventorySelect)
 local WorldsUtil = require(Lib.Util.WorldsUtil)
 local EggsDirectory = require(Lib.Directory.Eggs)
 local FreeGiftsDirectory = require(Lib.Directory.FreeGifts)
@@ -51,7 +51,7 @@ local defaultToggles = {
     AutoFruit = false, AutoCombine = false, AutoFlag = false, AutoUltimate = false, AutoMisc = false, ClaimRank = false,
     Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
     OptimizeBreakables = false, OptimizePets = false, AutoSpinWheel = false, AutoCombineKeys = false,
-    AutoDaycare = false, AutoFuse = false -- Thêm trạng thái lưu cho Auto Fuse
+    AutoDaycare = false, AutoFuse = false
 }
 
 local savedConfig = { Toggles = {}, Dropdowns = { SelectedLootbox = "None", SelectedGift = "None", SelectedFlag = "None", SelectedWheel = "No Wheel Tickets Found", SelectedKey = "All" } }
@@ -523,23 +523,22 @@ if getgenv().v_settings.functionToggles.HideEgg or getgenv().v_settings.function
 end
 
 -- ==============================================================
--- 🎨 RAYFIELD UI SETUP 
+-- 🎨 ORION UI SETUP 
 -- ==============================================================
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/jensonhirst/Orion/refs/heads/main/source')))()
 
-local Window = Rayfield:CreateWindow({
-    Name = 'Poodle Hub V3',
-    LoadingTitle = 'Poodle Hub',
-    LoadingSubtitle = 'Memory & Layout Optimized',
-    ConfigurationSaving = { Enabled = false }, 
-    KeySystem = false
+local Window = OrionLib:MakeWindow({
+    Name = "Poodle Main Hub",
+    HidePremium = false,
+    SaveConfig =  true,
+    ConfigFolder = "PoodleHub",
+    IntroEnabled = true
 })
 
 local function CreateSmartToggle(TabObj, ToggleName, FlagName)
-    TabObj:CreateToggle({
-        Name = ToggleName, 
-        CurrentValue = getgenv().v_settings.functionToggles[FlagName] or false, 
-        Flag = FlagName,
+    TabObj:AddToggle({
+        Name = ToggleName,
+        Default = getgenv().v_settings.functionToggles[FlagName] or false,
         Callback = function(state)
             getgenv().v_settings.functionToggles[FlagName] = state
             if FlagName=="HideEgg" or FlagName=="HookEgg" then pcall(getgenv().v_settings.functions.HandleEggAnimation) end
@@ -556,13 +555,12 @@ end
 -- ==============================================================
 -- ⚔️ Tab 1: Main Farm
 -- ==============================================================
-local TabFarm = Window:CreateTab("Main Farm", "swords")
+local TabFarm = Window:MakeTab({Name = "Main Farm", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
-TabFarm:CreateSection("Farming Controls")
-TabFarm:CreateToggle({
-    Name = "Fast Farm (V8 Async)", 
-    CurrentValue = getgenv().v_settings.functionToggles["FastFarm"] or false, 
-    Flag = "FastFarm",
+TabFarm:AddLabel("--- Farming Controls ---")
+TabFarm:AddToggle({
+    Name = "Fast Farm (V8 Async)",
+    Default = getgenv().v_settings.functionToggles["FastFarm"] or false,
     Callback = function(state) getgenv().v_settings.functionToggles.FastFarm = state end
 })
 CreateSmartToggle(TabFarm, "Auto Time Trial (Per Tile)", "AutoTimeTrial")
@@ -570,12 +568,11 @@ CreateSmartToggle(TabFarm, "Auto Unlock Zone", "AutoUnlock")
 CreateSmartToggle(TabFarm, "Go To Best Zone (Center Map)", "BestZone")
 CreateSmartToggle(TabFarm, "Auto Collect Lootbags & Orbs", "AutoLoot")
 
-TabFarm:CreateSection("Optimization")
-TabFarm:CreateToggle({
-    Name = "Optimize Breakables (Safe Mode)", 
-    CurrentValue = getgenv().v_settings.functionToggles["OptimizeBreakables"] or false, 
-    Flag = "OptimizeBreakables",
-    Callback = function(state) 
+TabFarm:AddLabel("--- Optimization ---")
+TabFarm:AddToggle({
+    Name = "Optimize Breakables (Safe Mode)",
+    Default = getgenv().v_settings.functionToggles["OptimizeBreakables"] or false,
+    Callback = function(state)
         getgenv().v_settings.functionToggles.OptimizeBreakables = state 
         if state then
             if not getgenv().v_settings.OptimizeBreakablesConn then
@@ -592,7 +589,7 @@ TabFarm:CreateToggle({
 })
 CreateSmartToggle(TabFarm, "Optimize Pets (Static/No Render)", "OptimizePets")
 
-TabFarm:CreateSection("Auto Rewards & Ultimate")
+TabFarm:AddLabel("--- Auto Rewards & Ultimate ---")
 CreateSmartToggle(TabFarm, "Auto Use Ultimate", "AutoUltimate")
 CreateSmartToggle(TabFarm, "Auto Claim Free Gifts & Mailbox", "AutoMisc")
 CreateSmartToggle(TabFarm, "Auto Claim Rank Rewards", "ClaimRank")
@@ -600,74 +597,68 @@ CreateSmartToggle(TabFarm, "Auto Claim Rank Rewards", "ClaimRank")
 -- ==============================================================
 -- 🐾 Tab 2: Pets & Eggs
 -- ==============================================================
-local TabPet = Window:CreateTab("Pets & Eggs", "egg")
+local TabPet = Window:MakeTab({Name = "Pets & Eggs", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
-TabPet:CreateSection("Hatching & Crafting")
+TabPet:AddLabel("--- Hatching & Crafting ---")
 CreateSmartToggle(TabPet, "Auto Hatch Best Egg (Remote)", "AutoHatch")
 CreateSmartToggle(TabPet, "Hide Egg Animation", "HideEgg")
 CreateSmartToggle(TabPet, "Hook Egg Animation (Notify)", "HookEgg")
 CreateSmartToggle(TabPet, "Auto Craft Gold Pets", "AutoGold")
 CreateSmartToggle(TabPet, "Auto Craft Rainbow Pets", "AutoRainbow")
 
-TabPet:CreateSection("Mastery & Slots")
-TabPet:CreateButton({ Name = "Buy Pet Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyPetSlots() end })
-TabPet:CreateButton({ Name = "Buy Egg Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyEggSlots() end })
+TabPet:AddLabel("--- Mastery & Slots ---")
+TabPet:AddButton({ Name = "Buy Pet Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyPetSlots() end })
+TabPet:AddButton({ Name = "Buy Egg Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyEggSlots() end })
 
 -- ==============================================================
 -- 📦 Tab 3: Open Lootboxes
 -- ==============================================================
-local TabOpen = Window:CreateTab("Open Lootboxes", "package")
+local TabOpen = Window:MakeTab({Name = "Open Lootboxes", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
-TabOpen:CreateSection("Lootboxes (Max 8/tick)")
-local DL = TabOpen:CreateDropdown({
-    Name = "Select Lootbox", 
-    Options = {"Loading..."}, 
-    CurrentOption = {getgenv().v_settings.functionToggles.SelectedLootbox},
-    Flag = "DropLootbox", 
-    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedLootbox = Option[1] end
+TabOpen:AddLabel("--- Lootboxes (Max 8/tick) ---")
+local DL = TabOpen:AddDropdown({
+    Name = "Select Lootbox",
+    Default = getgenv().v_settings.functionToggles.SelectedLootbox or "Loading...",
+    Options = {"Loading..."},
+    Callback = function(Value) getgenv().v_settings.functionToggles.SelectedLootbox = Value end
 })
 
-TabOpen:CreateToggle({
-    Name = "Auto Open Lootbox", 
-    CurrentValue = getgenv().v_settings.functionToggles.AutoOpenLootbox, 
-    Flag = "ToggleOpenLootbox", 
+TabOpen:AddToggle({
+    Name = "Auto Open Lootbox",
+    Default = getgenv().v_settings.functionToggles.AutoOpenLootbox,
     Callback = function(state) getgenv().v_settings.functionToggles.AutoOpenLootbox = state end
 })
 
-TabOpen:CreateSection("GiftBags & Bundles (Max 100/tick)")
-local DG = TabOpen:CreateDropdown({
-    Name = "Select GiftBag/Bundle", 
-    Options = {"Loading..."}, 
-    CurrentOption = {getgenv().v_settings.functionToggles.SelectedGift},
-    Flag = "DropGift", 
-    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedGift = Option[1] end
+TabOpen:AddLabel("--- GiftBags & Bundles (Max 100/tick) ---")
+local DG = TabOpen:AddDropdown({
+    Name = "Select GiftBag/Bundle",
+    Default = getgenv().v_settings.functionToggles.SelectedGift or "Loading...",
+    Options = {"Loading..."},
+    Callback = function(Value) getgenv().v_settings.functionToggles.SelectedGift = Value end
 })
 
-TabOpen:CreateToggle({
-    Name = "Auto Open GiftBag/Bundle", 
-    CurrentValue = getgenv().v_settings.functionToggles.AutoOpenGift, 
-    Flag = "ToggleOpenGift", 
+TabOpen:AddToggle({
+    Name = "Auto Open GiftBag/Bundle",
+    Default = getgenv().v_settings.functionToggles.AutoOpenGift,
     Callback = function(state) getgenv().v_settings.functionToggles.AutoOpenGift = state end
 })
 
-TabOpen:CreateSection("Spinny Wheels")
-local DW = TabOpen:CreateDropdown({
+TabOpen:AddLabel("--- Spinny Wheels ---")
+local DW = TabOpen:AddDropdown({
     Name = "Select Wheel Ticket",
-    Options = {"Loading..."}, 
-    CurrentOption = {getgenv().v_settings.functionToggles.SelectedWheel},
-    Flag = "DropWheel",
-    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedWheel = Option[1] end
+    Default = getgenv().v_settings.functionToggles.SelectedWheel or "Loading...",
+    Options = {"Loading..."},
+    Callback = function(Value) getgenv().v_settings.functionToggles.SelectedWheel = Value end
 })
 
-TabOpen:CreateToggle({
+TabOpen:AddToggle({
     Name = "Auto Spin Wheel",
-    CurrentValue = getgenv().v_settings.functionToggles.AutoSpinWheel, 
-    Flag = "ToggleSpinWheel",
+    Default = getgenv().v_settings.functionToggles.AutoSpinWheel,
     Callback = function(state) getgenv().v_settings.functionToggles.AutoSpinWheel = state end
 })
 
-TabOpen:CreateButton({
-    Name = "🔄 Refresh Wheel/Lootbox Inventory", 
+TabOpen:AddButton({
+    Name = "Refresh Wheel/Lootbox Inventory",
     Callback = function() 
         pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end)
         pcall(function() DG:Refresh(GetAvailableGifts(), true) end) 
@@ -675,24 +666,22 @@ TabOpen:CreateButton({
     end
 })
 
-TabOpen:CreateSection("Auto Combine Keys (Batch Mode)")
-local DK = TabOpen:CreateDropdown({
+TabOpen:AddLabel("--- Auto Combine Keys (Batch Mode) ---")
+local DK = TabOpen:AddDropdown({
     Name = "Select Key to Combine",
-    Options = {"Loading..."}, 
-    CurrentOption = {getgenv().v_settings.functionToggles.SelectedKey},
-    Flag = "DropKey",
-    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedKey = Option[1] end
+    Default = getgenv().v_settings.functionToggles.SelectedKey or "Loading...",
+    Options = {"Loading..."},
+    Callback = function(Value) getgenv().v_settings.functionToggles.SelectedKey = Value end
 })
 
-TabOpen:CreateToggle({
-    Name = "Auto Combine Keys (Max Speed)", 
-    CurrentValue = getgenv().v_settings.functionToggles.AutoCombineKeys, 
-    Flag = "ToggleCombineKeys", 
+TabOpen:AddToggle({
+    Name = "Auto Combine Keys (Max Speed)",
+    Default = getgenv().v_settings.functionToggles.AutoCombineKeys,
     Callback = function(state) getgenv().v_settings.functionToggles.AutoCombineKeys = state end
 })
 
-TabOpen:CreateButton({
-    Name = "🔄 Refresh Keys", 
+TabOpen:AddButton({
+    Name = "Refresh Keys",
     Callback = function() 
         pcall(function() DK:Refresh(GetAvailableKeys(), true) end) 
     end
@@ -701,57 +690,51 @@ TabOpen:CreateButton({
 -- ==============================================================
 -- 🎒 Tab 4: Items & Events
 -- ==============================================================
-local TabItem = Window:CreateTab("Items & Events", "backpack")
+local TabItem = Window:MakeTab({Name = "Items & Events", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
-TabItem:CreateSection("Auto Items")
+TabItem:AddLabel("--- Auto Items ---")
 CreateSmartToggle(TabItem, "Smart Auto Fruit (Maintain Max Buffs)", "AutoFruit")
 CreateSmartToggle(TabItem, "Auto Combine Fantasy Presents", "AutoCombine")
 
-TabItem:CreateSection("Flags & Events")
-local DF = TabItem:CreateDropdown({
-    Name = "Select Flag", 
-    Options = {"Loading..."}, 
-    CurrentOption = {getgenv().v_settings.functionToggles.SelectedFlag},
-    Callback = function(Option) getgenv().v_settings.functionToggles.SelectedFlag = Option[1] end
+TabItem:AddLabel("--- Flags & Events ---")
+local DF = TabItem:AddDropdown({
+    Name = "Select Flag",
+    Default = getgenv().v_settings.functionToggles.SelectedFlag or "Loading...",
+    Options = {"Loading..."},
+    Callback = function(Value) getgenv().v_settings.functionToggles.SelectedFlag = Value end
 })
 
-TabItem:CreateButton({
-    Name = "🔄 Refresh Flags", 
+TabItem:AddButton({
+    Name = "Refresh Flags",
     Callback = function() 
         pcall(function() DF:Refresh(GetAvailableFlags(), true) end) 
     end
 })
 CreateSmartToggle(TabItem, "Auto Place Flag", "AutoFlag")
 
-TabItem:CreateSection("Auto Daycare (Smart Selection)")
-TabItem:CreateButton({
+TabItem:AddLabel("--- Auto Daycare (Smart Selection) ---")
+TabItem:AddButton({
     Name = "Claim All Ready Pets",
     Callback = function() ClaimAllReadyPets() end
 })
-TabItem:CreateButton({
+TabItem:AddButton({
     Name = "Enroll Best Pets",
     Callback = function() EnrollBestPets() end
 })
-TabItem:CreateToggle({
-    Name = "Auto Daycare System", 
-    CurrentValue = getgenv().v_settings.functionToggles.AutoDaycare, 
-    Flag = "ToggleAutoDaycare", 
+TabItem:AddToggle({
+    Name = "Auto Daycare System",
+    Default = getgenv().v_settings.functionToggles.AutoDaycare,
     Callback = function(state) getgenv().v_settings.functionToggles.AutoDaycare = state end
 })
 
 -- ==============================================================
 -- 🔥 Tab 5: Auto Fuse (TÍCH HỢP MỚI)
 -- ==============================================================
-local TabFuse = Window:CreateTab("Auto Fuse", "flame")
+local TabFuse = Window:MakeTab({Name = "Auto Fuse", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
--- Sử dụng CreateParagraph để tạo một khu vực hiển thị chữ to, rộng, chứa được toàn bộ danh sách Pet
-local SelectedPetsParagraph = TabFuse:CreateParagraph({
-    Title = "Selected Pets List",
-    Content = "Waiting for your pet selection..."
-})
+local SelectedPetsParagraph = TabFuse:AddParagraph("Selected Pets List", "Waiting for your pet selection...")
 
--- Nút mở UI nội bộ
-TabFuse:CreateButton({
+TabFuse:AddButton({
     Name = "Select Pets To Fuse",
     Callback = function()
         getgenv().v_settings.functionToggles.AutoFuse = false 
@@ -786,16 +769,15 @@ TabFuse:CreateButton({
                         elseif petInfo.pt == 2 then prefix = "Rainbow " end
                         if petInfo.sh then prefix = "Shiny " .. prefix end
                         
-                        displayString = displayString .. "• [" .. prefix .. pName .. "] x" .. tostring(amount) .. "\n"
+                        displayString = displayString .. "- [" .. prefix .. pName .. "] x" .. tostring(amount) .. "\n"
                         count = count + 1
                     end
                 end
                 
                 if count > 0 then
-                    -- Cập nhật nội dung Paragraph với danh sách Pet
-                    SelectedPetsParagraph:Set({Title = "Selected Pets List", Content = displayString})
+                    SelectedPetsParagraph:Set(displayString)
                 else
-                    SelectedPetsParagraph:Set({Title = "Selected Pets List", Content = "No valid pets selected."})
+                    SelectedPetsParagraph:Set("No valid pets selected.")
                     getgenv().v_settings.SelectedPetsForFuse = {}
                 end
             end
@@ -803,17 +785,14 @@ TabFuse:CreateButton({
     end
 })
 
--- Công tắc bật/tắt Auto Fuse ngầm
-local ToggleAutoFuse = TabFuse:CreateToggle({
-    Name = "Auto Fuse Selected Pets", 
-    CurrentValue = getgenv().v_settings.functionToggles.AutoFuse, 
-    Flag = "ToggleAutoFuse",
+local ToggleAutoFuse = TabFuse:AddToggle({
+    Name = "Auto Fuse Selected Pets",
+    Default = getgenv().v_settings.functionToggles.AutoFuse,
     Callback = function(state) 
         local hasSelection = false
         for _, _ in pairs(getgenv().v_settings.SelectedPetsForFuse) do hasSelection = true break end
         
         if state and not hasSelection then
-            -- Nếu chưa chọn Pet mà bật công tắc, âm thầm tự gạt công tắc về Tắt
             task.spawn(function()
                 task.wait(0.1)
                 ToggleAutoFuse:Set(false)
@@ -824,30 +803,27 @@ local ToggleAutoFuse = TabFuse:CreateToggle({
     end
 })
 
--- Vòng lặp chạy ngầm hệ thống Fuse (Không xuất log rác)
+-- Vòng lặp chạy ngầm hệ thống Fuse (CƠ CHẾ TUẦN TỰ & CHỜ PET)
 task.spawn(function()
     while task.wait(1.5) do
         if getgenv().v_settings.functionToggles.AutoFuse then
-            local payload = {}
-            local totalValidPets = 0
             local inventory = Save.Get().Inventory.Pet or {}
+            local payload = nil
             
             for uid, targetAmount in pairs(getgenv().v_settings.SelectedPetsForFuse) do
                 local curInv = inventory[uid]
-                if curInv and (curInv._am or 1) > 0 then
-                    local take = math.min(curInv._am or 1, targetAmount)
-                    payload[uid] = take
-                    totalValidPets = totalValidPets + take
+                local currentAmount = curInv and (curInv._am or 1) or 0
+                
+                if currentAmount >= targetAmount and targetAmount >= 3 then
+                    payload = {[uid] = targetAmount}
+                    break 
                 end
             end
             
-            if totalValidPets >= 3 then
+            if payload then
                 pcall(function()
                     Network.Invoke("FuseMachine_Activate", payload)
                 end)
-            else
-                getgenv().v_settings.functionToggles.AutoFuse = false
-                pcall(function() ToggleAutoFuse:Set(false) end)
             end
         end
     end
@@ -856,26 +832,27 @@ end)
 -- ==============================================================
 -- ⚙️ Tab 6: Settings
 -- ==============================================================
-local TabSet = Window:CreateTab("Settings", "settings")
+local TabSet = Window:MakeTab({Name = "Settings", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
-TabSet:CreateSection("Config Management")
-TabSet:CreateButton({
-    Name = "💾 Save File",
+TabSet:AddLabel("--- Config Management ---")
+TabSet:AddButton({
+    Name = "Save File",
     Callback = function() 
         SaveCurrentConfig()
-        Rayfield:Notify({Title="System", Content="Configuration saved to Phone Storage!", Duration=3})
+        OrionLib:MakeNotification({Name = "System", Content = "Configuration saved to Phone Storage!", Time = 3})
     end
 })
-TabSet:CreateLabel("💡 The system will automatically start the saved features upon runtime..")
+TabSet:AddLabel("The system will automatically start the saved features upon runtime..")
 
-TabSet:CreateSection("Player Controls")
-TabSet:CreateSlider({
-    Name = "🏃 Walk Speed",
-    Range = {16, 150},
+TabSet:AddLabel("--- Player Controls ---")
+TabSet:AddSlider({
+    Name = "Walk Speed",
+    Min = 16,
+    Max = 150,
+    Default = 16,
+    Color = Color3.fromRGB(255,255,255),
     Increment = 1,
-    Suffix = "Speed",
-    CurrentValue = 16,
-    Flag = "WalkSpeedSlider",
+    ValueName = "Speed",
     Callback = function(Value)
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = Value end
@@ -883,10 +860,9 @@ TabSet:CreateSlider({
 })
 
 local NoclipConnection = nil
-TabSet:CreateToggle({
-    Name = "Ghost Noclip", 
-    CurrentValue = false, 
-    Flag = "NoclipToggle",
+TabSet:AddToggle({
+    Name = "Ghost Noclip",
+    Default = false,
     Callback = function(state)
         if state then
             NoclipConnection = RunService.Stepped:Connect(function()
@@ -903,9 +879,9 @@ TabSet:CreateToggle({
     end
 })
 
-TabSet:CreateSection("System")
-TabSet:CreateButton({
-    Name = "🔄 Rejoin Server",
+TabSet:AddLabel("--- System ---")
+TabSet:AddButton({
+    Name = "Rejoin Server",
     Callback = function()
         game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end
@@ -923,3 +899,5 @@ task.delay(2.5, function()
     if DK then pcall(function() DK:Refresh(GetAvailableKeys(), true) end) end
     if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
 end)
+
+OrionLib:Init()
