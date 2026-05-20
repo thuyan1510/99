@@ -805,7 +805,7 @@ local ToggleAutoFuse = TabFuse:AddToggle({
 
 -- Vòng lặp chạy ngầm hệ thống Fuse (CƠ CHẾ TUẦN TỰ & CHỜ PET)
 task.spawn(function()
-    while task.wait(1.5) do
+    while task.wait(1) do
         if getgenv().v_settings.functionToggles.AutoFuse then
             local inventory = Save.Get().Inventory.Pet or {}
             local payload = nil
@@ -890,7 +890,7 @@ CreateSmartToggle(TabSet, "Blackout Mode (FPS Boost)", "Blackout")
 CreateSmartToggle(TabSet, "Anti-AFK", "AntiAFK")
 
 -- ==============================================================
--- 📱 NÚT BẤM NATIVE MOBILE V4 (CHỐNG TÀNG HÌNH & ÉP TO HOÀN TOÀN)
+-- 📱 NÚT BẤM NATIVE MOBILE (PHIÊN BẢN TỐI ƯU: CHÈN NGAY KHI UI SẴN SÀNG)
 -- ==============================================================
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -898,33 +898,14 @@ local RunService = game:GetService("RunService")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
-    warn("⏳ [POODLE HUB] Đang chờ UI game load để chèn nút...")
-    task.wait(6) 
-    
-    local templateButton = nil
+    local targetButtonName = "FreeGifts" -- Dùng nút FreeGifts làm mốc
     local parentContainer = nil
-    local buttonNamesToFind = {"FreeGifts", "AutoHatch", "Teleport", "Hoverboard", "Leagues"}
     
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled then
-            for _, name in ipairs(buttonNamesToFind) do
-                local found = gui:FindFirstChild(name, true)
-                if found and found:IsA("TextButton") and found.AbsoluteSize.X > 10 then
-                    templateButton = found
-                    parentContainer = found.Parent
-                    break
-                end
-            end
-        end
-        if templateButton then break end
-    end
-    
-    if templateButton and parentContainer then
-        warn("✅ [POODLE HUB] Đã tìm thấy vị trí chèn nút: " .. parentContainer.Name)
+    -- Hàm thực thi việc chèn nút
+    local function InjectButton(templateButton)
+        parentContainer = templateButton.Parent
         
-        if parentContainer:FindFirstChild("PoodleHubNative") then
-            parentContainer.PoodleHubNative:Destroy()
-        end
+        if parentContainer:FindFirstChild("PoodleHubNative") then return end
         
         local newBtn = templateButton:Clone()
         newBtn.Name = "PoodleHubNative"
@@ -937,50 +918,42 @@ task.spawn(function()
             end
         end
         
-        -- XỬ LÝ ẢNH HIỂN THỊ - Đã Fix To
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
-            iconTarget.Image = "rbxassetid://111923365293773" 
+            iconTarget.Image = "rbxassetid://111923365293773" -- ID mới của bạn
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
-            iconTarget.ImageTransparency = 0
-            
-            -- FIX LỖI SPRITESHEET & LÀM TO
             iconTarget.ImageRectOffset = Vector2.new(0, 0)
             iconTarget.ImageRectSize = Vector2.new(0, 0)
-            
-            -- ÉP ICON PHẢI TO RA
-            -- 1. Ép icon chiếm 100% diện tích parent
-            iconTarget.Size = UDim2.new(1, 0, 1, 0) 
-            iconTarget.Position = UDim2.new(0, 0, 0, 0)
-            
-            -- 2. Dùng Crop để ép ảnh lấp đầy khung, không bị méo
-            iconTarget.ScaleType = Enum.ScaleType.Crop 
-            
-            warn("🎉 [POODLE HUB] Đã áp dụng cơ chế ép to icon!")
+            iconTarget.ScaleType = Enum.ScaleType.Fit
         end
         
-        RunService.RenderStepped:Connect(function()
-            if newBtn and newBtn.Parent then newBtn.Visible = true end
-        end)
-        
-        newBtn.Parent = parentContainer
-        
         newBtn.MouseButton1Click:Connect(function()
-            warn("👆 Đã bấm nút Poodle Hub!")
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
             task.wait(0.05)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
         end)
         
-        local originalSize = templateButton.Size
-        newBtn.MouseButton1Down:Connect(function()
-            newBtn.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 4, originalSize.Y.Scale, originalSize.Y.Offset - 4)
+        newBtn.Parent = parentContainer
+    end
+
+    -- THEO DÕI VÀ CHÈN NGAY KHI NÚT GỐC XUẤT HIỆN
+    local function WatchForUI()
+        for _, gui in ipairs(PlayerGui:GetDescendants()) do
+            if gui.Name == targetButtonName and gui:IsA("TextButton") and gui.Visible then
+                InjectButton(gui)
+                return true
+            end
+        end
+        return false
+    end
+
+    -- Nếu chưa có nút, thì theo dõi khi nào nó xuất hiện
+    if not WatchForUI() then
+        PlayerGui.DescendantAdded:Connect(function(descendant)
+            if descendant.Name == targetButtonName and descendant:IsA("TextButton") then
+                task.wait(0.5) -- Đợi 1 chút cho game layout xong
+                InjectButton(descendant)
+            end
         end)
-        newBtn.MouseButton1Up:Connect(function() newBtn.Size = originalSize end)
-        newBtn.MouseLeave:Connect(function() newBtn.Size = originalSize end)
-        
-        warn("🎉 [POODLE HUB] CHÈN NÚT THÀNH CÔNG VÀO GAME!")
-    else
-        warn("❌ [POODLE HUB] KHÔNG TÌM THẤY UI ĐỂ CHÈN NÚT. VUI LÒNG KIỂM TRA LẠI!")
     end
 end)
