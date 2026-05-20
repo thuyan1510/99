@@ -911,7 +911,7 @@ local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
     warn("⏳ [POODLE HUB] Đang chờ UI game load để chèn nút...")
-    task.wait(2) 
+    task.wait(4) 
     
     local templateButton = nil
     local parentContainer = nil
