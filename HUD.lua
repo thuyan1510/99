@@ -902,28 +902,29 @@ end)
 
 OrionLib:Init()
 -- ==============================================================
--- 📱 NÚT BẤM NATIVE MOBILE (NGỤY TRANG VÀO UI GỐC CỦA GAME)
+-- 📱 NÚT BẤM NATIVE MOBILE V2 (CHỐNG BỊ GAME ẨN & BẢO VỆ HIỂN THỊ)
 -- ==============================================================
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
-    -- Chờ 5 giây để đảm bảo UI của game đã load xong hoàn toàn các nút
-    task.wait(5)
+    warn("⏳ [POODLE HUB] Đang chờ UI game load để chèn nút...")
+    task.wait(6) -- Đợi game load xong toàn bộ khung UI bên trái
     
     local templateButton = nil
     local parentContainer = nil
     
-    -- Danh sách các nút bên trái để tìm khu vực chứa nút gốc
-    local buttonNamesToFind = {"FreeGifts", "AutoHatch", "Leagues", "Teleport", "Hoverboard"}
+    -- Danh sách các nút bên trái để làm cột mốc
+    local buttonNamesToFind = {"FreeGifts", "AutoHatch", "Teleport", "Hoverboard", "Leagues"}
     
-    -- Quét tìm nút gốc để làm mẫu cấu trúc
+    -- Quét tìm nút gốc
     for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
+        if gui:IsA("ScreenGui") and gui.Enabled then
             for _, name in ipairs(buttonNamesToFind) do
                 local found = gui:FindFirstChild(name, true)
-                if found and found:IsA("TextButton") and found.Visible then
+                if found and found:IsA("TextButton") and found.AbsoluteSize.X > 10 then
                     templateButton = found
                     parentContainer = found.Parent
                     break
@@ -934,41 +935,63 @@ task.spawn(function()
     end
     
     if templateButton and parentContainer then
-        -- Xóa nút cũ nếu đã chạy script trước đó (tránh bị trùng lặp nút)
+        warn("✅ [POODLE HUB] Đã tìm thấy vị trí chèn nút: " .. parentContainer.Name)
+        
+        -- Dọn dẹp nút cũ nếu có
         if parentContainer:FindFirstChild("PoodleHubNative") then
             parentContainer.PoodleHubNative:Destroy()
         end
         
-        -- Nhân bản nút xịn của game
+        -- Tiến hành nhân bản
         local newBtn = templateButton:Clone()
         newBtn.Name = "PoodleHubNative"
-        newBtn.LayoutOrder = -999 -- Đặt thứ tự ưu tiên hiển thị đầu hàng
+        newBtn.LayoutOrder = -9999 -- Ép lên vị trí đầu tiên
+        newBtn.Visible = true
         
-        -- Dọn dẹp các thành phần đếm ngược thời gian hoặc nhãn thông báo cũ trên nút nhân bản
+        -- Xóa rác đếm ngược của game
         for _, child in ipairs(newBtn:GetChildren()) do
             if child.Name == "Timer" or child.Name == "Notification" or child.Name == "Lock" or child.Name == "Count" then
                 child:Destroy()
             end
         end
         
-        -- Thay đổi icon bên trong thành ID ảnh mong muốn của bạn
+        -- Đổi icon thành ảnh của bạn
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
             iconTarget.Image = "rbxassetid://111581960122149" 
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
+            iconTarget.ImageTransparency = 0
+            
+            -- Dự phòng: Nếu ảnh bị lỗi ID, thêm 1 chữ HUB mờ phía sau
+            local backupText = Instance.new("TextLabel")
+            backupText.Size = UDim2.new(1, 0, 1, 0)
+            backupText.BackgroundTransparency = 1
+            backupText.Text = "HUB"
+            backupText.Font = Enum.Font.GothamBold
+            backupText.TextColor3 = Color3.fromRGB(255, 255, 255)
+            backupText.TextTransparency = 0.5
+            backupText.TextScaled = true
+            backupText.Parent = iconTarget
         end
         
-        -- Đưa nút vào chung danh mục quản lý sắp xếp hàng dọc của game
+        -- 🛡️ LỚP PHÒNG THỦ: Ép hiển thị liên tục chống lại UI Manager của game
+        RunService.RenderStepped:Connect(function()
+            if newBtn and newBtn.Parent then
+                newBtn.Visible = true
+            end
+        end)
+        
         newBtn.Parent = parentContainer
         
-        -- Thiết lập cơ chế kích hoạt mở/ẩn menu Orion bằng RightShift ảo
+        -- Tương tác ẩn/hiện Orion
         newBtn.MouseButton1Click:Connect(function()
+            warn("👆 Đã bấm nút Poodle Hub!")
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
             task.wait(0.05)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
         end)
         
-        -- Tạo phản hồi tương tác co giãn nhún nút khi chạm vào màn hình điện thoại
+        -- Hiệu ứng nhún
         local originalSize = templateButton.Size
         newBtn.MouseButton1Down:Connect(function()
             newBtn.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 4, originalSize.Y.Scale, originalSize.Y.Offset - 4)
@@ -980,5 +1003,8 @@ task.spawn(function()
             newBtn.Size = originalSize
         end)
         
+        warn("🎉 [POODLE HUB] CHÈN NÚT THÀNH CÔNG VÀO GAME!")
+    else
+        warn("❌ [POODLE HUB] KHÔNG TÌM THẤY UI ĐỂ CHÈN NÚT. VUI LÒNG KIỂM TRA LẠI!")
     end
 end)
