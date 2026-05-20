@@ -901,3 +901,84 @@ task.delay(2.5, function()
 end)
 
 OrionLib:Init()
+-- ==============================================================
+-- 📱 NÚT BẤM NATIVE MOBILE (NGỤY TRANG VÀO UI GỐC CỦA GAME)
+-- ==============================================================
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+task.spawn(function()
+    -- Chờ 5 giây để đảm bảo UI của game đã load xong hoàn toàn các nút
+    task.wait(5)
+    
+    local templateButton = nil
+    local parentContainer = nil
+    
+    -- Danh sách các nút bên trái để tìm khu vực chứa nút gốc
+    local buttonNamesToFind = {"FreeGifts", "AutoHatch", "Leagues", "Teleport", "Hoverboard"}
+    
+    -- Quét tìm nút gốc để làm mẫu cấu trúc
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            for _, name in ipairs(buttonNamesToFind) do
+                local found = gui:FindFirstChild(name, true)
+                if found and found:IsA("TextButton") and found.Visible then
+                    templateButton = found
+                    parentContainer = found.Parent
+                    break
+                end
+            end
+        end
+        if templateButton then break end
+    end
+    
+    if templateButton and parentContainer then
+        -- Xóa nút cũ nếu đã chạy script trước đó (tránh bị trùng lặp nút)
+        if parentContainer:FindFirstChild("PoodleHubNative") then
+            parentContainer.PoodleHubNative:Destroy()
+        end
+        
+        -- Nhân bản nút xịn của game
+        local newBtn = templateButton:Clone()
+        newBtn.Name = "PoodleHubNative"
+        newBtn.LayoutOrder = -999 -- Đặt thứ tự ưu tiên hiển thị đầu hàng
+        
+        -- Dọn dẹp các thành phần đếm ngược thời gian hoặc nhãn thông báo cũ trên nút nhân bản
+        for _, child in ipairs(newBtn:GetChildren()) do
+            if child.Name == "Timer" or child.Name == "Notification" or child.Name == "Lock" or child.Name == "Count" then
+                child:Destroy()
+            end
+        end
+        
+        -- Thay đổi icon bên trong thành ID ảnh mong muốn của bạn
+        local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
+        if iconTarget and iconTarget:IsA("ImageLabel") then
+            iconTarget.Image = "rbxassetid://111581960122149" 
+            iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        end
+        
+        -- Đưa nút vào chung danh mục quản lý sắp xếp hàng dọc của game
+        newBtn.Parent = parentContainer
+        
+        -- Thiết lập cơ chế kích hoạt mở/ẩn menu Orion bằng RightShift ảo
+        newBtn.MouseButton1Click:Connect(function()
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
+            task.wait(0.05)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
+        end)
+        
+        -- Tạo phản hồi tương tác co giãn nhún nút khi chạm vào màn hình điện thoại
+        local originalSize = templateButton.Size
+        newBtn.MouseButton1Down:Connect(function()
+            newBtn.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 4, originalSize.Y.Scale, originalSize.Y.Offset - 4)
+        end)
+        newBtn.MouseButton1Up:Connect(function()
+            newBtn.Size = originalSize
+        end)
+        newBtn.MouseLeave:Connect(function()
+            newBtn.Size = originalSize
+        end)
+        
+    end
+end)
