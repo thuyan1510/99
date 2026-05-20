@@ -947,7 +947,7 @@ task.spawn(function()
         
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
-            iconTarget.Image = "rbxassetid://111581960122149" 
+            iconTarget.Image = "rbxassetid://111923365293773" 
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
             iconTarget.ImageTransparency = 0
             
