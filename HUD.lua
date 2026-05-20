@@ -901,21 +901,18 @@ task.delay(2.5, function()
 end)
 
 OrionLib:Init()
--- ==============================================================
--- 📱 NÚT BẤM NATIVE MOBILE V2 (ĐÃ FIX LỖI ẢNH TÀNG HÌNH)
--- ==============================================================
+
+-- MOBILE V3 
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
-    warn("⏳ [POODLE HUB] Đang chờ UI game load để chèn nút...")
-    task.wait(4) 
+    task.wait(6) 
     
     local templateButton = nil
     local parentContainer = nil
-    
     local buttonNamesToFind = {"FreeGifts", "AutoHatch", "Teleport", "Hoverboard", "Leagues"}
     
     for _, gui in ipairs(PlayerGui:GetChildren()) do
@@ -933,15 +930,13 @@ task.spawn(function()
     end
     
     if templateButton and parentContainer then
-        warn("✅ [POODLE HUB] Đã tìm thấy vị trí chèn nút: " .. parentContainer.Name)
-        
         if parentContainer:FindFirstChild("PoodleHubNative") then
             parentContainer.PoodleHubNative:Destroy()
         end
         
         local newBtn = templateButton:Clone()
         newBtn.Name = "PoodleHubNative"
-        newBtn.LayoutOrder = -9999 
+        newBtn.LayoutOrder = -9999
         newBtn.Visible = true
         
         for _, child in ipairs(newBtn:GetChildren()) do
@@ -950,39 +945,31 @@ task.spawn(function()
             end
         end
         
-        -- XỬ LÝ ẢNH HIỂN THỊ
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
-            iconTarget.Image = "rbxassetid://111923365293773" 
+            iconTarget.Image = "rbxassetid://111581960122149" 
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
             iconTarget.ImageTransparency = 0
             
-            -- 🛠️ FIX LỖI SPRITESHEET (Reset khung cắt ảnh của game)
+            -- FIX LỖI KÍCH THƯỚC & SPRITESHEET
             iconTarget.ImageRectOffset = Vector2.new(0, 0)
             iconTarget.ImageRectSize = Vector2.new(0, 0)
-            iconTarget.ScaleType = Enum.ScaleType.Fit -- Ép ảnh co giãn vừa vặn, không bị méo
+            iconTarget.ScaleType = Enum.ScaleType.Fit 
             
-            local backupText = Instance.new("TextLabel")
-            backupText.Size = UDim2.new(1, 0, 1, 0)
-            backupText.BackgroundTransparency = 1
-            backupText.Text = "HUB"
-            backupText.Font = Enum.Font.GothamBold
-            backupText.TextColor3 = Color3.fromRGB(255, 255, 255)
-            backupText.TextTransparency = 0.5
-            backupText.TextScaled = true
-            backupText.Parent = iconTarget
+            -- Tăng size cho icon bên trong nút để nó tràn đầy khung
+            iconTarget.Size = UDim2.new(0.8, 0, 0.8, 0) -- Chiếm 80% diện tích nút
+            iconTarget.Position = UDim2.new(0.1, 0, 0.1, 0)
+            
+            -- Xóa bỏ hoàn toàn backupText (chữ HUB mờ) tại đây
         end
         
         RunService.RenderStepped:Connect(function()
-            if newBtn and newBtn.Parent then
-                newBtn.Visible = true
-            end
+            if newBtn and newBtn.Parent then newBtn.Visible = true end
         end)
         
         newBtn.Parent = parentContainer
         
         newBtn.MouseButton1Click:Connect(function()
-            warn("👆 Đã bấm nút Poodle Hub!")
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
             task.wait(0.05)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
@@ -992,15 +979,7 @@ task.spawn(function()
         newBtn.MouseButton1Down:Connect(function()
             newBtn.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 4, originalSize.Y.Scale, originalSize.Y.Offset - 4)
         end)
-        newBtn.MouseButton1Up:Connect(function()
-            newBtn.Size = originalSize
-        end)
-        newBtn.MouseLeave:Connect(function()
-            newBtn.Size = originalSize
-        end)
-        
-        warn("🎉 [POODLE HUB] CHÈN NÚT THÀNH CÔNG VÀO GAME!")
-    else
-        warn("❌ [POODLE HUB] KHÔNG TÌM THẤY UI ĐỂ CHÈN NÚT. VUI LÒNG KIỂM TRA LẠI!")
+        newBtn.MouseButton1Up:Connect(function() newBtn.Size = originalSize end)
+        newBtn.MouseLeave:Connect(function() newBtn.Size = originalSize end)
     end
 end)
