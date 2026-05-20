@@ -21,6 +21,7 @@ local UltimateCmds = require(Lib.Client.UltimateCmds)
 local NotificationCmds = require(Lib.Client.NotificationCmds)
 local FruitCmds = require(Lib.Client.FruitCmds)
 local DaycareCmds = require(Lib.Client.DaycareCmds)
+local InventorySelect = require(Lib.Client.UI.InventorySelect) -- Khởi tạo Module UI
 local WorldsUtil = require(Lib.Util.WorldsUtil)
 local EggsDirectory = require(Lib.Directory.Eggs)
 local FreeGiftsDirectory = require(Lib.Directory.FreeGifts)
@@ -50,7 +51,7 @@ local defaultToggles = {
     AutoFruit = false, AutoCombine = false, AutoFlag = false, AutoUltimate = false, AutoMisc = false, ClaimRank = false,
     Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
     OptimizeBreakables = false, OptimizePets = false, AutoSpinWheel = false, AutoCombineKeys = false,
-    AutoDaycare = false
+    AutoDaycare = false, AutoFuse = false -- Thêm trạng thái lưu cho Auto Fuse
 }
 
 local savedConfig = { Toggles = {}, Dropdowns = { SelectedLootbox = "None", SelectedGift = "None", SelectedFlag = "None", SelectedWheel = "No Wheel Tickets Found", SelectedKey = "All" } }
@@ -82,7 +83,7 @@ local function SaveCurrentConfig()
 end
 
 -- ==============================================================
--- 🛠️ HÀM TỐI ƯU HÓA ĐỆ QUY (FIX LỖI MEMORY LEAK & LOCKED PARENT)
+-- 🛠️ HÀM TỐI ƯU HÓA ĐỆ QUY
 -- ==============================================================
 local function OptimizeVisual(child)
     task.spawn(function()
@@ -168,7 +169,7 @@ local function GetKeyCraftAmount(baseKeyName)
 end
 
 -- ==============================================================
--- 🏫 HỆ THỐNG LOGIC DAYCARE CORE (HOÀN THIỆN TỐI ƯU)
+-- 🏫 HỆ THỐNG LOGIC DAYCARE CORE
 -- ==============================================================
 local function FakeMachineInteraction()
     pcall(function()
@@ -279,6 +280,7 @@ end
 -- ==============================================================
 getgenv().v_settings = {
     functionToggles = savedConfig.Toggles,
+    SelectedPetsForFuse = {}, -- Bảng lưu trữ riêng cho hệ thống Fuse
     OptimizeBreakablesConn = nil,
     functions = {
         OptimizePets = function()
@@ -417,7 +419,7 @@ for _, lData in ipairs(LoopsToStart) do
     end)
 end
 
--- Khởi động VRT Optimize Breakables (Auto Load - SAFE MODE)
+-- Khởi động VRT Optimize Breakables
 if getgenv().v_settings.functionToggles.OptimizeBreakables then
     getgenv().v_settings.OptimizeBreakablesConn = DEBRIS_FOLDER.ChildAdded:Connect(OptimizeVisual)
 end
@@ -721,25 +723,138 @@ TabItem:CreateButton({
 })
 CreateSmartToggle(TabItem, "Auto Place Flag", "AutoFlag")
 
--- [TÍCH HỢP AUTO DAYCARE MỚI VÀO TAB 4]
 TabItem:CreateSection("Auto Daycare (Smart Selection)")
 TabItem:CreateButton({
-    Name = "📥 Claim All Ready Pets (Nhận tất cả)",
+    Name = "Claim All Ready Pets",
     Callback = function() ClaimAllReadyPets() end
 })
 TabItem:CreateButton({
-    Name = "📤 Enroll Best Pets (Đưa pet tốt nhất vào)",
+    Name = "Enroll Best Pets",
     Callback = function() EnrollBestPets() end
 })
 TabItem:CreateToggle({
-    Name = "Auto Daycare System (Chạy ngầm liên tục)", 
+    Name = "Auto Daycare System", 
     CurrentValue = getgenv().v_settings.functionToggles.AutoDaycare, 
     Flag = "ToggleAutoDaycare", 
     Callback = function(state) getgenv().v_settings.functionToggles.AutoDaycare = state end
 })
 
 -- ==============================================================
--- ⚙️ Tab 5: Settings
+-- 🔥 Tab 5: Auto Fuse (TÍCH HỢP MỚI)
+-- ==============================================================
+local TabFuse = Window:CreateTab("Auto Fuse", "flame")
+
+-- Sử dụng CreateParagraph để tạo một khu vực hiển thị chữ to, rộng, chứa được toàn bộ danh sách Pet
+local SelectedPetsParagraph = TabFuse:CreateParagraph({
+    Title = "Selected Pets List",
+    Content = "Waiting for your pet selection..."
+})
+
+-- Nút mở UI nội bộ
+TabFuse:CreateButton({
+    Name = "Select Pets To Fuse",
+    Callback = function()
+        getgenv().v_settings.functionToggles.AutoFuse = false 
+        
+        local config = {
+            SelectionMode = 3,
+            QuantityMode = 1,
+            MaxQuantity = 100,
+            ClassWhitelist = {"Pet"}
+        }
+        
+        local success, resultTable = pcall(function()
+            return { InventorySelect.Select(config) }
+        end)
+        
+        if success and resultTable then
+            local isConfirmed = resultTable[1]
+            local selections = resultTable[2]
+            
+            if isConfirmed == true and type(selections) == "table" then
+                getgenv().v_settings.SelectedPetsForFuse = selections
+                
+                local displayString = ""
+                local count = 0
+                
+                for uid, amount in pairs(selections) do
+                    local petInfo = Save.Get().Inventory.Pet[uid]
+                    if petInfo then
+                        local pName = petInfo.id
+                        local prefix = ""
+                        if petInfo.pt == 1 then prefix = "Golden "
+                        elseif petInfo.pt == 2 then prefix = "Rainbow " end
+                        if petInfo.sh then prefix = "Shiny " .. prefix end
+                        
+                        displayString = displayString .. "• [" .. prefix .. pName .. "] x" .. tostring(amount) .. "\n"
+                        count = count + 1
+                    end
+                end
+                
+                if count > 0 then
+                    -- Cập nhật nội dung Paragraph với danh sách Pet
+                    SelectedPetsParagraph:Set({Title = "Selected Pets List", Content = displayString})
+                else
+                    SelectedPetsParagraph:Set({Title = "Selected Pets List", Content = "No valid pets selected."})
+                    getgenv().v_settings.SelectedPetsForFuse = {}
+                end
+            end
+        end
+    end
+})
+
+-- Công tắc bật/tắt Auto Fuse ngầm
+local ToggleAutoFuse = TabFuse:CreateToggle({
+    Name = "Auto Fuse Selected Pets", 
+    CurrentValue = getgenv().v_settings.functionToggles.AutoFuse, 
+    Flag = "ToggleAutoFuse",
+    Callback = function(state) 
+        local hasSelection = false
+        for _, _ in pairs(getgenv().v_settings.SelectedPetsForFuse) do hasSelection = true break end
+        
+        if state and not hasSelection then
+            -- Nếu chưa chọn Pet mà bật công tắc, âm thầm tự gạt công tắc về Tắt
+            task.spawn(function()
+                task.wait(0.1)
+                ToggleAutoFuse:Set(false)
+            end)
+            return
+        end
+        getgenv().v_settings.functionToggles.AutoFuse = state
+    end
+})
+
+-- Vòng lặp chạy ngầm hệ thống Fuse (Không xuất log rác)
+task.spawn(function()
+    while task.wait(1.5) do
+        if getgenv().v_settings.functionToggles.AutoFuse then
+            local payload = {}
+            local totalValidPets = 0
+            local inventory = Save.Get().Inventory.Pet or {}
+            
+            for uid, targetAmount in pairs(getgenv().v_settings.SelectedPetsForFuse) do
+                local curInv = inventory[uid]
+                if curInv and (curInv._am or 1) > 0 then
+                    local take = math.min(curInv._am or 1, targetAmount)
+                    payload[uid] = take
+                    totalValidPets = totalValidPets + take
+                end
+            end
+            
+            if totalValidPets >= 3 then
+                pcall(function()
+                    Network.Invoke("FuseMachine_Activate", payload)
+                end)
+            else
+                getgenv().v_settings.functionToggles.AutoFuse = false
+                pcall(function() ToggleAutoFuse:Set(false) end)
+            end
+        end
+    end
+end)
+
+-- ==============================================================
+-- ⚙️ Tab 6: Settings
 -- ==============================================================
 local TabSet = Window:CreateTab("Settings", "settings")
 
