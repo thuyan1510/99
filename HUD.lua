@@ -890,25 +890,15 @@ CreateSmartToggle(TabSet, "Blackout Mode (FPS Boost)", "Blackout")
 CreateSmartToggle(TabSet, "Anti-AFK", "AntiAFK")
 
 -- ==============================================================
--- 🔄 TỰ ĐỘNG KHỞI TẠO REFRESH DANH SÁCH DROPDOWN KHI VỪA LOAD SCRIPTS
+-- 📱 NÚT BẤM NATIVE MOBILE V4 (CHỐNG TÀNG HÌNH & ÉP TO HOÀN TOÀN)
 -- ==============================================================
-task.delay(2.5, function() 
-    if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
-    if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
-    if DF then pcall(function() DF:Refresh(GetAvailableFlags(), true) end) end
-    if DK then pcall(function() DK:Refresh(GetAvailableKeys(), true) end) end
-    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
-end)
-
-OrionLib:Init()
-
--- MOBILE V3 
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
+    warn("⏳ [POODLE HUB] Đang chờ UI game load để chèn nút...")
     task.wait(6) 
     
     local templateButton = nil
@@ -930,6 +920,8 @@ task.spawn(function()
     end
     
     if templateButton and parentContainer then
+        warn("✅ [POODLE HUB] Đã tìm thấy vị trí chèn nút: " .. parentContainer.Name)
+        
         if parentContainer:FindFirstChild("PoodleHubNative") then
             parentContainer.PoodleHubNative:Destroy()
         end
@@ -945,22 +937,26 @@ task.spawn(function()
             end
         end
         
+        -- XỬ LÝ ẢNH HIỂN THỊ - Đã Fix To
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
             iconTarget.Image = "rbxassetid://111923365293773" 
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
             iconTarget.ImageTransparency = 0
             
-            -- FIX LỖI KÍCH THƯỚC & SPRITESHEET
+            -- FIX LỖI SPRITESHEET & LÀM TO
             iconTarget.ImageRectOffset = Vector2.new(0, 0)
             iconTarget.ImageRectSize = Vector2.new(0, 0)
-            iconTarget.ScaleType = Enum.ScaleType.Fit 
             
-            -- Tăng size cho icon bên trong nút để nó tràn đầy khung
-            iconTarget.Size = UDim2.new(0.8, 0, 0.8, 0) -- Chiếm 80% diện tích nút
-            iconTarget.Position = UDim2.new(0.1, 0, 0.1, 0)
+            -- ÉP ICON PHẢI TO RA
+            -- 1. Ép icon chiếm 100% diện tích parent
+            iconTarget.Size = UDim2.new(1, 0, 1, 0) 
+            iconTarget.Position = UDim2.new(0, 0, 0, 0)
             
-            -- Xóa bỏ hoàn toàn backupText (chữ HUB mờ) tại đây
+            -- 2. Dùng Crop để ép ảnh lấp đầy khung, không bị méo
+            iconTarget.ScaleType = Enum.ScaleType.Crop 
+            
+            warn("🎉 [POODLE HUB] Đã áp dụng cơ chế ép to icon!")
         end
         
         RunService.RenderStepped:Connect(function()
@@ -970,6 +966,7 @@ task.spawn(function()
         newBtn.Parent = parentContainer
         
         newBtn.MouseButton1Click:Connect(function()
+            warn("👆 Đã bấm nút Poodle Hub!")
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
             task.wait(0.05)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
@@ -981,5 +978,9 @@ task.spawn(function()
         end)
         newBtn.MouseButton1Up:Connect(function() newBtn.Size = originalSize end)
         newBtn.MouseLeave:Connect(function() newBtn.Size = originalSize end)
+        
+        warn("🎉 [POODLE HUB] CHÈN NÚT THÀNH CÔNG VÀO GAME!")
+    else
+        warn("❌ [POODLE HUB] KHÔNG TÌM THẤY UI ĐỂ CHÈN NÚT. VUI LÒNG KIỂM TRA LẠI!")
     end
 end)
