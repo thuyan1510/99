@@ -902,7 +902,7 @@ end)
 
 OrionLib:Init()
 -- ==============================================================
--- 📱 NÚT BẤM NATIVE MOBILE V2 (CHỐNG BỊ GAME ẨN & BẢO VỆ HIỂN THỊ)
+-- 📱 NÚT BẤM NATIVE MOBILE V2 (ĐÃ FIX LỖI ẢNH TÀNG HÌNH)
 -- ==============================================================
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -911,15 +911,13 @@ local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
     warn("⏳ [POODLE HUB] Đang chờ UI game load để chèn nút...")
-    task.wait(6) -- Đợi game load xong toàn bộ khung UI bên trái
+    task.wait(6) 
     
     local templateButton = nil
     local parentContainer = nil
     
-    -- Danh sách các nút bên trái để làm cột mốc
     local buttonNamesToFind = {"FreeGifts", "AutoHatch", "Teleport", "Hoverboard", "Leagues"}
     
-    -- Quét tìm nút gốc
     for _, gui in ipairs(PlayerGui:GetChildren()) do
         if gui:IsA("ScreenGui") and gui.Enabled then
             for _, name in ipairs(buttonNamesToFind) do
@@ -937,32 +935,33 @@ task.spawn(function()
     if templateButton and parentContainer then
         warn("✅ [POODLE HUB] Đã tìm thấy vị trí chèn nút: " .. parentContainer.Name)
         
-        -- Dọn dẹp nút cũ nếu có
         if parentContainer:FindFirstChild("PoodleHubNative") then
             parentContainer.PoodleHubNative:Destroy()
         end
         
-        -- Tiến hành nhân bản
         local newBtn = templateButton:Clone()
         newBtn.Name = "PoodleHubNative"
-        newBtn.LayoutOrder = -9999 -- Ép lên vị trí đầu tiên
+        newBtn.LayoutOrder = -9999 
         newBtn.Visible = true
         
-        -- Xóa rác đếm ngược của game
         for _, child in ipairs(newBtn:GetChildren()) do
             if child.Name == "Timer" or child.Name == "Notification" or child.Name == "Lock" or child.Name == "Count" then
                 child:Destroy()
             end
         end
         
-        -- Đổi icon thành ảnh của bạn
+        -- XỬ LÝ ẢNH HIỂN THỊ
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
             iconTarget.Image = "rbxassetid://111581960122149" 
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
             iconTarget.ImageTransparency = 0
             
-            -- Dự phòng: Nếu ảnh bị lỗi ID, thêm 1 chữ HUB mờ phía sau
+            -- 🛠️ FIX LỖI SPRITESHEET (Reset khung cắt ảnh của game)
+            iconTarget.ImageRectOffset = Vector2.new(0, 0)
+            iconTarget.ImageRectSize = Vector2.new(0, 0)
+            iconTarget.ScaleType = Enum.ScaleType.Fit -- Ép ảnh co giãn vừa vặn, không bị méo
+            
             local backupText = Instance.new("TextLabel")
             backupText.Size = UDim2.new(1, 0, 1, 0)
             backupText.BackgroundTransparency = 1
@@ -974,7 +973,6 @@ task.spawn(function()
             backupText.Parent = iconTarget
         end
         
-        -- 🛡️ LỚP PHÒNG THỦ: Ép hiển thị liên tục chống lại UI Manager của game
         RunService.RenderStepped:Connect(function()
             if newBtn and newBtn.Parent then
                 newBtn.Visible = true
@@ -983,7 +981,6 @@ task.spawn(function()
         
         newBtn.Parent = parentContainer
         
-        -- Tương tác ẩn/hiện Orion
         newBtn.MouseButton1Click:Connect(function()
             warn("👆 Đã bấm nút Poodle Hub!")
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightShift, false, game)
@@ -991,7 +988,6 @@ task.spawn(function()
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightShift, false, game)
         end)
         
-        -- Hiệu ứng nhún
         local originalSize = templateButton.Size
         newBtn.MouseButton1Down:Connect(function()
             newBtn.Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 4, originalSize.Y.Scale, originalSize.Y.Offset - 4)
