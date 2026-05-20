@@ -890,7 +890,7 @@ CreateSmartToggle(TabSet, "Blackout Mode (FPS Boost)", "Blackout")
 CreateSmartToggle(TabSet, "Anti-AFK", "AntiAFK")
 
 -- ==============================================================
--- 📱 NÚT BẤM NATIVE MOBILE (PHIÊN BẢN TỐI ƯU: CHÈN NGAY KHI UI SẴN SÀNG)
+-- 📱 NÚT BẤM NATIVE MOBILE (TỐI ƯU + TĂNG NHẸ KÍCH THƯỚC ẢNH)
 -- ==============================================================
 local Players = game:GetService("Players")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -925,6 +925,14 @@ task.spawn(function()
             iconTarget.ImageRectOffset = Vector2.new(0, 0)
             iconTarget.ImageRectSize = Vector2.new(0, 0)
             iconTarget.ScaleType = Enum.ScaleType.Fit
+            
+            -- 🔍 TĂNG KÍCH THƯỚC ẢNH TẠI ĐÂY
+            -- Đưa tâm ảnh về chính giữa để khi phóng to không bị lệch
+            iconTarget.AnchorPoint = Vector2.new(0.5, 0.5)
+            iconTarget.Position = UDim2.new(0.5, 0, 0.5, 0)
+            
+            -- Ép Size lên 1.2 (120%). Nếu bạn thấy vẫn hơi bé, có thể tự chỉnh thành 1.3 hoặc 1.4!
+            iconTarget.Size = UDim2.new(1.2, 0, 1.2, 0) 
         end
         
         newBtn.MouseButton1Click:Connect(function()
