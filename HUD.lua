@@ -29,8 +29,6 @@ local RanksDirectory = require(Lib.Directory.Ranks)
 local Items = require(Lib.Items)
 local LootboxCmds = require(Lib.Client.LootboxCmds)
 local CurrencyCmds = require(Lib.Client.CurrencyCmds)
-
--- [MỚI] Thêm thư viện Rebirth
 local RebirthCmds = require(Lib.Client.RebirthCmds)
 
 local THINGS = Workspace:WaitForChild("__THINGS")
@@ -123,6 +121,11 @@ local OriginalPlayEggAnimation = EggFrontend and EggFrontend.PlayEggAnimation or
 local OriginalPetSpeed = PlayerPet.CalculateSpeedMultiplier
 local OriginalSetTarget = PlayerPet.SetTarget
 
+-- [MỚI] HÀM KIỂM TRA WORLD HIỆN TẠI (Tích hợp từ AutoRank)
+local function GetCurrentWorldNumber() 
+    return WorldsUtil.GetWorld() and WorldsUtil.GetWorld().WorldNumber or 1 
+end
+
 -- ==============================================================
 -- 💾 HỆ THỐNG LƯU CONFIG
 -- ==============================================================
@@ -135,8 +138,6 @@ local defaultToggles = {
     Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
     OptimizeBreakables = false, OptimizePets = false, AutoSpinWheel = false, AutoCombineKeys = false,
     AutoDaycare = false, AutoFuse = false,
-    
-    -- [MỚI] Thêm cấu hình lưu cho các tính năng mới
     AutoRebirth = false, AutoPetSlots = false, AutoEggSlots = false
 }
 
@@ -379,7 +380,6 @@ getgenv().v_settings = {
             end)
         end,
 
-        -- [MỚI] Các hàm tự động mua Slot và Rebirth đã được đưa vào vòng lặp
         AutoPetSlots = function() 
             local purchased = Save.Get().PetSlotsPurchased or 0
             Network.Invoke("PetSlots_RequestPurchase", purchased + 1) 
@@ -398,6 +398,47 @@ getgenv().v_settings = {
             if nextRebirthData and maxZoneData.ZoneNumber >= nextRebirthData.ZoneNumberRequired then
                 Network.Invoke("Rebirth_Request", tostring(nextRebirthData.RebirthNumber))
             end
+        end,
+
+        -- [ĐÃ FIX] CHUYỂN WORLD KHI MUA MAP MỚI
+        AutoUnlock = function() 
+            local nxId, nxData = ZoneCmds.GetNextZone()
+            if not nxId or not nxData then return end
+            
+            local currentWorldNum = GetCurrentWorldNumber()
+            
+            -- Chuyển world nếu khu vực tiếp theo nằm ở world khác
+            if nxData.WorldNumber and nxData.WorldNumber ~= currentWorldNum then
+                pcall(function() Network.Invoke("World" .. nxData.WorldNumber .. "Teleport") end)
+                task.wait(4)
+                return
+            end
+            
+            Network.Invoke("Zones_RequestPurchase", nxId) 
+        end,
+        
+        -- [ĐÃ FIX] CHUYỂN WORLD KHI BẬT ĐI ĐẾN MAP CUỐI
+        BestZone = function()
+            local _, mx = ZoneCmds.GetMaxOwnedZone()
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not mx or not hrp then return end
+            
+            local currentWorldNum = GetCurrentWorldNumber()
+            
+            -- Chuyển world nếu Map mình đang sỡ hữu ở World khác
+            if mx.WorldNumber and mx.WorldNumber ~= currentWorldNum then
+                pcall(function() Network.Invoke("World" .. mx.WorldNumber .. "Teleport") end)
+                task.wait(4)
+                return
+            end
+            
+            local zf = mx.ZoneFolder; local tp = nil
+            if zf and zf:FindFirstChild("INTERACT") and zf.INTERACT:FindFirstChild("BREAKABLE_SPAWNS") then
+                local ms = zf.INTERACT.BREAKABLE_SPAWNS:FindFirstChild("Main") or zf.INTERACT.BREAKABLE_SPAWNS:GetChildren()[1]
+                if ms then tp = ms.CFrame end
+            end
+            if not tp and zf and zf:FindFirstChild("PERSISTENT") then tp = zf.PERSISTENT.Teleport.CFrame end
+            if tp and (hrp.Position - tp.Position).Magnitude > 20 then hrp.CFrame = tp + Vector3.new(0, 3, 0) end
         end,
 
         AutoHatch = function()
@@ -447,27 +488,6 @@ getgenv().v_settings = {
             end
         end,
         
-        AutoUnlock = function() local nx, _ = ZoneCmds.GetNextZone(); if nx then Network.Invoke("Zones_RequestPurchase", nx) end end,
-        
-        BestZone = function()
-            local _, mx = ZoneCmds.GetMaxOwnedZone()
-            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not mx or not hrp then return end
-            local currentWorld = WorldsUtil.GetWorld()
-            if mx.WorldNumber and currentWorld and mx.WorldNumber ~= currentWorld.WorldNumber then
-                pcall(function() Network.Invoke("World" .. mx.WorldNumber .. "Teleport") end)
-                task.wait(4)
-                return
-            end
-            local zf = mx.ZoneFolder; local tp = nil
-            if zf and zf:FindFirstChild("INTERACT") and zf.INTERACT:FindFirstChild("BREAKABLE_SPAWNS") then
-                local ms = zf.INTERACT.BREAKABLE_SPAWNS:FindFirstChild("Main") or zf.INTERACT.BREAKABLE_SPAWNS:GetChildren()[1]
-                if ms then tp = ms.CFrame end
-            end
-            if not tp and zf and zf:FindFirstChild("PERSISTENT") then tp = zf.PERSISTENT.Teleport.CFrame end
-            if tp and (hrp.Position - tp.Position).Magnitude > 20 then hrp.CFrame = tp + Vector3.new(0, 3, 0) end
-        end,
-
         AutoLoot = function()
             local bags = {}
             for _,v in ipairs(THINGS.Lootbags:GetChildren()) do table.insert(bags, v.Name); v:Destroy() end
@@ -514,7 +534,6 @@ local LoopsToStart = {
     {Flag = "AntiAFK", Func = getgenv().v_settings.functions.AntiAFK, Wait = 60},
     {Flag = "OptimizePets", Func = getgenv().v_settings.functions.OptimizePets, Wait = 0.5},
     
-    -- [MỚI] Vòng lặp cho các tính năng tự động mới
     {Flag = "AutoRebirth", Func = getgenv().v_settings.functions.AutoRebirth, Wait = 5},
     {Flag = "AutoPetSlots", Func = getgenv().v_settings.functions.AutoPetSlots, Wait = 5},
     {Flag = "AutoEggSlots", Func = getgenv().v_settings.functions.AutoEggSlots, Wait = 5}
@@ -674,7 +693,7 @@ TabFarm:AddToggle({
 })
 CreateSmartToggle(TabFarm, "Auto Time Trial (Per Tile)", "AutoTimeTrial")
 CreateSmartToggle(TabFarm, "Auto Unlock Zone", "AutoUnlock")
-CreateSmartToggle(TabFarm, "Auto Rebirth", "AutoRebirth") -- [MỚI] Tích hợp công tắc Auto Rebirth
+CreateSmartToggle(TabFarm, "Auto Rebirth", "AutoRebirth")
 CreateSmartToggle(TabFarm, "Go To Best Zone (Center Map)", "BestZone")
 CreateSmartToggle(TabFarm, "Auto Collect Lootbags & Orbs", "AutoLoot")
 
@@ -717,7 +736,6 @@ CreateSmartToggle(TabPet, "Auto Craft Gold Pets", "AutoGold")
 CreateSmartToggle(TabPet, "Auto Craft Rainbow Pets", "AutoRainbow")
 
 TabPet:AddLabel("--- Mastery & Slots ---")
--- [MỚI] Chuyển nút bấm thành công tắc (Toggle) để tự động mua slot ngầm
 CreateSmartToggle(TabPet, "Auto Buy Pet Slots", "AutoPetSlots")
 CreateSmartToggle(TabPet, "Auto Buy Egg Slots", "AutoEggSlots")
 
@@ -1021,10 +1039,9 @@ local RunService = game:GetService("RunService")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 task.spawn(function()
-    local targetButtonName = "FreeGifts" -- Dùng nút FreeGifts làm mốc
+    local targetButtonName = "FreeGifts" 
     local parentContainer = nil
     
-    -- Hàm thực thi việc chèn nút
     local function InjectButton(templateButton)
         parentContainer = templateButton.Parent
         
@@ -1043,7 +1060,7 @@ task.spawn(function()
         
         local iconTarget = newBtn:FindFirstChild("Thumbnail") or newBtn:FindFirstChild("Icon")
         if iconTarget and iconTarget:IsA("ImageLabel") then
-            iconTarget.Image = "rbxassetid://111923365293773" -- ID mới của bạn
+            iconTarget.Image = "rbxassetid://111923365293773" 
             iconTarget.ImageColor3 = Color3.fromRGB(255, 255, 255)
             iconTarget.ImageRectOffset = Vector2.new(0, 0)
             iconTarget.ImageRectSize = Vector2.new(0, 0)
@@ -1064,7 +1081,6 @@ task.spawn(function()
         newBtn.Parent = parentContainer
     end
 
-    -- THEO DÕI VÀ CHÈN NGAY KHI NÚT GỐC XUẤT HIỆN
     local function WatchForUI()
         for _, gui in ipairs(PlayerGui:GetDescendants()) do
             if gui.Name == targetButtonName and gui:IsA("TextButton") and gui.Visible then
@@ -1075,11 +1091,10 @@ task.spawn(function()
         return false
     end
 
-    -- Nếu chưa có nút, thì theo dõi khi nào nó xuất hiện
     if not WatchForUI() then
         PlayerGui.DescendantAdded:Connect(function(descendant)
             if descendant.Name == targetButtonName and descendant:IsA("TextButton") then
-                task.wait(0.5) -- Đợi 1 chút cho game layout xong
+                task.wait(0.5) 
                 InjectButton(descendant)
             end
         end)
